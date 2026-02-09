@@ -1,0 +1,19 @@
+project_id = "hnjgnewfxmxbzvdgmigy"
+
+[functions.ask]
+verify_jwt = false
+
+[functions.embed-sections]
+verify_jwt = false
+
+[functions.transcribe]
+verify_jwt = false
+
+[functions.realtime-voice]
+verify_jwt = false
+
+[functions.realtime-session]
+verify_jwt = false
+
+[functions.realtime-search]
+verify_jwt = false

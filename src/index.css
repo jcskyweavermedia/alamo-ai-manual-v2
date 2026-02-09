@@ -1,0 +1,391 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+   ALAMO PRIME AI RESTAURANT OPS — DESIGN TOKEN SYSTEM
+   Based on: docs/design-specs.md
+   
+   Philosophy: Neutral-first with calm Indigo accent. iOS-like feel.
+   All colors MUST be HSL.
+============================================================================= */
+
+@layer base {
+  :root {
+    /* -------------------------------------------------------------------------
+       CORE NEUTRALS — Light Mode
+       From design-specs.md: Neutral surfaces dominate (80-90% of UI)
+    ------------------------------------------------------------------------- */
+    --background: 240 10% 98%;              /* #F7F7FA - Canvas */
+    --foreground: 240 10% 7%;               /* #111114 - Primary Text */
+    
+    --card: 0 0% 100%;                      /* #FFFFFF - Surface */
+    --card-foreground: 240 10% 7%;
+    
+    --popover: 0 0% 100%;                   /* #FFFFFF - Elevated Surface */
+    --popover-foreground: 240 10% 7%;
+    
+    /* -------------------------------------------------------------------------
+       TEXT HIERARCHY
+    ------------------------------------------------------------------------- */
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 38%;         /* #5A5A66 - Secondary Text */
+    --tertiary-foreground: 240 4% 55%;      /* #8A8A96 - Tertiary/Hint Text */
+    
+    /* -------------------------------------------------------------------------
+       BORDERS & DIVIDERS
+    ------------------------------------------------------------------------- */
+    --border: 240 6% 90%;                   /* #E6E6EB - Hairline */
+    --input: 240 6% 90%;
+    
+    /* -------------------------------------------------------------------------
+       BRAND ACCENT — Apple System Indigo
+       Premium, educational, iOS-native feel
+    ------------------------------------------------------------------------- */
+    --primary: 245 58% 65%;                 /* #6155F5 - Apple System Indigo (Light) */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 245 58% 57%;           /* Pressed state */
+    
+    /* -------------------------------------------------------------------------
+       SECONDARY & ACCENT
+    ------------------------------------------------------------------------- */
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 7%;
+    
+    --accent: 240 5% 96%;
+    --accent-foreground: 245 58% 65%;       /* Accent text uses primary */
+    
+    /* -------------------------------------------------------------------------
+       SEMANTIC COLORS — Status (from design-specs.md)
+       "Restrained, avoid neon saturation, ensure contrast"
+    ------------------------------------------------------------------------- */
+    --success: 142 76% 36%;                 /* #16A34A */
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;                  /* #F59E0B */
+    --warning-foreground: 0 0% 0%;
+    
+    --destructive: 0 72% 51%;               /* #DC2626 - Error (light mode) */
+    --destructive-foreground: 0 0% 100%;
+    
+    --info: 245 58% 65%;                    /* Uses accent */
+    --info-foreground: 0 0% 100%;
+    
+    /* -------------------------------------------------------------------------
+       FOCUS RING
+    ------------------------------------------------------------------------- */
+    --ring: 245 58% 65%;
+    
+    /* -------------------------------------------------------------------------
+       RADIUS (from design-specs.md)
+    ------------------------------------------------------------------------- */
+    --radius: 0.875rem;                     /* 14px - Buttons/Inputs */
+    --radius-card: 1rem;                    /* 16px - Cards */
+    --radius-full: 9999px;                  /* Pills/Chips */
+    
+    /* -------------------------------------------------------------------------
+       SHADOWS / ELEVATION (from design-specs.md)
+       "Use minimal, soft shadows"
+    ------------------------------------------------------------------------- */
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-elevated: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    --shadow-floating: 0 10px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06);
+    
+    /* -------------------------------------------------------------------------
+       SIDEBAR (using design system tokens)
+    ------------------------------------------------------------------------- */
+    --sidebar-background: 240 10% 98%;
+    --sidebar-foreground: 240 10% 7%;
+    --sidebar-primary: 245 58% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 96%;
+    --sidebar-accent-foreground: 245 58% 65%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 245 58% 65%;
+  }
+
+  /* ===========================================================================
+     DARK MODE
+     From design-specs.md: "Rely more on contrast than shadow"
+  =========================================================================== */
+  .dark {
+    /* -------------------------------------------------------------------------
+       CORE NEUTRALS — Dark Mode
+    ------------------------------------------------------------------------- */
+    --background: 240 10% 4%;               /* #0B0B0D - Canvas (near-black, not pure) */
+    --foreground: 240 5% 96%;               /* #F5F5F7 - Primary Text */
+    
+    --card: 240 10% 8%;                     /* #141418 - Surface */
+    --card-foreground: 240 5% 96%;
+    
+    --popover: 240 10% 11%;                 /* #1C1C22 - Elevated Surface */
+    --popover-foreground: 240 5% 96%;
+    
+    /* -------------------------------------------------------------------------
+       TEXT HIERARCHY
+    ------------------------------------------------------------------------- */
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 72%;         /* #B7B7C2 - Secondary Text */
+    --tertiary-foreground: 240 5% 57%;      /* #8D8D99 - Tertiary/Hint Text */
+    
+    /* -------------------------------------------------------------------------
+       BORDERS & DIVIDERS
+    ------------------------------------------------------------------------- */
+    --border: 240 5% 18%;                   /* #2A2A33 */
+    --input: 240 5% 18%;
+    
+    /* -------------------------------------------------------------------------
+       BRAND ACCENT — Apple System Indigo (Dark Mode)
+    ------------------------------------------------------------------------- */
+    --primary: 230 100% 71%;                /* #6D7CFF - Apple System Indigo (Dark) */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 230 100% 63%;
+    
+    /* -------------------------------------------------------------------------
+       SECONDARY & ACCENT
+    ------------------------------------------------------------------------- */
+    --secondary: 240 5% 15%;
+    --secondary-foreground: 240 5% 96%;
+    
+    --accent: 240 5% 15%;
+    --accent-foreground: 230 100% 71%;
+    
+    /* -------------------------------------------------------------------------
+       SEMANTIC COLORS — Brighter for dark mode (from design-specs.md)
+    ------------------------------------------------------------------------- */
+    --success: 142 71% 45%;                 /* #22C55E */
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 43 96% 56%;                  /* #FBBF24 */
+    --warning-foreground: 0 0% 0%;
+    
+    --destructive: 0 84% 60%;               /* #EF4444 - Error (dark mode) */
+    --destructive-foreground: 0 0% 100%;
+    
+    --info: 230 100% 71%;
+    --info-foreground: 0 0% 100%;
+    
+    /* -------------------------------------------------------------------------
+       FOCUS RING
+    ------------------------------------------------------------------------- */
+    --ring: 230 100% 71%;
+    
+    /* -------------------------------------------------------------------------
+       SHADOWS — Rely more on contrast + borders in dark mode
+    ------------------------------------------------------------------------- */
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-elevated: 0 4px 12px -2px rgb(0 0 0 / 0.4);
+    --shadow-floating: 0 10px 24px -4px rgb(0 0 0 / 0.5);
+    
+    /* Dark mode card border (spec: 1px divider at ~50% opacity) */
+    --card-border: 240 5% 18% / 0.5;
+    
+    /* -------------------------------------------------------------------------
+       SIDEBAR
+    ------------------------------------------------------------------------- */
+    --sidebar-background: 240 10% 4%;
+    --sidebar-foreground: 240 5% 96%;
+    --sidebar-primary: 230 100% 71%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 15%;
+    --sidebar-accent-foreground: 230 100% 71%;
+    --sidebar-border: 240 5% 18%;
+    --sidebar-ring: 230 100% 71%;
+  }
+}
+
+/* =============================================================================
+   BASE STYLES
+============================================================================= */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  /* Typography base - SF Pro / System font stack (from design-specs.md) */
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  
+  /* Monospace for SOP codes, temps, timers (from design-specs.md) */
+  code, kbd, pre, samp {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+/* =============================================================================
+   UTILITY CLASSES
+============================================================================= */
+
+@layer utilities {
+  /* Text hierarchy utilities */
+  .text-tertiary {
+    color: hsl(var(--tertiary-foreground));
+  }
+  
+  /* Primary subtle fill (10-14% opacity for pills/chips) */
+  .bg-primary-subtle {
+    background-color: hsl(var(--primary) / 0.12);
+  }
+  
+  /* Shadow utilities */
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+  
+  .shadow-floating {
+    box-shadow: var(--shadow-floating);
+  }
+  
+  /* Card with dark mode border (from design-specs.md) */
+  .card-bordered {
+    @apply border border-border/50;
+  }
+  
+  /* Touch target minimum (44px from design-specs.md) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Reading width constraint (640-760px from design-specs.md) */
+  .max-w-reading {
+    max-width: 47.5rem; /* 760px */
+  }
+  
+  .max-w-reading-sm {
+    max-width: 40rem; /* 640px */
+  }
+  
+  /* Content padding (from design-specs.md) */
+  .content-padding {
+    @apply px-4 md:px-5 lg:px-6;
+  }
+}
+
+/* =============================================================================
+   ANIMATION TOKENS (from design-specs.md)
+   - Micro feedback: 120-160ms
+   - Screen transitions: 200-260ms
+   - Sheets: 260-320ms
+============================================================================= */
+
+@layer utilities {
+  .duration-micro {
+    transition-duration: 150ms;
+  }
+  
+  .duration-transition {
+    transition-duration: 220ms;
+  }
+  
+  .duration-sheet {
+    transition-duration: 280ms;
+  }
+}
+
+/* =============================================================================
+   RECORDING ANIMATION
+   For voice input recording indicator
+============================================================================= */
+
+@keyframes recording-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px hsl(var(--destructive) / 0);
+  }
+}
+
+.recording-indicator {
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+/* Warning state - faster pulse when near time limit */
+@keyframes recording-pulse-warning {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(35 92% 50% / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px hsl(35 92% 50% / 0);
+  }
+}
+
+.recording-indicator-warning {
+  animation: recording-pulse-warning 0.8s ease-in-out infinite;
+}
+
+/* =============================================================================
+   PRINT STYLES
+   Clean output for printing manual sections
+============================================================================= */
+
+@media print {
+  /* Hide navigation and interactive elements */
+  header,
+  aside,
+  nav,
+  .no-print,
+  button,
+  [role="tablist"],
+  [data-radix-scroll-area-viewport] {
+    display: none !important;
+  }
+  
+  /* Reset colors for print */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Full width content */
+  main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Cards without shadows */
+  .card,
+  [class*="Card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+  
+  /* Ensure headings stay with content */
+  h1, h2, h3, h4 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  
+  /* Prevent page breaks inside elements */
+  p, li, tr, blockquote {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  
+  /* Tables fit on page */
+  table {
+    width: 100% !important;
+    font-size: 10pt;
+  }
+  
+  /* Show link URLs */
+  a[href^="http"]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+}
