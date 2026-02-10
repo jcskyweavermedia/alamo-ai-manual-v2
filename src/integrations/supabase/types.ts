@@ -14,6 +14,230 @@ export type Database = {
   }
   public: {
     Tables: {
+      beer_liquor_list: {
+        Row: {
+          ai_ingestion_meta: Json
+          category: string
+          country: string
+          created_at: string
+          created_by: string
+          description: string
+          embedding: string | null
+          id: string
+          name: string
+          notes: string
+          producer: string
+          search_vector: unknown
+          slug: string
+          status: string
+          style: string
+          subcategory: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          category: string
+          country: string
+          created_at?: string
+          created_by: string
+          description: string
+          embedding?: string | null
+          id?: string
+          name: string
+          notes?: string
+          producer: string
+          search_vector?: unknown
+          slug: string
+          status?: string
+          style: string
+          subcategory: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          category?: string
+          country?: string
+          created_at?: string
+          created_by?: string
+          description?: string
+          embedding?: string | null
+          id?: string
+          name?: string
+          notes?: string
+          producer?: string
+          search_vector?: unknown
+          slug?: string
+          status?: string
+          style?: string
+          subcategory?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      cocktails: {
+        Row: {
+          ai_ingestion_meta: Json
+          created_at: string
+          created_by: string
+          description: string
+          embedding: string | null
+          glass: string
+          id: string
+          image: string | null
+          ingredients: string
+          is_top_seller: boolean
+          key_ingredients: string
+          name: string
+          notes: string
+          procedure: Json
+          search_vector: unknown
+          slug: string
+          status: string
+          style: string
+          tasting_notes: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          created_at?: string
+          created_by: string
+          description: string
+          embedding?: string | null
+          glass: string
+          id?: string
+          image?: string | null
+          ingredients: string
+          is_top_seller?: boolean
+          key_ingredients: string
+          name: string
+          notes?: string
+          procedure: Json
+          search_vector?: unknown
+          slug: string
+          status?: string
+          style: string
+          tasting_notes: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          created_at?: string
+          created_by?: string
+          description?: string
+          embedding?: string | null
+          glass?: string
+          id?: string
+          image?: string | null
+          ingredients?: string
+          is_top_seller?: boolean
+          key_ingredients?: string
+          name?: string
+          notes?: string
+          procedure?: Json
+          search_vector?: unknown
+          slug?: string
+          status?: string
+          style?: string
+          tasting_notes?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      foh_plate_specs: {
+        Row: {
+          ai_ingestion_meta: Json
+          allergens: string[]
+          allergy_notes: string
+          created_at: string
+          created_by: string
+          detailed_description: string
+          embedding: string | null
+          flavor_profile: string[]
+          id: string
+          image: string | null
+          ingredients: string[]
+          is_top_seller: boolean
+          key_ingredients: string[]
+          menu_name: string
+          notes: string
+          plate_spec_id: string | null
+          plate_type: string
+          search_vector: unknown
+          short_description: string
+          slug: string
+          status: string
+          updated_at: string
+          upsell_notes: string
+          version: number
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          allergens?: string[]
+          allergy_notes?: string
+          created_at?: string
+          created_by: string
+          detailed_description: string
+          embedding?: string | null
+          flavor_profile?: string[]
+          id?: string
+          image?: string | null
+          ingredients?: string[]
+          is_top_seller?: boolean
+          key_ingredients?: string[]
+          menu_name: string
+          notes?: string
+          plate_spec_id?: string | null
+          plate_type: string
+          search_vector?: unknown
+          short_description: string
+          slug: string
+          status?: string
+          updated_at?: string
+          upsell_notes?: string
+          version?: number
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          allergens?: string[]
+          allergy_notes?: string
+          created_at?: string
+          created_by?: string
+          detailed_description?: string
+          embedding?: string | null
+          flavor_profile?: string[]
+          id?: string
+          image?: string | null
+          ingredients?: string[]
+          is_top_seller?: boolean
+          key_ingredients?: string[]
+          menu_name?: string
+          notes?: string
+          plate_spec_id?: string | null
+          plate_type?: string
+          search_vector?: unknown
+          short_description?: string
+          slug?: string
+          status?: string
+          updated_at?: string
+          upsell_notes?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foh_plate_specs_plate_spec_id_fkey"
+            columns: ["plate_spec_id"]
+            isOneToOne: false
+            referencedRelation: "plate_specs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_memberships: {
         Row: {
           created_at: string
@@ -233,6 +457,147 @@ export type Database = {
           },
         ]
       }
+      plate_specs: {
+        Row: {
+          ai_ingestion_meta: Json
+          allergens: string[]
+          assembly_procedure: Json
+          components: Json
+          created_at: string
+          created_by: string
+          embedding: string | null
+          id: string
+          images: Json
+          menu_category: string
+          name: string
+          notes: string
+          plate_type: string
+          search_vector: unknown
+          slug: string
+          status: string
+          tags: string[]
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          allergens?: string[]
+          assembly_procedure: Json
+          components: Json
+          created_at?: string
+          created_by: string
+          embedding?: string | null
+          id?: string
+          images?: Json
+          menu_category: string
+          name: string
+          notes?: string
+          plate_type: string
+          search_vector?: unknown
+          slug: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          allergens?: string[]
+          assembly_procedure?: Json
+          components?: Json
+          created_at?: string
+          created_by?: string
+          embedding?: string | null
+          id?: string
+          images?: Json
+          menu_category?: string
+          name?: string
+          notes?: string
+          plate_type?: string
+          search_vector?: unknown
+          slug?: string
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      prep_recipes: {
+        Row: {
+          ai_ingestion_meta: Json
+          batch_scaling: Json
+          created_at: string
+          created_by: string
+          embedding: string | null
+          id: string
+          images: Json
+          ingredients: Json
+          name: string
+          prep_type: string
+          procedure: Json
+          search_vector: unknown
+          shelf_life_unit: string
+          shelf_life_value: number
+          slug: string
+          status: string
+          tags: string[]
+          training_notes: Json
+          updated_at: string
+          version: number
+          yield_qty: number
+          yield_unit: string
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          batch_scaling?: Json
+          created_at?: string
+          created_by: string
+          embedding?: string | null
+          id?: string
+          images?: Json
+          ingredients: Json
+          name: string
+          prep_type: string
+          procedure: Json
+          search_vector?: unknown
+          shelf_life_unit: string
+          shelf_life_value: number
+          slug: string
+          status?: string
+          tags?: string[]
+          training_notes?: Json
+          updated_at?: string
+          version?: number
+          yield_qty: number
+          yield_unit: string
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          batch_scaling?: Json
+          created_at?: string
+          created_by?: string
+          embedding?: string | null
+          id?: string
+          images?: Json
+          ingredients?: Json
+          name?: string
+          prep_type?: string
+          procedure?: Json
+          search_vector?: unknown
+          shelf_life_unit?: string
+          shelf_life_value?: number
+          slug?: string
+          status?: string
+          tags?: string[]
+          training_notes?: Json
+          updated_at?: string
+          version?: number
+          yield_qty?: number
+          yield_unit?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -400,6 +765,87 @@ export type Database = {
           },
         ]
       }
+      wines: {
+        Row: {
+          ai_ingestion_meta: Json
+          blend: boolean
+          body: string
+          country: string
+          created_at: string
+          created_by: string
+          embedding: string | null
+          id: string
+          image: string | null
+          is_top_seller: boolean
+          name: string
+          notes: string
+          producer: string
+          producer_notes: string
+          region: string
+          search_vector: unknown
+          slug: string
+          status: string
+          style: string
+          tasting_notes: string
+          updated_at: string
+          varietal: string
+          version: number
+          vintage: string | null
+        }
+        Insert: {
+          ai_ingestion_meta?: Json
+          blend?: boolean
+          body: string
+          country: string
+          created_at?: string
+          created_by: string
+          embedding?: string | null
+          id?: string
+          image?: string | null
+          is_top_seller?: boolean
+          name: string
+          notes?: string
+          producer: string
+          producer_notes?: string
+          region: string
+          search_vector?: unknown
+          slug: string
+          status?: string
+          style: string
+          tasting_notes: string
+          updated_at?: string
+          varietal: string
+          version?: number
+          vintage?: string | null
+        }
+        Update: {
+          ai_ingestion_meta?: Json
+          blend?: boolean
+          body?: string
+          country?: string
+          created_at?: string
+          created_by?: string
+          embedding?: string | null
+          id?: string
+          image?: string | null
+          is_top_seller?: boolean
+          name?: string
+          notes?: string
+          producer?: string
+          producer_notes?: string
+          region?: string
+          search_vector?: unknown
+          slug?: string
+          status?: string
+          style?: string
+          tasting_notes?: string
+          updated_at?: string
+          varietal?: string
+          version?: number
+          vintage?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -497,6 +943,59 @@ export type Database = {
         Returns: boolean
       }
       join_group_by_slug: { Args: { group_slug: string }; Returns: Json }
+      search_beer_liquor: {
+        Args: {
+          keyword_weight?: number
+          query_embedding: string
+          result_limit?: number
+          search_query: string
+          vector_weight?: number
+        }
+        Returns: {
+          category: string
+          combined_score: number
+          id: string
+          name: string
+          slug: string
+          snippet: string
+          subcategory: string
+        }[]
+      }
+      search_cocktails: {
+        Args: {
+          keyword_weight?: number
+          query_embedding: string
+          result_limit?: number
+          search_query: string
+          vector_weight?: number
+        }
+        Returns: {
+          combined_score: number
+          id: string
+          name: string
+          slug: string
+          snippet: string
+          style: string
+        }[]
+      }
+      search_dishes: {
+        Args: {
+          keyword_weight?: number
+          query_embedding: string
+          result_limit?: number
+          search_query: string
+          vector_weight?: number
+        }
+        Returns: {
+          combined_score: number
+          id: string
+          is_top_seller: boolean
+          name: string
+          plate_type: string
+          slug: string
+          snippet: string
+        }[]
+      }
       search_manual: {
         Args: {
           result_limit?: number
@@ -512,6 +1011,41 @@ export type Database = {
           snippet: string
           tags: string[]
           title: string
+        }[]
+      }
+      search_recipes: {
+        Args: {
+          keyword_weight?: number
+          query_embedding: string
+          result_limit?: number
+          search_query: string
+          vector_weight?: number
+        }
+        Returns: {
+          combined_score: number
+          id: string
+          name: string
+          slug: string
+          snippet: string
+          source_table: string
+        }[]
+      }
+      search_wines: {
+        Args: {
+          keyword_weight?: number
+          query_embedding: string
+          result_limit?: number
+          search_query: string
+          vector_weight?: number
+        }
+        Returns: {
+          combined_score: number
+          id: string
+          name: string
+          slug: string
+          snippet: string
+          style: string
+          varietal: string
         }[]
       }
     }

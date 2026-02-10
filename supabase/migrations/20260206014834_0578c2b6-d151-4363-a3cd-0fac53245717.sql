@@ -1,4 +1,9 @@
 -- ============================================
+-- REQUIRED EXTENSIONS
+-- ============================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- ============================================
 -- ROLE ENUM
 -- ============================================
 CREATE TYPE public.user_role AS ENUM ('staff', 'manager', 'admin');
@@ -73,7 +78,7 @@ CREATE TABLE public.role_policies (
 -- ============================================
 CREATE TABLE public.invites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token TEXT UNIQUE NOT NULL DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
   email TEXT,
   group_id UUID NOT NULL REFERENCES public.groups(id) ON DELETE CASCADE,
   role public.user_role NOT NULL DEFAULT 'staff',

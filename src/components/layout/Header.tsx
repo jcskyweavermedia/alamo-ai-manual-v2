@@ -1,9 +1,16 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { Menu, Sparkles, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Menu, Sparkles, PanelLeftClose, PanelLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import { LanguageToggle } from '@/components/ui/language-toggle';
 import { Button } from '@/components/ui/button';
+
+export interface ItemNav {
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+}
 
 interface HeaderProps {
   showSearch?: boolean;
@@ -20,6 +27,8 @@ interface HeaderProps {
   sidebarCollapsed?: boolean;
   /** Called to toggle sidebar collapse (desktop) */
   onToggleSidebar?: () => void;
+  /** Prev/next item navigation (shown when viewing an item) */
+  itemNav?: ItemNav;
   className?: string;
 }
 
@@ -34,6 +43,7 @@ export function Header({
   onAskAIClick,
   sidebarCollapsed = false,
   onToggleSidebar,
+  itemNav,
   className,
 }: HeaderProps) {
   const askLabel = language === 'es' ? 'Preguntar IA' : 'Ask AI';
@@ -133,7 +143,7 @@ export function Header({
       </div>
 
       {/* Right section: Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {/* Ask AI button */}
         {showAskAI && (
           <Button
@@ -147,10 +157,49 @@ export function Header({
           </Button>
         )}
 
+        {/* Item prev/next navigation */}
+        {itemNav && (
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={itemNav.onPrev}
+              disabled={!itemNav.hasPrev}
+              className={cn(
+                'flex items-center justify-center',
+                'h-7 w-7 rounded-md',
+                'bg-muted text-foreground',
+                'hover:bg-muted/80 active:scale-[0.96]',
+                'transition-all duration-150',
+                !itemNav.hasPrev && 'opacity-30 pointer-events-none'
+              )}
+              title="Previous item"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={itemNav.onNext}
+              disabled={!itemNav.hasNext}
+              className={cn(
+                'flex items-center justify-center',
+                'h-7 w-7 rounded-md',
+                'bg-muted text-foreground',
+                'hover:bg-muted/80 active:scale-[0.96]',
+                'transition-all duration-150',
+                !itemNav.hasNext && 'opacity-30 pointer-events-none'
+              )}
+              title="Next item"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Language toggle */}
         <LanguageToggle
           value={language}
           onChange={onLanguageChange || (() => {})}
+          size="xs"
         />
       </div>
     </header>

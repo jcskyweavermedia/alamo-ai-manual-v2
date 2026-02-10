@@ -1,7 +1,7 @@
 /**
  * AI Assistant Edge Function
  * 
- * Grounded Q&A using hybrid search (FTS + vector) + Lovable AI.
+ * Grounded Q&A using hybrid search (FTS + vector) + OpenAI.
  * Enforces role-based usage limits (daily/monthly).
  */
 
@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
     }));
 
     // =========================================================================
-    // 8. CALL LOVABLE AI (GROUNDED PROMPT)
+    // 8. CALL OPENAI (GROUNDED PROMPT)
     // =========================================================================
     // Build system prompt based on expand mode
     const conciseInstructions = language === 'es'
@@ -395,24 +395,23 @@ ${expand ? expandedInstructions : conciseInstructions}
       ? `Pregunta: ${contextPrefix}${question}\n\nContenido del manual:\n${manualContext}`
       : `Question: ${contextPrefix}${question}\n\nManual content:\n${manualContext}`;
 
-    console.log('[ask] Calling Lovable AI...', expand ? '(expanded mode)' : '(concise mode)');
+    console.log('[ask] Calling OpenAI...', expand ? '(expanded mode)' : '(concise mode)');
 
-    const aiGatewayUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!lovableApiKey) {
-      console.error('[ask] LOVABLE_API_KEY not configured');
+    if (!openaiApiKey) {
+      console.error('[ask] OPENAI_API_KEY not configured');
       return errorResponse('server_error', 'AI service not configured', 500);
     }
 
-    const aiResponse = await fetch(aiGatewayUrl, {
+    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

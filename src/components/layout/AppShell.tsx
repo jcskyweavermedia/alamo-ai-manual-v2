@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileTabBar } from './MobileTabBar';
 import { Sidebar } from './Sidebar';
-import { Header } from './Header';
+import { Header, type ItemNav } from './Header';
 import { ContentArea } from './ContentArea';
 
 interface AppShellProps {
@@ -37,6 +37,8 @@ interface AppShellProps {
   onAskAIClick?: () => void;
   /** Optional AI panel content (desktop only) */
   aiPanel?: React.ReactNode;
+  /** Prev/next item navigation (passed to Header) */
+  itemNav?: ItemNav;
   className?: string;
 }
 
@@ -53,6 +55,7 @@ export function AppShell({
   showAskAI = false,
   onAskAIClick,
   aiPanel,
+  itemNav,
   className,
 }: AppShellProps) {
   const isMobile = useIsMobile();
@@ -83,6 +86,7 @@ export function AppShell({
           onAskAIClick={onAskAIClick}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={handleToggleSidebar}
+          itemNav={itemNav}
         />
 
         {/* Content + optional AI panel wrapper */}

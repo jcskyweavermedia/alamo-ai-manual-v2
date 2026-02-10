@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 
@@ -9,6 +9,11 @@ const iconMap = {
   Sparkles,
   User,
   Settings,
+  ChefHat,
+  Utensils,
+  Wine,
+  Martini,
+  Beer,
 } as const;
 
 interface MobileTabBarProps {
@@ -20,10 +25,15 @@ export function MobileTabBar({ isAdmin = false, className }: MobileTabBarProps) 
   const location = useLocation();
   
   // Use admin nav if admin, otherwise staff nav
-  const navItems = isAdmin 
+  const navItems = isAdmin
     ? [
         { path: '/manual', label: 'Manual', icon: 'BookOpen' },
         { path: '/search', label: 'Search', icon: 'Search' },
+        { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
+        { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
+        { path: '/wines', label: 'Wines', icon: 'Wine' },
+        { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
+        { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
         { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
         { path: '/admin', label: 'Admin', icon: 'Settings' },
       ]

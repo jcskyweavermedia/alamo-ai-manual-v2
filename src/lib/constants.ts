@@ -5,6 +5,11 @@ export const ROUTES = {
   MANUAL_SECTION: '/manual/:sectionId',
   SEARCH: '/search',
   ASK: '/ask',
+  RECIPES: '/recipes',
+  DISH_GUIDE: '/dish-guide',
+  WINES: '/wines',
+  COCKTAILS: '/cocktails',
+  BEER_LIQUOR: '/beer-liquor',
   PROFILE: '/profile',
   ADMIN: '/admin',
 } as const;
@@ -26,6 +31,11 @@ export const ANIMATION = {
 export const STAFF_NAV_ITEMS = [
   { path: '/manual', label: 'Manual', icon: 'BookOpen' },
   { path: '/search', label: 'Search', icon: 'Search' },
+  { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
+  { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
+  { path: '/wines', label: 'Wines', icon: 'Wine' },
+  { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
+  { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/profile', label: 'Profile', icon: 'User' },
 ] as const;
@@ -34,6 +44,11 @@ export const STAFF_NAV_ITEMS = [
 export const ADMIN_NAV_ITEMS = [
   { path: '/manual', label: 'Manual', icon: 'BookOpen' },
   { path: '/search', label: 'Search', icon: 'Search' },
+  { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
+  { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
+  { path: '/wines', label: 'Wines', icon: 'Wine' },
+  { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
+  { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/admin', label: 'Admin', icon: 'Settings' },
 ] as const;

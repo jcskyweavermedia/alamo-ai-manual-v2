@@ -6,10 +6,9 @@ import { ManualOutline } from "@/components/ui/manual-outline";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
-import { BookmarkButton } from "@/components/manual/BookmarkButton";
-import { 
-  ManualBreadcrumb, 
-  MobileOutlineSheet, 
+import {
+  ManualBreadcrumb,
+  MobileOutlineSheet,
   ManualContent,
   NotFoundSection,
   TranslationBanner,
@@ -20,7 +19,6 @@ import {
 import { useLanguage } from "@/hooks/use-language";
 import { useManualSections, type SectionTreeNode } from "@/hooks/use-manual-sections";
 import { useManualDocument } from "@/hooks/use-manual-document";
-import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useLastOpenedSection } from "@/hooks/use-last-opened-section";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,7 +49,6 @@ const Manual = () => {
   
   // Data hooks
   const { sections, tree, getSectionById, getSectionBySlug, getAncestors, getTitle, isLoading } = useManualSections();
-  const { bookmarks, isBookmarked, toggleBookmark } = useBookmarks();
   const { lastSectionId, setLastSection } = useLastOpenedSection();
   
   // Check voice permissions from first membership
@@ -167,18 +164,7 @@ const Manual = () => {
     }
     return expanded;
   }, [ancestors, currentSection?.parentId]);
-  
-  // Get bookmarked sections with titles - memoized
-  const bookmarkItems = useMemo(() => 
-    bookmarks
-      .map(id => {
-        const section = getSectionById(id);
-        return section ? { id, title: getTitle(section, language) } : null;
-      })
-      .filter((item): item is { id: string; title: string } => item !== null),
-    [bookmarks, getSectionById, getTitle, language]
-  );
-  
+
   // Check if section exists - only show 404 after loading and if URL param doesn't match
   const sectionNotFound = !isLoading && activeSection && !currentSection && sections.length > 0;
 
@@ -251,13 +237,6 @@ const Manual = () => {
                   >
                     <Menu className="h-4 w-4" />
                   </Button>
-                  <BookmarkButton
-                    isBookmarked={isBookmarked(activeSection)}
-                    onToggle={() => toggleBookmark(activeSection)}
-                    label={isBookmarked(activeSection) 
-                      ? (language === 'es' ? 'Quitar marcador' : 'Remove bookmark')
-                      : (language === 'es' ? 'Agregar marcador' : 'Add bookmark')}
-                  />
                 </div>
               </div>
 
@@ -305,12 +284,6 @@ const Manual = () => {
         activeId={activeSection}
         onSelect={handleSectionSelect}
         defaultExpanded={defaultExpanded}
-        bookmarks={bookmarkItems}
-        labels={{
-          contents: language === 'es' ? 'Contenido' : 'Contents',
-          bookmarks: language === 'es' ? 'Marcadores' : 'Bookmarks',
-          noBookmarks: language === 'es' ? 'Sin marcadores aún' : 'No bookmarks yet',
-        }}
       />
       
       {/* Ask AI Drawer - mobile only */}

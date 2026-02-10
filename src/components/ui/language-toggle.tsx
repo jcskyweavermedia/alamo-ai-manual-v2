@@ -13,13 +13,17 @@ export type Language = "en" | "es";
 export interface LanguageToggleProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange"> {
   value: Language;
   onChange: (language: Language) => void;
-  size?: "sm" | "default";
+  size?: "xs" | "sm" | "default";
 }
+
+const sizeClasses = {
+  xs: "min-h-[28px] min-w-[28px] px-1.5 text-[11px]",
+  sm: "min-h-[36px] min-w-[36px] px-sm text-small",
+  default: "min-h-[44px] min-w-[44px] px-md text-body",
+} as const;
 
 const LanguageToggle = React.forwardRef<HTMLDivElement, LanguageToggleProps>(
   ({ className, value, onChange, size = "default", ...props }, ref) => {
-    const isSmall = size === "sm";
-
     return (
       <div
         ref={ref}
@@ -39,8 +43,7 @@ const LanguageToggle = React.forwardRef<HTMLDivElement, LanguageToggleProps>(
           className={cn(
             "rounded-full font-medium transition-all duration-micro",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-            // 44px min touch target per design-specs.md
-            isSmall ? "min-h-[36px] min-w-[36px] px-sm text-small" : "min-h-[44px] min-w-[44px] px-md text-body",
+            sizeClasses[size],
             value === "en"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
@@ -56,8 +59,7 @@ const LanguageToggle = React.forwardRef<HTMLDivElement, LanguageToggleProps>(
           className={cn(
             "rounded-full font-medium transition-all duration-micro",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-            // 44px min touch target per design-specs.md
-            isSmall ? "min-h-[36px] min-w-[36px] px-sm text-small" : "min-h-[44px] min-w-[44px] px-md text-body",
+            sizeClasses[size],
             value === "es"
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"

@@ -12,6 +12,11 @@ import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import SignIn from "./pages/SignIn";
 import JoinGroup from "./pages/JoinGroup";
+import Recipes from "./pages/Recipes";
+import DishGuide from "./pages/DishGuide";
+import Wines from "./pages/Wines";
+import Cocktails from "./pages/Cocktails";
+import BeerLiquor from "./pages/BeerLiquor";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,7 +50,32 @@ const App = () => (
                 <SearchPage />
               </ProtectedRoute>
             } />
-            <Route path="/ask" element={
+            <Route path="/recipes" element={
+              <ProtectedRoute>
+                <Recipes />
+              </ProtectedRoute>
+            } />
+            <Route path="/dish-guide" element={
+              <ProtectedRoute>
+                <DishGuide />
+              </ProtectedRoute>
+            } />
+            <Route path="/wines" element={
+              <ProtectedRoute>
+                <Wines />
+              </ProtectedRoute>
+            } />
+            <Route path="/cocktails" element={
+              <ProtectedRoute>
+                <Cocktails />
+              </ProtectedRoute>
+            } />
+            <Route path="/beer-liquor" element={
+              <ProtectedRoute>
+                <BeerLiquor />
+              </ProtectedRoute>
+            } />
+<Route path="/ask" element={
               <ProtectedRoute>
                 <Ask />
               </ProtectedRoute>
