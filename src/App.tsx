@@ -17,6 +17,15 @@ import DishGuide from "./pages/DishGuide";
 import Wines from "./pages/Wines";
 import Cocktails from "./pages/Cocktails";
 import BeerLiquor from "./pages/BeerLiquor";
+import StepsOfService from "./pages/StepsOfService";
+import TrainingHome from "./pages/TrainingHome";
+import ProgramDetail from "./pages/ProgramDetail";
+import CourseDetail from "./pages/CourseDetail";
+import LearningSession from "./pages/LearningSession";
+import QuizPage from "./pages/QuizPage";
+import ModuleTestPage from "./pages/ModuleTestPage";
+import PracticeTutorPage from "./pages/PracticeTutorPage";
+import ManagerTrainingDashboard from "./pages/ManagerTrainingDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -75,7 +84,47 @@ const App = () => (
                 <BeerLiquor />
               </ProtectedRoute>
             } />
-<Route path="/ask" element={
+            <Route path="/foh-manuals" element={
+              <ProtectedRoute>
+                <StepsOfService />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses" element={
+              <ProtectedRoute>
+                <TrainingHome />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug" element={
+              <ProtectedRoute>
+                <ProgramDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug/:courseSlug" element={
+              <ProtectedRoute>
+                <CourseDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug/:courseSlug/test" element={
+              <ProtectedRoute>
+                <ModuleTestPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug/:courseSlug/practice" element={
+              <ProtectedRoute>
+                <PracticeTutorPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug/:courseSlug/:sectionSlug" element={
+              <ProtectedRoute>
+                <LearningSession />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:programSlug/:courseSlug/:sectionSlug/quiz" element={
+              <ProtectedRoute>
+                <QuizPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/ask" element={
               <ProtectedRoute>
                 <Ask />
               </ProtectedRoute>
@@ -90,6 +139,13 @@ const App = () => (
             <Route path="/admin" element={
               <ProtectedRoute requiredRole="admin">
                 <Admin />
+              </ProtectedRoute>
+            } />
+
+            {/* Manager Training Dashboard - requires manager role */}
+            <Route path="/admin/training" element={
+              <ProtectedRoute requiredRole="manager">
+                <ManagerTrainingDashboard />
               </ProtectedRoute>
             } />
             

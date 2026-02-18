@@ -2,10 +2,11 @@
  * Ask Product Edge Function
  *
  * AI assistant for product-specific questions (dishes, wines, cocktails,
- * recipes, beer & liquor). Two modes:
+ * recipes, beer & liquor). Three modes:
  *
  * 1. Action mode — button presses with full card context (no search)
- * 2. Open question mode — freeform questions with OpenAI tool use
+ * 2. Context mode — open question while viewing a card (answers from card data)
+ * 3. Search mode — freeform questions with OpenAI tool use
  *    (function calling) to search the right product table
  *
  * Auth: verify_jwt=false — manual JWT verification via getClaims()
@@ -59,7 +60,7 @@ interface AskProductResponse {
   answer: string;
   citations: ProductCitation[];
   usage: UsageInfo;
-  mode: "action" | "search";
+  mode: "action" | "context" | "search";
 }
 
 interface ErrorResponse {
@@ -266,6 +267,15 @@ const DOMAIN_HINT: Record<ProductDomain, string> = {
 
 const PAIRING_ACTIONS = new Set(["foodPairings", "suggestPairing"]);
 
+// Domain labels for context mode prompt
+const DOMAIN_LABEL: Record<ProductDomain, string> = {
+  dishes: "dish",
+  wines: "wine",
+  cocktails: "cocktail",
+  recipes: "recipe",
+  beer_liquor: "beverage",
+};
+
 // Maps search function names to their product domain (for citation tagging)
 const SEARCH_FN_TO_DOMAIN: Record<string, ProductDomain> = {
   search_dishes: "dishes",
@@ -380,11 +390,16 @@ function serializeItemContext(
       // deno-lint-ignore no-explicit-any
       const ingredients = item.ingredients as any[] | null;
       if (Array.isArray(ingredients)) {
-        const names = ingredients.flatMap(
+        const items = ingredients.flatMap(
           // deno-lint-ignore no-explicit-any
-          (g: any) => g.items?.map((i: any) => i.name) || []
+          (g: any) => g.items?.map((i: any) => {
+            const qty = i.quantity != null ? `${i.quantity}` : '';
+            const unit = i.unit && i.unit !== 'to taste' ? ` ${i.unit}` : (i.unit === 'to taste' ? ' to taste' : '');
+            const prefix = qty || unit ? `${qty}${unit} ` : '';
+            return `${prefix}${i.name}`;
+          }) || []
         );
-        if (names.length) parts.push(`Ingredients: ${names.join(", ")}`);
+        if (items.length) parts.push(`Ingredients: ${items.join(", ")}`);
       }
 
       // prep_recipes.procedure: JSONB [{ group_name, steps: [{ instruction }] }]
@@ -398,15 +413,20 @@ function serializeItemContext(
         if (steps.length) parts.push(`Procedure: ${steps.join(" ")}`);
       }
 
-      // plate_specs.components: JSONB [{ group_name, items: [{ name }] }]
+      // plate_specs.components: JSONB [{ group_name, items: [{ name, quantity, unit }] }]
       // deno-lint-ignore no-explicit-any
       const components = item.components as any[] | null;
       if (Array.isArray(components)) {
-        const names = components.flatMap(
+        const items = components.flatMap(
           // deno-lint-ignore no-explicit-any
-          (g: any) => g.items?.map((i: any) => i.name) || []
+          (g: any) => g.items?.map((i: any) => {
+            const qty = i.quantity != null ? `${i.quantity}` : '';
+            const unit = i.unit ? ` ${i.unit}` : '';
+            const prefix = qty || unit ? `${qty}${unit} ` : '';
+            return `${prefix}${i.name}`;
+          }) || []
         );
-        if (names.length) parts.push(`Components: ${names.join(", ")}`);
+        if (items.length) parts.push(`Components: ${items.join(", ")}`);
       }
 
       // plate_specs.assembly_procedure: JSONB [{ group_name, steps: [{ instruction }] }]
@@ -720,7 +740,7 @@ Deno.serve(async (req) => {
 
     console.log(
       `[ask-product] Domain: ${domain} | Mode: ${
-        action && itemContext ? "action" : "search"
+        action && itemContext ? "action" : !action && itemContext ? "context" : "search"
       } | Action: ${action || "none"} | Lang: ${language}`
     );
 
@@ -779,11 +799,11 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================================
-    // 5. BRANCH: ACTION MODE vs OPEN QUESTION MODE
+    // 5. BRANCH: ACTION MODE vs CONTEXT MODE vs SEARCH MODE
     // =========================================================================
     let answer: string;
     let citations: ProductCitation[];
-    let mode: "action" | "search";
+    let mode: "action" | "context" | "search";
 
     if (action && itemContext) {
       // =====================================================================
@@ -881,9 +901,80 @@ Rules:
         { id: itemId, slug: itemSlug, name: itemName, domain },
         ...extraCitations,
       ];
+    } else if (!action && itemContext) {
+      // =====================================================================
+      // CONTEXT MODE — open question with card in view
+      // =====================================================================
+      mode = "context";
+
+      const langInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.en;
+      const domainLabel = DOMAIN_LABEL[domain];
+      const contextText = serializeItemContext(domain, itemContext);
+
+      const systemPrompt = `You are a knowledgeable assistant for Alamo Prime steakhouse.
+
+The user is currently viewing the following ${domainLabel}:
+---
+${contextText}
+---
+
+Answer the user's question using ONLY the product data above. Be accurate — cite exact quantities, ingredients, and details as shown. If the data above doesn't contain the answer, say so.
+${langInstruction}
+Be concise: 2-4 sentences + bullets if needed.`;
+
+      console.log("[ask-product] Context mode: calling OpenAI...");
+
+      const aiResponse = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: question },
+            ],
+            max_tokens: 800,
+            temperature: 0.3,
+          }),
+        }
+      );
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error(
+          "[ask-product] AI API error:",
+          aiResponse.status,
+          errorText
+        );
+        return errorResponse("ai_error", "Failed to generate answer", 500);
+      }
+
+      const aiData = await aiResponse.json();
+      answer = aiData.choices?.[0]?.message?.content?.trim();
+
+      if (!answer) {
+        return errorResponse("ai_error", "Failed to generate answer", 500);
+      }
+
+      // Build citation from the item context
+      const itemName =
+        (itemContext.menu_name as string) ||
+        (itemContext.name as string) ||
+        "Unknown";
+      const itemSlug = (itemContext.slug as string) || "";
+      const itemId = (itemContext.id as string) || "";
+
+      citations = [
+        { id: itemId, slug: itemSlug, name: itemName, domain },
+      ];
     } else {
       // =====================================================================
-      // OPEN QUESTION MODE
+      // SEARCH MODE — no card, pure search
       // =====================================================================
       mode = "search";
 

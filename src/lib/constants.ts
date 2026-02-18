@@ -10,8 +10,15 @@ export const ROUTES = {
   WINES: '/wines',
   COCKTAILS: '/cocktails',
   BEER_LIQUOR: '/beer-liquor',
+  FOH_MANUALS: '/foh-manuals',
+  COURSES: '/courses',
+  COURSES_PROGRAM: '/courses/:programSlug',
+  COURSES_COURSE: '/courses/:programSlug/:courseSlug',
+  COURSES_SECTION: '/courses/:programSlug/:courseSlug/:sectionSlug',
+  COURSES_QUIZ: '/courses/:programSlug/:courseSlug/:sectionSlug/quiz',
   PROFILE: '/profile',
   ADMIN: '/admin',
+  ADMIN_TRAINING: '/admin/training',
 } as const;
 
 // Breakpoints (matches Tailwind defaults)
@@ -29,26 +36,30 @@ export const ANIMATION = {
 
 // Navigation items for staff
 export const STAFF_NAV_ITEMS = [
-  { path: '/manual', label: 'Manual', icon: 'BookOpen' },
+  { path: '/manual', label: 'Restaurant Standards', icon: 'BookOpen' },
   { path: '/search', label: 'Search', icon: 'Search' },
   { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
   { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
   { path: '/wines', label: 'Wines', icon: 'Wine' },
   { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
   { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
+  { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
+  { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/profile', label: 'Profile', icon: 'User' },
 ] as const;
 
 // Navigation items for admin (includes admin panel)
 export const ADMIN_NAV_ITEMS = [
-  { path: '/manual', label: 'Manual', icon: 'BookOpen' },
+  { path: '/manual', label: 'Restaurant Standards', icon: 'BookOpen' },
   { path: '/search', label: 'Search', icon: 'Search' },
   { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
   { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
   { path: '/wines', label: 'Wines', icon: 'Wine' },
   { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
   { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
+  { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
+  { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/admin', label: 'Admin', icon: 'Settings' },
 ] as const;

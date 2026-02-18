@@ -30,6 +30,8 @@ export interface AskResult {
   answer: string;
   citations: Citation[];
   usage: UsageInfo;
+  sessionId?: string;
+  mode?: 'action' | 'search';
 }
 
 export interface AskError {
@@ -44,6 +46,14 @@ export interface AskOptions {
     sectionId?: string;
     sectionTitle?: string;
   };
+  /** Product domain (dishes, wines, cocktails, recipes, beer_liquor) */
+  domain?: string;
+  /** Action key (e.g. samplePitch, teachMe) — omit for freeform search */
+  action?: string;
+  /** Full item data for product context */
+  itemContext?: Record<string, unknown>;
+  /** Chat session ID for conversation continuity */
+  sessionId?: string;
 }
 
 export interface UseAskAIReturn {
@@ -102,14 +112,22 @@ export function useAskAI(): UseAskAIReturn {
     setError(null);
 
     try {
+      const body: Record<string, unknown> = {
+        question,
+        language,
+        groupId: primaryGroup.groupId,
+        expand: options?.expand ?? false,
+        context: options?.context ?? null,
+      };
+
+      // Product AI fields (optional)
+      if (options?.domain) body.domain = options.domain;
+      if (options?.action) body.action = options.action;
+      if (options?.itemContext) body.itemContext = options.itemContext;
+      if (options?.sessionId) body.sessionId = options.sessionId;
+
       const { data, error: fnError } = await supabase.functions.invoke('ask', {
-        body: {
-          question,
-          language,
-          groupId: primaryGroup.groupId,
-          expand: options?.expand ?? false,
-          context: options?.context ?? null,
-        },
+        body,
       });
 
       if (fnError) {

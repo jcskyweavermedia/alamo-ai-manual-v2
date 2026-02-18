@@ -108,19 +108,17 @@ export function CocktailGrid({
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
                 />
-                {/* Style badge overlay */}
-                <span className="absolute top-2 left-2">
-                  <CocktailStyleBadge style={cocktail.style} />
-                </span>
+                {/* Top seller star overlay */}
                 {cocktail.isTopSeller && (
-                  <span className="absolute top-2 right-2">
-                    <TopSellerBadge size="sm" />
+                  <span className="absolute top-1.5 right-1.5">
+                    <TopSellerBadge size="icon" />
                   </span>
                 )}
               </div>
 
               {/* Info */}
               <div className="p-3 space-y-1">
+                <CocktailStyleBadge style={cocktail.style} variant="text" />
                 <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
                   {cocktail.name}
                 </h3>

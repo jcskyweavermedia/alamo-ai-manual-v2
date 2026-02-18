@@ -3,11 +3,27 @@ import { WINE_STYLE_CONFIG, type WineStyle } from '@/data/mock-wines';
 
 interface WineStyleBadgeProps {
   style: WineStyle;
+  /** "pill" = colored pill (default), "text" = plain colored text label */
+  variant?: 'pill' | 'text';
   className?: string;
 }
 
-export function WineStyleBadge({ style, className }: WineStyleBadgeProps) {
+export function WineStyleBadge({ style, variant = 'pill', className }: WineStyleBadgeProps) {
   const config = WINE_STYLE_CONFIG[style];
+
+  if (variant === 'text') {
+    return (
+      <span
+        className={cn(
+          'text-[10px] font-bold uppercase tracking-wider',
+          config.textColor,
+          className
+        )}
+      >
+        {config.label}
+      </span>
+    );
+  }
 
   return (
     <span

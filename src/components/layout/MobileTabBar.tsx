@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 
@@ -14,6 +14,8 @@ const iconMap = {
   Wine,
   Martini,
   Beer,
+  ConciergeBell,
+  GraduationCap,
 } as const;
 
 interface MobileTabBarProps {

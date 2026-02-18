@@ -39,6 +39,8 @@ interface AppShellProps {
   aiPanel?: React.ReactNode;
   /** Prev/next item navigation (passed to Header) */
   itemNav?: ItemNav;
+  /** Optional toolbar content for Header (e.g. SOS AI buttons) */
+  headerToolbar?: React.ReactNode;
   className?: string;
 }
 
@@ -56,10 +58,11 @@ export function AppShell({
   onAskAIClick,
   aiPanel,
   itemNav,
+  headerToolbar,
   className,
 }: AppShellProps) {
   const isMobile = useIsMobile();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => !prev);
@@ -84,9 +87,8 @@ export function AppShell({
           onSearch={onSearch}
           showAskAI={showAskAI}
           onAskAIClick={onAskAIClick}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
           itemNav={itemNav}
+          toolbar={headerToolbar}
         />
 
         {/* Content + optional AI panel wrapper */}

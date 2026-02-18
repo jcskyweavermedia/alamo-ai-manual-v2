@@ -1,17 +1,21 @@
 /**
  * AskAboutContent
- * 
+ *
  * Shared content for the contextual AI panel with integrated voice mode.
- * 
+ * Supports both manual sections (original) and product items (Phase 7B).
+ *
  * States:
  * - TEXT MODE: VoiceChatInput + empty/loading/answer states
  * - VOICE MODE: VoiceModeButton + VoiceTranscript (GPT-style inline)
- * 
- * Part of Step 11: Integrated Voice Chat Mode
+ *
+ * Product mode adds:
+ * - TTS mode (auto-trigger, read aloud via /tts)
+ * - Conversation mode (auto-connect WebRTC with product context)
+ * - Chat mode (freeform text input with item context, no action sent)
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Sparkles, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Sparkles, RotateCcw, Volume2, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { VoiceChatInput } from '@/components/ui/voice-chat-input';
@@ -22,6 +26,8 @@ import { VoiceTranscript } from './VoiceTranscript';
 import { useAskAI, type Citation } from '@/hooks/use-ask-ai';
 import { useUsageLimits } from '@/hooks/use-usage-limits';
 import { useRealtimeWebRTC } from '@/hooks/use-realtime-webrtc';
+import { useTTS } from '@/hooks/use-tts';
+import type { AIActionConfig } from '@/data/ai-action-config';
 
 // =============================================================================
 // TYPES
@@ -30,14 +36,29 @@ import { useRealtimeWebRTC } from '@/hooks/use-realtime-webrtc';
 type ContentState = 'empty' | 'loading' | 'answer';
 
 interface AskAboutContentProps {
+  // Manual mode props (optional when in product mode)
   /** Section slug for context */
-  sectionId: string;
+  sectionId?: string;
   /** Section title for display and context */
-  sectionTitle: string;
+  sectionTitle?: string;
+  /** Called when user clicks a citation source */
+  onNavigateToSection?: (slug: string) => void;
+
+  // Product mode props
+  /** Product domain (dishes, wines, cocktails, recipes, beer_liquor) */
+  domain?: string;
+  /** Action key (e.g. samplePitch, teachMe) */
+  action?: string;
+  /** Full item data for product context */
+  itemContext?: Record<string, unknown>;
+  /** Item display name */
+  itemName?: string;
+  /** Action config with mode/autoTrigger metadata */
+  actionConfig?: AIActionConfig | null;
+
+  // Shared
   /** Current language */
   language: 'en' | 'es';
-  /** Called when user clicks a citation source */
-  onNavigateToSection: (slug: string) => void;
   /** Whether voice mode is enabled for user */
   voiceEnabled?: boolean;
   /** Group ID for voice mode (required if voiceEnabled) */
@@ -49,7 +70,7 @@ interface AskAboutContentProps {
 }
 
 // =============================================================================
-// SAMPLE QUESTIONS (Category-Based)
+// SAMPLE QUESTIONS (Category-Based) — manual mode only
 // =============================================================================
 
 const SAMPLE_QUESTIONS_MAP: Record<string, { en: string[]; es: string[] }> = {
@@ -81,7 +102,7 @@ const SAMPLE_QUESTIONS_MAP: Record<string, { en: string[]; es: string[] }> = {
 
 function getSampleQuestions(sectionTitle: string, sectionId: string, language: 'en' | 'es'): string[] {
   const searchText = `${sectionTitle} ${sectionId}`.toLowerCase();
-  
+
   if (searchText.includes('temperature') || searchText.includes('temp') || searchText.includes('monitoring')) {
     return SAMPLE_QUESTIONS_MAP['temperature'][language];
   }
@@ -97,7 +118,7 @@ function getSampleQuestions(sectionTitle: string, sectionId: string, language: '
   if (searchText.includes('checklist') || searchText.includes('opening') || searchText.includes('closing')) {
     return SAMPLE_QUESTIONS_MAP['checklist'][language];
   }
-  
+
   return SAMPLE_QUESTIONS_MAP['default'][language];
 }
 
@@ -107,6 +128,11 @@ function getSampleQuestions(sectionTitle: string, sectionId: string, language: '
 
 const LOADING_STAGES = {
   searching: { en: 'Searching manual...', es: 'Buscando en el manual...' },
+  writing: { en: 'Writing answer...', es: 'Escribiendo respuesta...' },
+};
+
+const PRODUCT_LOADING_STAGES = {
+  searching: { en: 'Thinking...', es: 'Pensando...' },
   writing: { en: 'Writing answer...', es: 'Escribiendo respuesta...' },
 };
 
@@ -123,7 +149,15 @@ export function AskAboutContent({
   groupId = '',
   isClosing = false,
   className,
+  // Product mode props
+  domain,
+  action,
+  itemContext,
+  itemName,
+  actionConfig,
 }: AskAboutContentProps) {
+  const isProductMode = !!domain;
+
   // Text mode state
   const [question, setQuestion] = useState('');
   const [contentState, setContentState] = useState<ContentState>('empty');
@@ -135,14 +169,25 @@ export function AskAboutContent({
     isExpanding: boolean;
   } | null>(null);
 
+  // Track which actionConfig key we've auto-triggered to prevent re-fires
+  const autoTriggeredRef = useRef<string | null>(null);
+
   // Text AI hooks
   const { ask, isLoading } = useAskAI();
   const { data: usage, incrementUsageOptimistically, isAtLimit, isLoading: usageLoading } = useUsageLimits();
 
-  // Voice mode hook - only initialize if enabled
+  // TTS hook (always called — React rules — harmless when idle)
+  const tts = useTTS();
+
+  // Voice mode hook — pass product context when in product mode
   const voiceHook = useRealtimeWebRTC({
     language,
     groupId,
+    domain: isProductMode ? domain : undefined,
+    action: isProductMode ? action : undefined,
+    itemContext: isProductMode ? itemContext : undefined,
+    listenOnly: actionConfig?.mode === 'voice-tts',
+    skipGreeting: actionConfig?.noGreeting === true,
     onError: (err) => {
       console.error('[AskAboutContent] Voice error:', err);
     },
@@ -150,14 +195,25 @@ export function AskAboutContent({
 
   const isVoiceActive = voiceHook.state !== 'disconnected';
 
-  // Labels
+  // Track when a voice-tts pitch finishes (for post-pitch UI)
+  const [pitchComplete, setPitchComplete] = useState(false);
+
+  // Labels — adapt for product mode
   const labels = {
-    placeholder: language === 'es' 
-      ? `Pregunta sobre "${sectionTitle}"...`
-      : `Ask about "${sectionTitle}"...`,
-    emptyPrompt: language === 'es'
-      ? '¿Qué quieres saber sobre esta sección?'
-      : 'What would you like to know about this section?',
+    placeholder: isProductMode
+      ? (language === 'es'
+        ? `Pregunta sobre "${itemName}"...`
+        : `Ask about "${itemName}"...`)
+      : (language === 'es'
+        ? `Pregunta sobre "${sectionTitle}"...`
+        : `Ask about "${sectionTitle}"...`),
+    emptyPrompt: isProductMode
+      ? (language === 'es'
+        ? `¿Qué quieres saber sobre ${itemName}?`
+        : `What would you like to know about ${itemName}?`)
+      : (language === 'es'
+        ? '¿Qué quieres saber sobre esta sección?'
+        : 'What would you like to know about this section?'),
     usageLabel: language === 'es' ? 'restantes hoy' : 'remaining today',
     limitReached: language === 'es'
       ? 'Has alcanzado tu límite diario.'
@@ -177,16 +233,76 @@ export function AskAboutContent({
     }
   }, [contentState]);
 
+  // Auto-trigger for product mode actions (tts + conversation)
+  useEffect(() => {
+    if (!actionConfig?.autoTrigger) return;
+    if (autoTriggeredRef.current === actionConfig.key) return;
+
+    autoTriggeredRef.current = actionConfig.key;
+    const mode = actionConfig.mode;
+    let cancelled = false;
+
+    if (mode === 'tts') {
+      // Auto-call ask() with action, then auto-play TTS
+      setContentState('loading');
+      ask(actionConfig.label, { domain, action: actionConfig.key, itemContext })
+        .then(result => {
+          if (cancelled) return;
+          if (result) {
+            incrementUsageOptimistically();
+            setCurrentAnswer({
+              question: language === 'es' ? actionConfig.labelEs : actionConfig.label,
+              answer: result.answer,
+              citations: result.citations,
+              isExpanding: false,
+            });
+            setContentState('answer');
+            tts.speak(result.answer);
+          } else {
+            setContentState('empty');
+          }
+        });
+    } else if (mode === 'voice-tts') {
+      // Listen-only Realtime API — AI speaks the pitch, no mic
+      voiceHook.connect();
+    } else if (mode === 'conversation') {
+      // Auto-connect WebRTC (voice hook already has product context)
+      voiceHook.connect();
+    }
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionConfig?.key]);
+
+  // Stop TTS on unmount
+  useEffect(() => {
+    return () => {
+      tts.stop();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Detect voice-tts pitch completion
+  useEffect(() => {
+    if (actionConfig?.mode === 'voice-tts' && voiceHook.state === 'disconnected' && voiceHook.transcript.length > 0) {
+      setPitchComplete(true);
+    }
+  }, [voiceHook.state, voiceHook.transcript.length, actionConfig?.mode]);
+
   // Handle question submission (text mode)
   const handleSubmit = useCallback(async () => {
     if (!question.trim() || isLoading || isAtLimit) return;
 
     const askedQuestion = question;
-    
+
     setQuestion('');
     setContentState('loading');
 
-    const result = await ask(askedQuestion, { context: { sectionId, sectionTitle } });
+    // Branch: product mode uses domain + itemContext (search mode, no action)
+    // Manual mode uses sectionId/sectionTitle context
+    const result = isProductMode
+      ? await ask(askedQuestion, { domain, itemContext })
+      : await ask(askedQuestion, { context: { sectionId, sectionTitle } });
 
     if (result) {
       incrementUsageOptimistically();
@@ -200,7 +316,7 @@ export function AskAboutContent({
     } else {
       setContentState('empty');
     }
-  }, [question, isLoading, isAtLimit, sectionId, sectionTitle, ask, incrementUsageOptimistically]);
+  }, [question, isLoading, isAtLimit, isProductMode, domain, itemContext, sectionId, sectionTitle, ask, incrementUsageOptimistically]);
 
   // Handle expand answer
   const handleExpandAnswer = useCallback(async () => {
@@ -208,7 +324,9 @@ export function AskAboutContent({
 
     setCurrentAnswer(prev => prev ? { ...prev, isExpanding: true } : null);
 
-    const result = await ask(currentAnswer.question, { expand: true, context: { sectionId, sectionTitle } });
+    const result = isProductMode
+      ? await ask(currentAnswer.question, { expand: true, domain, itemContext })
+      : await ask(currentAnswer.question, { expand: true, context: { sectionId, sectionTitle } });
 
     if (result) {
       setCurrentAnswer(prev => prev ? {
@@ -220,21 +338,22 @@ export function AskAboutContent({
     } else {
       setCurrentAnswer(prev => prev ? { ...prev, isExpanding: false } : null);
     }
-  }, [currentAnswer, sectionId, sectionTitle, ask]);
+  }, [currentAnswer, isProductMode, domain, itemContext, sectionId, sectionTitle, ask]);
 
   // Handle source click
   const handleSourceClick = useCallback((source: { id: string; sectionId?: string }) => {
-    if (source.sectionId) {
+    if (source.sectionId && onNavigateToSection) {
       onNavigateToSection(source.sectionId);
     }
   }, [onNavigateToSection]);
 
   // Handle new question / reset
   const handleReset = useCallback(() => {
+    tts.stop();
     setCurrentAnswer(null);
     setContentState('empty');
     setQuestion('');
-  }, []);
+  }, [tts]);
 
   // Voice mode handlers
   const handleVoiceConnect = useCallback(() => {
@@ -255,11 +374,15 @@ export function AskAboutContent({
       sectionId: c.slug,
     }));
 
-  // Sample questions for empty state
-  const sampleQuestions = getSampleQuestions(sectionTitle, sectionId, language);
+  // Sample questions for empty state (manual mode only)
+  const sampleQuestions = !isProductMode && sectionTitle && sectionId
+    ? getSampleQuestions(sectionTitle, sectionId, language)
+    : [];
+
+  const loadingStages = isProductMode ? PRODUCT_LOADING_STAGES : LOADING_STAGES;
 
   return (
-    <div 
+    <div
       className={cn(
         'flex flex-col h-full pr-4',
         isClosing
@@ -279,56 +402,59 @@ export function AskAboutContent({
       </div>
 
       {/* Input Area - switches between text and voice mode */}
-      <div className="px-4 py-3 border-b border-border">
-        {isVoiceActive ? (
-          // Voice mode: show VoiceModeButton only
-          <div className="flex items-center gap-3">
-            <VoiceModeButton
-              state={voiceHook.state}
-              onConnect={handleVoiceConnect}
-              onDisconnect={handleVoiceDisconnect}
-              disabled={!voiceEnabled || !groupId}
-              language={language}
-            />
-            <span className="text-sm text-muted-foreground flex-1">
-              {labels.voiceActive}
-            </span>
-          </div>
-        ) : (
-          // Text mode: show VoiceChatInput with voice toggle
-          <>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <VoiceChatInput
-                  value={question}
-                  onChange={setQuestion}
-                  onSubmit={handleSubmit}
-                  placeholder={labels.placeholder}
-                  disabled={isAtLimit}
-                  isLoading={isLoading}
-                  language={language}
-                  voiceEnabled={false} // Disable built-in voice mode button
-                />
-              </div>
-              {/* Separate voice mode toggle */}
-              {voiceEnabled && groupId && (
-                <VoiceModeButton
-                  state={voiceHook.state}
-                  onConnect={handleVoiceConnect}
-                  onDisconnect={handleVoiceDisconnect}
-                  disabled={isAtLimit}
-                  language={language}
-                />
-              )}
+      {/* Hide input for voice-tts mode (no mic, no text input needed) */}
+      {actionConfig?.mode !== 'voice-tts' && (
+        <div className="px-4 py-3 border-b border-border">
+          {isVoiceActive ? (
+            // Voice mode: show VoiceModeButton only
+            <div className="flex items-center gap-3">
+              <VoiceModeButton
+                state={voiceHook.state}
+                onConnect={handleVoiceConnect}
+                onDisconnect={handleVoiceDisconnect}
+                disabled={!voiceEnabled || !groupId}
+                language={language}
+              />
+              <span className="text-sm text-muted-foreground flex-1">
+                {labels.voiceActive}
+              </span>
             </div>
-            {isAtLimit && (
-              <p className="text-small text-destructive mt-sm">
-                {labels.limitReached}
-              </p>
-            )}
-          </>
-        )}
-      </div>
+          ) : (
+            // Text mode: show VoiceChatInput with voice toggle
+            <>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <VoiceChatInput
+                    value={question}
+                    onChange={setQuestion}
+                    onSubmit={handleSubmit}
+                    placeholder={labels.placeholder}
+                    disabled={isAtLimit}
+                    isLoading={isLoading}
+                    language={language}
+                    voiceEnabled={false} // Disable built-in voice mode button
+                  />
+                </div>
+                {/* Separate voice mode toggle */}
+                {voiceEnabled && groupId && (
+                  <VoiceModeButton
+                    state={voiceHook.state}
+                    onConnect={handleVoiceConnect}
+                    onDisconnect={handleVoiceDisconnect}
+                    disabled={isAtLimit}
+                    language={language}
+                  />
+                )}
+              </div>
+              {isAtLimit && (
+                <p className="text-small text-destructive mt-sm">
+                  {labels.limitReached}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -336,10 +462,31 @@ export function AskAboutContent({
         {isVoiceActive ? (
           <VoiceTranscript
             entries={voiceHook.transcript}
-            maxEntries={5}
+            maxEntries={actionConfig?.mode === 'voice-tts' ? 1 : 5}
             language={language}
             className="h-full"
           />
+        ) : pitchComplete && actionConfig?.mode === 'voice-tts' ? (
+          /* Voice-TTS complete: show transcript + listen again */
+          <div className="flex flex-col items-center justify-center py-xl text-center h-full min-h-[200px]">
+            <VoiceTranscript
+              entries={voiceHook.transcript}
+              maxEntries={1}
+              language={language}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPitchComplete(false);
+                voiceHook.connect();
+              }}
+              className="mt-4"
+            >
+              <RotateCcw className="h-4 w-4 mr-xs" />
+              {language === 'es' ? 'Escuchar de nuevo' : 'Listen again'}
+            </Button>
+          </div>
         ) : (
           <>
             {/* Text Mode: Empty State */}
@@ -349,20 +496,23 @@ export function AskAboutContent({
                 <p className="text-body text-muted-foreground mb-lg">
                   {labels.emptyPrompt}
                 </p>
-                <div className="flex flex-wrap gap-sm justify-center">
-                  {sampleQuestions.map((q) => (
-                    <Button
-                      key={q}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setQuestion(q)}
-                      disabled={isAtLimit}
-                      className="text-left h-auto py-2"
-                    >
-                      {q}
-                    </Button>
-                  ))}
-                </div>
+                {/* Sample questions only in manual mode */}
+                {sampleQuestions.length > 0 && (
+                  <div className="flex flex-wrap gap-sm justify-center">
+                    {sampleQuestions.map((q) => (
+                      <Button
+                        key={q}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuestion(q)}
+                        disabled={isAtLimit}
+                        className="text-left h-auto py-2"
+                      >
+                        {q}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -373,7 +523,7 @@ export function AskAboutContent({
                   <Sparkles className="h-10 w-10 text-primary animate-pulse" />
                 </div>
                 <p className="text-body text-muted-foreground">
-                  {LOADING_STAGES[loadingStage][language]}
+                  {loadingStages[loadingStage][language]}
                 </p>
               </div>
             )}
@@ -389,9 +539,33 @@ export function AskAboutContent({
                   sources={mapCitationsToSources(currentAnswer.citations)}
                   onSourceClick={handleSourceClick}
                   onExpand={handleExpandAnswer}
-                  onFeedback={(type) => console.log('Feedback:', type)}
                 />
-                
+
+                {/* TTS audio indicator (product mode only) */}
+                {isProductMode && tts.isGenerating && (
+                  <div className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Volume2 className="h-4 w-4 animate-pulse" />
+                    <span>{language === 'es' ? 'Generando audio...' : 'Generating audio...'}</span>
+                  </div>
+                )}
+                {isProductMode && tts.isPlaying && (
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <Volume2 className="h-4 w-4 text-primary animate-pulse" />
+                    <span className="text-sm text-muted-foreground">
+                      {language === 'es' ? 'Reproduciendo...' : 'Playing...'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={tts.stop}
+                      className="h-7 px-2"
+                    >
+                      <Square className="h-3 w-3 mr-1" />
+                      {language === 'es' ? 'Detener' : 'Stop'}
+                    </Button>
+                  </div>
+                )}
+
                 {/* New Question Button */}
                 <div className="flex justify-center pt-md">
                   <Button

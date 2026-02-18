@@ -1,22 +1,13 @@
 import { useState } from 'react';
-import { ArrowLeft, Clock, Expand, FileText, Package, X, GraduationCap, ClipboardList, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Clock, Expand, FileText, Package, X, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AllergenBadge } from './AllergenBadge';
 import { BatchSizeSelector } from './BatchSizeSelector';
 import { IngredientsColumn } from './IngredientsColumn';
 import { ProcedureColumn } from './ProcedureColumn';
-import { RecipeAISheet } from './RecipeAISheet';
 import { Button } from '@/components/ui/button';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Recipe, PrepRecipe, PlateSpec, BatchScaling, TrainingNotes } from '@/types/products';
-import type { RecipeAIAction } from '@/data/mock-recipes';
-import { RECIPE_AI_ACTIONS } from '@/data/mock-recipes';
-
-const AI_ICON_MAP: Record<string, typeof GraduationCap> = {
-  'graduation-cap': GraduationCap,
-  'clipboard-list': ClipboardList,
-  'help-circle': HelpCircle,
-};
 
 interface RecipeCardViewProps {
   recipe: Recipe;
@@ -27,6 +18,8 @@ interface RecipeCardViewProps {
   onTapPrepRecipe?: (slug: string) => void;
   onPrev?: () => void;
   onNext?: () => void;
+  activeAction: string | null;
+  onActionChange: (action: string | null) => void;
 }
 
 export function RecipeCardView({
@@ -38,13 +31,14 @@ export function RecipeCardView({
   onTapPrepRecipe,
   onPrev,
   onNext,
+  activeAction,
+  onActionChange,
 }: RecipeCardViewProps) {
   const isPrep = recipe.type === 'prep';
   const prep = isPrep ? (recipe as PrepRecipe) : null;
   const plate = !isPrep ? (recipe as PlateSpec) : null;
 
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
-  const [activeAction, setActiveAction] = useState<RecipeAIAction | null>(null);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -87,7 +81,20 @@ export function RecipeCardView({
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-page-title text-foreground">{recipe.name}</h1>
+        <h1 className="text-page-title text-foreground flex-1">{recipe.name}</h1>
+
+        {/* Ask a Question — plate specs: far right of title row */}
+        {plate && (
+          <Button
+            variant={activeAction === 'questions' ? 'default' : 'outline'}
+            size="sm"
+            className="shrink-0"
+            onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
+          >
+            <HelpCircle className={cn('h-4 w-4', activeAction !== 'questions' && 'text-primary')} />
+            Ask a question
+          </Button>
+        )}
       </div>
 
       {/* Meta row: left info + right-anchored batch selector */}
@@ -122,8 +129,21 @@ export function RecipeCardView({
           </div>
         )}
 
-        {/* Spacer pushes batch selector to the right */}
+        {/* Spacer pushes buttons to the right */}
         <div className="flex-1" />
+
+        {/* Ask a Question — prep recipes: left of batch calculator */}
+        {prep && (
+          <Button
+            variant={activeAction === 'questions' ? 'default' : 'outline'}
+            size="sm"
+            className="shrink-0"
+            onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
+          >
+            <HelpCircle className={cn('h-4 w-4', activeAction !== 'questions' && 'text-primary')} />
+            Ask a question
+          </Button>
+        )}
 
         {prep && (
           <BatchSizeSelector value={batchMultiplier} onChange={onBatchChange} />
@@ -133,25 +153,7 @@ export function RecipeCardView({
       {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* AI Action Buttons */}
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        {RECIPE_AI_ACTIONS.map(({ key, label, icon }) => {
-          const Icon = AI_ICON_MAP[icon];
-          const isActive = activeAction === key;
-          return (
-            <Button
-              key={key}
-              variant={isActive ? 'default' : 'outline'}
-              size="sm"
-              className="shrink-0"
-              onClick={() => setActiveAction(isActive ? null : key)}
-            >
-              {Icon && <Icon className={cn('h-4 w-4', !isActive && 'text-primary')} />}
-              {label}
-            </Button>
-          );
-        })}
-      </div>
+      {/* AI action buttons removed — "Ask a question" is now inline in title/meta row */}
 
       {/* Two-column layout: Ingredients/Components | Procedure/Plating */}
       <div className="flex flex-col md:flex-row gap-lg md:gap-xl">
@@ -262,14 +264,6 @@ export function RecipeCardView({
           />
         </div>
       </div>
-
-      {/* AI Response Sheet */}
-      <RecipeAISheet
-        recipe={recipe}
-        action={activeAction}
-        open={activeAction !== null}
-        onOpenChange={(open) => { if (!open) setActiveAction(null); }}
-      />
 
       {/* Lightbox */}
       {expandedImage && (

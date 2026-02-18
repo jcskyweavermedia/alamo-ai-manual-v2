@@ -1,9 +1,12 @@
 import * as React from "react";
-import { ChevronDown, ChevronUp, ThumbsUp, ThumbsDown, Copy, Check, Maximize2 } from "lucide-react";
+import { Copy, Check, Maximize2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SourceChip } from "@/components/ui/source-chip";
 import { CardFloating } from "@/components/ui/card";
+import type { Components } from "react-markdown";
 
 /* =============================================================================
    AI ANSWER CARD COMPONENT
@@ -11,6 +14,81 @@ import { CardFloating } from "@/components/ui/card";
    - Not bubbles; answer card with source chips, expand action
    - Floating card style for prominence
 ============================================================================= */
+
+/** Compact markdown components sized for AI answer cards (not full manual pages) */
+const mdComponents: Components = {
+  h1: ({ children, ...props }) => (
+    <h1 className="text-base font-bold mt-3 mb-1 text-foreground" {...props}>{children}</h1>
+  ),
+  h2: ({ children, ...props }) => (
+    <h2 className="text-base font-bold mt-3 mb-1 text-foreground" {...props}>{children}</h2>
+  ),
+  h3: ({ children, ...props }) => (
+    <h3 className="text-sm font-semibold mt-2 mb-1 text-foreground" {...props}>{children}</h3>
+  ),
+  h4: ({ children, ...props }) => (
+    <h4 className="text-sm font-semibold mt-2 mb-1 text-muted-foreground" {...props}>{children}</h4>
+  ),
+  p: ({ children, ...props }) => (
+    <p className="text-body leading-relaxed mb-2 last:mb-0" {...props}>{children}</p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul className="list-disc pl-5 mb-2 space-y-0.5 text-body text-foreground marker:text-primary/40" {...props}>{children}</ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol className="list-decimal pl-5 mb-2 space-y-0.5 text-body text-foreground marker:text-primary/40" {...props}>{children}</ol>
+  ),
+  li: ({ children, ...props }) => (
+    <li className="text-body leading-relaxed" {...props}>{children}</li>
+  ),
+  strong: ({ children, ...props }) => (
+    <strong className="font-bold text-foreground" {...props}>{children}</strong>
+  ),
+  em: ({ children, ...props }) => (
+    <em className="italic" {...props}>{children}</em>
+  ),
+  a: ({ children, href, ...props }) => (
+    <a
+      href={href}
+      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+      target={href?.startsWith("http") ? "_blank" : undefined}
+      rel={href?.startsWith("http") ? "noopener noreferrer" : undefined}
+      {...props}
+    >{children}</a>
+  ),
+  blockquote: ({ children, ...props }) => (
+    <blockquote className="border-l-2 border-primary/30 pl-3 my-2 text-muted-foreground italic" {...props}>{children}</blockquote>
+  ),
+  code: ({ children, className, ...props }) => {
+    const isBlock = className?.includes("language-");
+    if (isBlock) {
+      return (
+        <pre className="bg-muted rounded-md p-3 overflow-x-auto my-2">
+          <code className={cn("text-xs font-mono text-foreground", className)} {...props}>{children}</code>
+        </pre>
+      );
+    }
+    return (
+      <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono text-foreground" {...props}>{children}</code>
+    );
+  },
+  pre: ({ children }) => <>{children}</>,
+  table: ({ children, ...props }) => (
+    <div className="overflow-x-auto my-2 -mx-1 px-1">
+      <table className="min-w-full text-sm border-collapse" {...props}>{children}</table>
+    </div>
+  ),
+  thead: ({ children, ...props }) => (
+    <thead className="border-b border-border" {...props}>{children}</thead>
+  ),
+  th: ({ children, ...props }) => (
+    <th className="text-left font-semibold px-2 py-1 text-xs" {...props}>{children}</th>
+  ),
+  td: ({ children, ...props }) => (
+    <td className="px-2 py-1 text-xs border-t border-border/50" {...props}>{children}</td>
+  ),
+  hr: () => <hr className="my-3 border-border/50" />,
+};
 
 export interface AISource {
   id: string;
@@ -23,11 +101,9 @@ export interface AIAnswerCardProps extends React.HTMLAttributes<HTMLDivElement> 
   answer: string;
   sources?: AISource[];
   onSourceClick?: (source: AISource) => void;
-  onFeedback?: (type: "positive" | "negative") => void;
   onCopy?: () => void;
   onExpand?: () => void; // Request expanded answer from AI
   isExpanding?: boolean; // Loading state for expand
-  truncateAt?: number;
   isLoading?: boolean;
 }
 
@@ -39,35 +115,21 @@ const AIAnswerCard = React.forwardRef<HTMLDivElement, AIAnswerCardProps>(
       answer,
       sources = [],
       onSourceClick,
-      onFeedback,
       onCopy,
       onExpand,
       isExpanding = false,
-      truncateAt = 300,
       isLoading = false,
       ...props
     },
     ref
   ) => {
-    const [isTextExpanded, setIsTextExpanded] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
-    const [feedback, setFeedback] = React.useState<"positive" | "negative" | null>(null);
-
-    const shouldTruncate = answer.length > truncateAt;
-    const displayedAnswer = shouldTruncate && !isTextExpanded
-      ? answer.slice(0, truncateAt) + "..."
-      : answer;
 
     const handleCopy = async () => {
       await navigator.clipboard.writeText(answer);
       setCopied(true);
       onCopy?.();
       setTimeout(() => setCopied(false), 2000);
-    };
-
-    const handleFeedback = (type: "positive" | "negative") => {
-      setFeedback(type);
-      onFeedback?.(type);
     };
 
     return (
@@ -94,30 +156,11 @@ const AIAnswerCard = React.forwardRef<HTMLDivElement, AIAnswerCardProps>(
             </div>
           ) : (
             <>
-              <div className="text-body text-foreground whitespace-pre-wrap">
-                {displayedAnswer}
+              <div className="text-body text-foreground">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                  {answer}
+                </ReactMarkdown>
               </div>
-
-              {shouldTruncate && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsTextExpanded(!isTextExpanded)}
-                  className="text-primary"
-                >
-                  {isTextExpanded ? (
-                    <>
-                      <ChevronUp className="w-4 h-4 mr-xs" />
-                      Show less
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-4 h-4 mr-xs" />
-                      Show more
-                    </>
-                  )}
-                </Button>
-              )}
 
               {/* Expand Answer button - requests detailed answer from AI */}
               {onExpand && !isExpanding && (
@@ -151,7 +194,6 @@ const AIAnswerCard = React.forwardRef<HTMLDivElement, AIAnswerCardProps>(
                   <SourceChip
                     key={source.id}
                     label={source.label}
-                    sectionId={source.sectionId}
                     onClick={() => onSourceClick?.(source)}
                     className="cursor-pointer hover:bg-accent"
                   />
@@ -175,31 +217,6 @@ const AIAnswerCard = React.forwardRef<HTMLDivElement, AIAnswerCardProps>(
                   <Copy className="w-4 h-4 mr-xs" />
                 )}
                 {copied ? "Copied" : "Copy"}
-              </Button>
-              
-              <div className="flex-1" />
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleFeedback("positive")}
-                className={cn(
-                  "text-muted-foreground hover:text-foreground",
-                  feedback === "positive" && "text-success"
-                )}
-              >
-                <ThumbsUp className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleFeedback("negative")}
-                className={cn(
-                  "text-muted-foreground hover:text-foreground",
-                  feedback === "negative" && "text-destructive"
-                )}
-              >
-                <ThumbsDown className="w-4 h-4" />
               </Button>
             </div>
           )}

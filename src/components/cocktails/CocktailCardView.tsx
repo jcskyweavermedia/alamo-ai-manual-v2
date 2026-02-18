@@ -1,25 +1,24 @@
 import { useState } from 'react';
-import { ArrowLeft, Expand, X, Mic, Play, UtensilsCrossed, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Expand, X, Mic, Play, GraduationCap, UtensilsCrossed, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CocktailStyleBadge } from './CocktailStyleBadge';
 import { TopSellerBadge } from '@/components/shared/TopSellerBadge';
-import { CocktailAISheet } from './CocktailAISheet';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Cocktail } from '@/types/products';
-import type { CocktailAIAction } from '@/data/mock-cocktails';
-import { COCKTAIL_AI_ACTIONS } from '@/data/mock-cocktails';
+import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 
 interface CocktailCardViewProps {
   cocktail: Cocktail;
   onBack: () => void;
   onPrev?: () => void;
   onNext?: () => void;
+  activeAction: string | null;
+  onActionChange: (action: string | null) => void;
 }
 
-export function CocktailCardView({ cocktail, onBack, onPrev, onNext }: CocktailCardViewProps) {
+export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeAction, onActionChange }: CocktailCardViewProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [activeAction, setActiveAction] = useState<CocktailAIAction | null>(null);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -31,8 +30,8 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext }: CocktailC
     <div ref={swipeRef} className="md:h-[calc(100vh-theme(spacing.14)-theme(spacing.8))] md:flex md:flex-col">
       {/* Header */}
       <div className="space-y-1 mb-3 md:mb-2 shrink-0">
-        {/* Title row */}
-        <div className="flex items-center gap-3">
+        {/* Style label + title row */}
+        <div className="flex items-start gap-3">
           <button
             type="button"
             onClick={onBack}
@@ -41,18 +40,27 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext }: CocktailC
               'h-10 w-10 rounded-lg',
               'bg-primary text-primary-foreground',
               'hover:bg-primary/90 active:bg-primary/80',
-              'shadow-sm transition-colors duration-150'
+              'shadow-sm transition-colors duration-150',
+              'mt-0.5'
             )}
             title="All Cocktails"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-page-title text-foreground flex-1 min-w-0 truncate">
-            {cocktail.name}
-          </h1>
-          <CocktailStyleBadge style={cocktail.style} />
-          {cocktail.isTopSeller && <TopSellerBadge size="md" />}
+          <div className="flex-1 min-w-0">
+            <CocktailStyleBadge style={cocktail.style} variant="text" />
+            <h1 className="text-page-title text-foreground truncate">
+              {cocktail.name}
+            </h1>
+          </div>
         </div>
+
+        {/* Top seller badge */}
+        {cocktail.isTopSeller && (
+          <div className="pl-[52px]">
+            <TopSellerBadge size="md" />
+          </div>
+        )}
 
         {/* Sub-meta row */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-sm text-muted-foreground">
@@ -66,19 +74,19 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext }: CocktailC
       <div className="border-t border-border mb-4 md:mb-3 shrink-0" />
 
       {/* AI Action Buttons */}
-      <div className="flex items-center justify-center gap-2 mb-5 md:mb-4 shrink-0 overflow-x-auto">
-        {COCKTAIL_AI_ACTIONS.map(({ key, label, icon }) => {
-          const Icon = { mic: Mic, play: Play, 'utensils-crossed': UtensilsCrossed, 'help-circle': HelpCircle }[icon];
+      <div className="flex items-center justify-center gap-1.5 mb-5 md:mb-4 overflow-x-auto ai-action-scroll">
+        {PRODUCT_AI_ACTIONS.cocktails.map(({ key, label, icon }) => {
+          const Icon = { mic: Mic, play: Play, 'graduation-cap': GraduationCap, 'utensils-crossed': UtensilsCrossed, 'help-circle': HelpCircle }[icon] as typeof Mic | undefined;
           const isActive = activeAction === key;
           return (
             <Button
               key={key}
               variant={isActive ? 'default' : 'outline'}
               size="sm"
-              className="shrink-0"
-              onClick={() => setActiveAction(isActive ? null : key)}
+              className="shrink-0 h-8 px-2 text-[11px] min-h-0"
+              onClick={() => onActionChange(isActive ? null : key)}
             >
-              {Icon && <Icon className={cn('h-4 w-4', !isActive && 'text-primary')} />}
+              {Icon && <Icon className={cn('h-3.5 w-3.5', !isActive && 'text-primary')} />}
               {label}
             </Button>
           );
@@ -164,14 +172,6 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext }: CocktailC
           </section>
         </div>
       </div>
-
-      {/* AI Response Sheet */}
-      <CocktailAISheet
-        cocktail={cocktail}
-        action={activeAction}
-        open={activeAction !== null}
-        onOpenChange={(open) => { if (!open) setActiveAction(null); }}
-      />
 
       {/* Lightbox */}
       {lightboxOpen && (

@@ -5,17 +5,19 @@ import { Button } from '@/components/ui/button';
 import { DishCategoryBadge } from './DishCategoryBadge';
 import { DishAllergenBadge } from './DishAllergenBadge';
 import { TopSellerBadge } from '@/components/shared/TopSellerBadge';
-import { DishAISheet } from './DishAISheet';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Dish } from '@/types/products';
-import type { DishAIAction } from '@/data/mock-dishes';
-import { DISH_AI_ACTIONS } from '@/data/mock-dishes';
+import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 
 interface DishCardViewProps {
   dish: Dish;
   onBack: () => void;
   onSwipePrev?: () => void;
   onSwipeNext?: () => void;
+  /** Currently active AI action key (managed by parent) */
+  activeAction: string | null;
+  /** Called when user toggles an AI action button */
+  onActionChange: (action: string | null) => void;
 }
 
 const AI_ICON_MAP: Record<string, typeof Mic> = {
@@ -25,9 +27,8 @@ const AI_ICON_MAP: Record<string, typeof Mic> = {
   'help-circle': HelpCircle,
 };
 
-export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext }: DishCardViewProps) {
+export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAction, onActionChange }: DishCardViewProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [activeAction, setActiveAction] = useState<DishAIAction | null>(null);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onSwipeNext,
@@ -115,8 +116,8 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext }: DishCar
       </div>
 
       {/* AI Action Buttons */}
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        {DISH_AI_ACTIONS.map(({ key, label, icon }) => {
+      <div className="flex items-center justify-center gap-1.5 overflow-x-auto ai-action-scroll">
+        {PRODUCT_AI_ACTIONS.dishes.map(({ key, label, icon }) => {
           const Icon = AI_ICON_MAP[icon];
           const isActive = activeAction === key;
           return (
@@ -124,10 +125,10 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext }: DishCar
               key={key}
               variant={isActive ? 'default' : 'outline'}
               size="sm"
-              className="shrink-0"
-              onClick={() => setActiveAction(isActive ? null : key)}
+              className="shrink-0 h-8 px-2 text-[11px] min-h-0"
+              onClick={() => onActionChange(isActive ? null : key)}
             >
-              {Icon && <Icon className={cn('h-4 w-4', !isActive && 'text-primary')} />}
+              {Icon && <Icon className={cn('h-3.5 w-3.5', !isActive && 'text-primary')} />}
               {label}
             </Button>
           );
@@ -197,14 +198,6 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext }: DishCar
           </p>
         </section>
       )}
-
-      {/* AI Response Sheet */}
-      <DishAISheet
-        dish={dish}
-        action={activeAction}
-        open={activeAction !== null}
-        onOpenChange={(open) => { if (!open) setActiveAction(null); }}
-      />
 
       {/* Lightbox */}
       {lightboxOpen && (

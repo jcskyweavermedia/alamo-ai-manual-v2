@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { ArrowLeft, GraduationCap, UtensilsCrossed, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BeerLiquorSubcategoryBadge } from './BeerLiquorSubcategoryBadge';
-import { BeerLiquorAISheet } from './BeerLiquorAISheet';
 import { Button } from '@/components/ui/button';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { BeerLiquorItem } from '@/types/products';
-import type { BeerLiquorSubcategory, BeerLiquorAIAction } from '@/data/mock-beer-liquor';
-import { BEER_LIQUOR_AI_ACTIONS } from '@/data/mock-beer-liquor';
+import type { BeerLiquorSubcategory } from '@/data/mock-beer-liquor';
+import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 
 const AI_ICON_MAP: Record<string, typeof GraduationCap> = {
   'graduation-cap': GraduationCap,
@@ -20,10 +19,11 @@ interface BeerLiquorCardViewProps {
   onBack: () => void;
   onPrev?: () => void;
   onNext?: () => void;
+  activeAction: string | null;
+  onActionChange: (action: string | null) => void;
 }
 
-export function BeerLiquorCardView({ item, onBack, onPrev, onNext }: BeerLiquorCardViewProps) {
-  const [activeAction, setActiveAction] = useState<BeerLiquorAIAction | null>(null);
+export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction, onActionChange }: BeerLiquorCardViewProps) {
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -83,8 +83,8 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext }: BeerLiquorC
       <div className="border-t border-border" />
 
       {/* AI Action Buttons */}
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        {BEER_LIQUOR_AI_ACTIONS.map(({ key, label, icon }) => {
+      <div className="flex items-center justify-center gap-1.5 overflow-x-auto ai-action-scroll">
+        {PRODUCT_AI_ACTIONS.beer_liquor.map(({ key, label, icon }) => {
           const Icon = AI_ICON_MAP[icon];
           const isActive = activeAction === key;
           return (
@@ -92,10 +92,10 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext }: BeerLiquorC
               key={key}
               variant={isActive ? 'default' : 'outline'}
               size="sm"
-              className="shrink-0"
-              onClick={() => setActiveAction(isActive ? null : key)}
+              className="shrink-0 h-8 px-2 text-[11px] min-h-0"
+              onClick={() => onActionChange(isActive ? null : key)}
             >
-              {Icon && <Icon className={cn('h-4 w-4', !isActive && 'text-primary')} />}
+              {Icon && <Icon className={cn('h-3.5 w-3.5', !isActive && 'text-primary')} />}
               {label}
             </Button>
           );
@@ -137,13 +137,6 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext }: BeerLiquorC
         )}
       </div>
 
-      {/* AI Response Sheet */}
-      <BeerLiquorAISheet
-        item={item}
-        action={activeAction}
-        open={activeAction !== null}
-        onOpenChange={(open) => { if (!open) setActiveAction(null); }}
-      />
     </div>
   );
 }

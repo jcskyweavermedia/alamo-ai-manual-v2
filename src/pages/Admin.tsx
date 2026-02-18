@@ -2,13 +2,16 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageTitle, SectionTitle, MetaText } from "@/components/ui/typography";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Users, FileText, BarChart3, Settings } from "lucide-react";
+import { Users, FileText, BarChart3, Settings, GraduationCap } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/hooks/use-language";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
 
 const Admin = () => {
   const { language, setLanguage } = useLanguage();
   const handleSearch = useSearchNavigation();
+  const navigate = useNavigate();
+  const isEs = language === 'es';
 
   const stats = [
     { label: "Active Users", value: "24", icon: Users },
@@ -49,18 +52,44 @@ const Admin = () => {
           ))}
         </div>
 
+        {/* Training Dashboard Card */}
+        <Card
+          className="cursor-pointer hover:border-primary/50 transition-colors"
+          onClick={() => navigate('/admin/training')}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              {isEs ? 'Dashboard de Entrenamiento' : 'Training Dashboard'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MetaText>
+              {isEs
+                ? 'Ver progreso del equipo, gestionar rollouts y detectar cambios de contenido.'
+                : 'View team progress, manage rollouts, and detect content changes.'}
+            </MetaText>
+          </CardContent>
+        </Card>
+
         {/* Quick Actions */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Quick Actions
+              {isEs ? 'Acciones Rapidas' : 'Quick Actions'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-sm">
-            <MetaText>Manage users, documents, and system settings.</MetaText>
+            <MetaText>
+              {isEs
+                ? 'Gestionar usuarios, documentos y configuracion del sistema.'
+                : 'Manage users, documents, and system settings.'}
+            </MetaText>
             <MetaText className="text-warning-foreground">
-              Full admin functionality coming in Phase 5.
+              {isEs
+                ? 'Funcionalidad completa en Fase 5.'
+                : 'Full admin functionality coming in Phase 5.'}
             </MetaText>
           </CardContent>
         </Card>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { Menu, Sparkles, PanelLeftClose, PanelLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import { LanguageToggle } from '@/components/ui/language-toggle';
@@ -23,12 +23,10 @@ interface HeaderProps {
   showAskAI?: boolean;
   /** Called when Ask AI button is clicked */
   onAskAIClick?: () => void;
-  /** Whether sidebar is collapsed (desktop) */
-  sidebarCollapsed?: boolean;
-  /** Called to toggle sidebar collapse (desktop) */
-  onToggleSidebar?: () => void;
   /** Prev/next item navigation (shown when viewing an item) */
   itemNav?: ItemNav;
+  /** Optional toolbar content rendered between left and right sections (e.g. SOS AI buttons) */
+  toolbar?: React.ReactNode;
   className?: string;
 }
 
@@ -41,9 +39,8 @@ export function Header({
   onLanguageChange,
   showAskAI = false,
   onAskAIClick,
-  sidebarCollapsed = false,
-  onToggleSidebar,
   itemNav,
+  toolbar,
   className,
 }: HeaderProps) {
   const askLabel = language === 'es' ? 'Preguntar IA' : 'Ask AI';
@@ -89,25 +86,8 @@ export function Header({
         className
       )}
     >
-      {/* Left section: Sidebar toggle + Menu button + Search */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* Sidebar collapse toggle (desktop only) */}
-        {onToggleSidebar && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleSidebar}
-            className="hidden md:flex h-9 w-9 shrink-0"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeft className="h-5 w-5" />
-            ) : (
-              <PanelLeftClose className="h-5 w-5" />
-            )}
-          </Button>
-        )}
-
+      {/* Left section: Menu button + Search */}
+      <div className={cn("flex items-center gap-3 min-w-0", toolbar ? "flex-1" : "flex-1")}>
         {/* Menu button for mobile (when sidebar is hidden) */}
         {showMenuButton && (
           <Button
@@ -142,8 +122,15 @@ export function Header({
         )}
       </div>
 
+      {/* Center toolbar slot (e.g. SOS AI action buttons) */}
+      {toolbar && (
+        <div className="flex-1 flex items-center justify-center">
+          {toolbar}
+        </div>
+      )}
+
       {/* Right section: Actions */}
-      <div className="flex items-center gap-1.5">
+      <div className={cn("flex items-center gap-1.5", toolbar && "flex-1 justify-end")}>
         {/* Ask AI button */}
         {showAskAI && (
           <Button

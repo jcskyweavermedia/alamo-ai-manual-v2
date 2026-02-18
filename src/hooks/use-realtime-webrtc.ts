@@ -1,9 +1,9 @@
 /**
  * useRealtimeWebRTC
- * 
+ *
  * React hook for WebRTC-based voice conversation with OpenAI Realtime API.
  * Provides native audio handling for smooth, gap-free playback.
- * 
+ *
  * Key benefits over WebSocket approach:
  * - Native browser audio buffering/jitter management
  * - Lower latency (direct P2P-like connection)
@@ -26,12 +26,32 @@ export interface TranscriptEntry {
 export interface UseRealtimeWebRTCOptions {
   language: 'en' | 'es';
   groupId: string;
+  /** Product domain for product-context voice sessions */
+  domain?: string;
+  /** Action key (e.g. practicePitch, quizMe) */
+  action?: string;
+  /** Full item data for product context */
+  itemContext?: Record<string, unknown>;
+  /** Listen-only mode: skip mic, auto-disconnect after AI speaks */
+  listenOnly?: boolean;
+  /** Skip AI greeting — connect with mic ready but don't trigger AI to speak first */
+  skipGreeting?: boolean;
   onTranscript?: (entry: TranscriptEntry) => void;
   onError?: (error: string) => void;
   onStateChange?: (state: WebRTCVoiceState) => void;
 }
 
-export type WebRTCVoiceState = 
+// Product search tool names that the realtime-search function supports
+const PRODUCT_SEARCH_TOOLS = new Set([
+  'search_dishes',
+  'search_wines',
+  'search_cocktails',
+  'search_recipes',
+  'search_beer_liquor',
+  'search_steps_of_service',
+]);
+
+export type WebRTCVoiceState =
   | 'disconnected'
   | 'connecting'
   | 'connected'
@@ -61,7 +81,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // =============================================================================
 
 export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtimeWebRTCReturn {
-  const { language, groupId, onTranscript, onError, onStateChange } = options;
+  const { language, groupId, domain, action, itemContext, listenOnly, skipGreeting, onTranscript, onError, onStateChange } = options;
 
   // State
   const [state, setState] = useState<WebRTCVoiceState>('disconnected');
@@ -75,6 +95,9 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const ephemeralKeyRef = useRef<string | null>(null);
   const assistantTextRef = useRef<string>('');
+  const abortRef = useRef<AbortController | null>(null);
+  const sessionReadyRef = useRef(false);
+  const messageHandlerRef = useRef<(event: MessageEvent) => void>(() => {});
 
   // Derived state
   const isConnected = state !== 'disconnected' && state !== 'connecting';
@@ -98,9 +121,12 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     onTranscript?.(entry);
   }, [onTranscript]);
 
-  // Handle tool calls (search_handbook)
+  // Handle tool calls (search_handbook + product search tools)
   const handleToolCall = useCallback(async (name: string, callId: string, args: string) => {
-    if (name !== 'search_handbook') {
+    const isHandbook = name === 'search_handbook';
+    const isProduct = PRODUCT_SEARCH_TOOLS.has(name);
+
+    if (!isHandbook && !isProduct) {
       console.log('[WebRTC] Unknown tool:', name);
       return;
     }
@@ -108,7 +134,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     try {
       const parsedArgs = JSON.parse(args);
       const query = parsedArgs.query;
-      console.log('[WebRTC] Tool call: search_handbook, query:', query);
+      console.log(`[WebRTC] Tool call: ${name}, query:`, query);
 
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
@@ -116,14 +142,14 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         throw new Error('Not authenticated');
       }
 
-      // Call search edge function
+      // Call search edge function with tool parameter
       const response = await fetch(`${SUPABASE_URL}/functions/v1/realtime-search`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, language, groupId }),
+        body: JSON.stringify({ query, language, groupId, tool: name }),
       });
 
       if (!response.ok) {
@@ -131,7 +157,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       }
 
       const result = await response.json();
-      console.log('[WebRTC] Search returned', result.sections?.length || 0, 'sections');
+      console.log('[WebRTC] Search returned', result.sections?.length || 0, 'results');
 
       // Send result back via data channel
       if (dcRef.current?.readyState === 'open') {
@@ -149,7 +175,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       }
     } catch (err) {
       console.error('[WebRTC] Tool call failed:', err);
-      
+
       // Send error response
       if (dcRef.current?.readyState === 'open') {
         dcRef.current.send(JSON.stringify({
@@ -157,7 +183,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           item: {
             type: 'function_call_output',
             call_id: callId,
-            output: language === 'es' 
+            output: language === 'es'
               ? 'La búsqueda falló. Por favor intenta de nuevo.'
               : 'Search failed. Please try again.',
           },
@@ -178,7 +204,13 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         case 'session.created':
         case 'session.updated':
           console.log('[WebRTC] Session ready');
+          sessionReadyRef.current = true;
           updateState('connected');
+          // In product mode, trigger AI greeting if data channel is already open
+          if (dcRef.current?.readyState === 'open' && domain && action && !skipGreeting) {
+            console.log('[WebRTC] Product mode — triggering AI greeting');
+            dcRef.current.send(JSON.stringify({ type: 'response.create' }));
+          }
           break;
 
         // User started speaking
@@ -242,11 +274,27 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         // Response complete
         case 'response.done':
           console.log('[WebRTC] AI response complete');
-          setTimeout(() => {
-            if (pcRef.current?.connectionState === 'connected') {
-              updateState('connected');
+          if (listenOnly) {
+            // Check if this response was just a tool call (no audio output)
+            const outputItems = data.response?.output || [];
+            const hasAudio = outputItems.some(
+              (item: any) => item.type === 'message'
+            );
+            if (hasAudio || outputItems.length === 0) {
+              // Real audio response finished — soft disconnect
+              // DON'T close the peer connection yet — audio is still buffering through WebRTC
+              // Resources are cleaned up on next connect() or component unmount
+              updateState('disconnected');
+            } else {
+              console.log('[WebRTC] Tool-call response — waiting for audio response');
             }
-          }, 300);
+          } else {
+            setTimeout(() => {
+              if (pcRef.current?.connectionState === 'connected') {
+                updateState('connected');
+              }
+            }, 300);
+          }
           break;
 
         // Error
@@ -266,11 +314,23 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     } catch (err) {
       console.error('[WebRTC] Failed to parse message:', err);
     }
-  }, [state, updateState, addTranscript, handleToolCall, onError]);
+  }, [state, updateState, addTranscript, handleToolCall, onError, domain, action, listenOnly]);
+
+  // Keep message handler ref in sync (fixes stale closure)
+  useEffect(() => {
+    messageHandlerRef.current = handleDataChannelMessage;
+  }, [handleDataChannelMessage]);
 
   // Cleanup
   const cleanup = useCallback(() => {
     console.log('[WebRTC] Cleaning up...');
+
+    // Abort any in-flight connect
+    abortRef.current?.abort();
+    abortRef.current = null;
+
+    // Reset session ready flag
+    sessionReadyRef.current = false;
 
     // Close data channel
     if (dcRef.current) {
@@ -303,23 +363,38 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
   // Connect
   const connect = useCallback(async () => {
     if (pcRef.current) {
-      console.warn('[WebRTC] Already connected');
-      return;
+      // Clean up stale connection (e.g., listen-only audio still draining)
+      console.log('[WebRTC] Cleaning up previous connection');
+      cleanup();
     }
+
+    // Abort any previous in-flight connect
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
 
     try {
       setError(null);
+      setTranscript([]); // Clear transcript for "Listen again"
       updateState('connecting');
 
       // =========================================================================
       // 1. GET EPHEMERAL KEY FROM OUR SERVER
       // =========================================================================
       console.log('[WebRTC] Getting ephemeral key...');
-      
+
       const { data: { session } } = await supabase.auth.getSession();
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); return; }
       if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
+
+      const sessionBody: Record<string, unknown> = { groupId, language };
+      if (domain) sessionBody.domain = domain;
+      if (action) sessionBody.action = action;
+      if (itemContext) sessionBody.itemContext = itemContext;
+      if (listenOnly) sessionBody.listenOnly = true;
 
       const sessionResponse = await fetch(`${SUPABASE_URL}/functions/v1/realtime-session`, {
         method: 'POST',
@@ -327,7 +402,8 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ groupId, language }),
+        body: JSON.stringify(sessionBody),
+        signal,
       });
 
       if (!sessionResponse.ok) {
@@ -336,6 +412,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       }
 
       const { ephemeralKey } = await sessionResponse.json();
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); return; }
       ephemeralKeyRef.current = ephemeralKey;
       console.log('[WebRTC] Ephemeral key obtained');
 
@@ -344,6 +421,13 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       // =========================================================================
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
+
+      if (signal.aborted) {
+        console.log('[WebRTC] Connect aborted');
+        pc.close();
+        pcRef.current = null;
+        return;
+      }
 
       // =========================================================================
       // 3. SET UP AUDIO PLAYBACK (automatic via WebRTC!)
@@ -358,19 +442,36 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       };
 
       // =========================================================================
-      // 4. ADD MICROPHONE
+      // 4. ADD MICROPHONE (skip in listen-only mode)
       // =========================================================================
-      console.log('[WebRTC] Requesting microphone...');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      mediaStreamRef.current = stream;
-      pc.addTrack(stream.getTracks()[0]);
-      console.log('[WebRTC] Microphone connected');
+      if (!listenOnly) {
+        console.log('[WebRTC] Requesting microphone...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+
+        if (signal.aborted) {
+          console.log('[WebRTC] Connect aborted');
+          stream.getTracks().forEach(track => track.stop());
+          pc.close();
+          pcRef.current = null;
+          audioElRef.current = null;
+          return;
+        }
+
+        mediaStreamRef.current = stream;
+        pc.addTrack(stream.getTracks()[0]);
+        console.log('[WebRTC] Microphone connected');
+      } else {
+        // Add receive-only audio transceiver so SDP has an audio media section
+        // (OpenAI requires it) without triggering a microphone permission prompt
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+        console.log('[WebRTC] Listen-only mode — receive-only audio (no microphone)');
+      }
 
       // =========================================================================
       // 5. CREATE DATA CHANNEL FOR EVENTS
@@ -380,9 +481,14 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
 
       dc.onopen = () => {
         console.log('[WebRTC] Data channel open');
+        // In product mode, trigger AI greeting only if session is already ready
+        if (sessionReadyRef.current && domain && action && !skipGreeting) {
+          console.log('[WebRTC] Product mode — triggering AI greeting');
+          dc.send(JSON.stringify({ type: 'response.create' }));
+        }
       };
 
-      dc.onmessage = handleDataChannelMessage;
+      dc.onmessage = (event) => messageHandlerRef.current(event);
 
       dc.onerror = (e) => {
         console.error('[WebRTC] Data channel error:', e);
@@ -397,7 +503,10 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       // =========================================================================
       console.log('[WebRTC] Creating offer...');
       const offer = await pc.createOffer();
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); cleanup(); return; }
+
       await pc.setLocalDescription(offer);
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); cleanup(); return; }
 
       console.log('[WebRTC] Sending SDP to OpenAI...');
       const sdpResponse = await fetch('https://api.openai.com/v1/realtime?model=gpt-realtime-2025-08-28', {
@@ -407,6 +516,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           'Content-Type': 'application/sdp',
         },
         body: offer.sdp,
+        signal,
       });
 
       if (!sdpResponse.ok) {
@@ -416,7 +526,10 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       }
 
       const answerSdp = await sdpResponse.text();
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); cleanup(); return; }
+
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      if (signal.aborted) { console.log('[WebRTC] Connect aborted'); cleanup(); return; }
 
       console.log('[WebRTC] Connection established!');
 
@@ -429,13 +542,18 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       };
 
     } catch (err) {
+      // Silently ignore intentional abort
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.log('[WebRTC] Connect aborted');
+        return;
+      }
       console.error('[WebRTC] Connect failed:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to connect';
       setError(errorMsg);
       onError?.(errorMsg);
       cleanup();
     }
-  }, [groupId, language, handleDataChannelMessage, cleanup, onError, updateState]);
+  }, [groupId, language, domain, action, itemContext, listenOnly, cleanup, onError, updateState]);
 
   // Disconnect
   const disconnect = useCallback(() => {

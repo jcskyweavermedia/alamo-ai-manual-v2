@@ -1,12 +1,17 @@
-import { useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useBeerLiquorViewer } from '@/hooks/use-beer-liquor-viewer';
 import { BeerLiquorList, BeerLiquorCardView } from '@/components/beer-liquor';
+import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
+import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
+import { getActionConfig } from '@/data/ai-action-config';
 
 const BeerLiquor = () => {
   const { language, setLanguage } = useLanguage();
+  const isMobile = useIsMobile();
 
   const {
     filteredItems,
@@ -26,10 +31,28 @@ const BeerLiquor = () => {
     error,
   } = useBeerLiquorViewer();
 
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+
+  const handleClearSelection = useCallback(() => {
+    setActiveAction(null);
+    clearSelection();
+  }, [clearSelection]);
+
   const itemNav = useMemo(
     () => selectedItem ? { hasPrev, hasNext, onPrev: goToPrev, onNext: goToNext } : undefined,
     [selectedItem, hasPrev, hasNext, goToPrev, goToNext]
   );
+
+  const aiPanel = selectedItem && activeAction ? (
+    <DockedProductAIPanel
+      isOpen={activeAction !== null}
+      onClose={() => setActiveAction(null)}
+      actionConfig={getActionConfig('beer_liquor', activeAction) ?? null}
+      domain="beer_liquor"
+      itemName={selectedItem.name}
+      itemContext={selectedItem as unknown as Record<string, unknown>}
+    />
+  ) : undefined;
 
   return (
     <AppShell
@@ -37,6 +60,7 @@ const BeerLiquor = () => {
       onLanguageChange={setLanguage}
       showSearch={false}
       itemNav={itemNav}
+      aiPanel={aiPanel}
     >
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
@@ -48,12 +72,26 @@ const BeerLiquor = () => {
           <p className="text-sm text-muted-foreground">Failed to load beer & liquor</p>
         </div>
       ) : selectedItem ? (
-        <BeerLiquorCardView
-          item={selectedItem}
-          onBack={clearSelection}
-          onPrev={goToPrev}
-          onNext={goToNext}
-        />
+        <>
+          <BeerLiquorCardView
+            item={selectedItem}
+            onBack={handleClearSelection}
+            onPrev={goToPrev}
+            onNext={goToNext}
+            activeAction={activeAction}
+            onActionChange={setActiveAction}
+          />
+          {isMobile && (
+            <ProductAIDrawer
+              open={activeAction !== null}
+              onOpenChange={(open) => { if (!open) setActiveAction(null); }}
+              actionConfig={activeAction ? getActionConfig('beer_liquor', activeAction) ?? null : null}
+              domain="beer_liquor"
+              itemName={selectedItem.name}
+              itemContext={selectedItem as unknown as Record<string, unknown>}
+            />
+          )}
+        </>
       ) : (
         <BeerLiquorList
           groupedItems={groupedItems}

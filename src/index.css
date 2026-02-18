@@ -292,6 +292,22 @@
   .duration-sheet {
     transition-duration: 280ms;
   }
+
+  /* Thin, subtle scrollbar for AI action button rows */
+  .ai-action-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .ai-action-scroll::-webkit-scrollbar {
+    height: 3px;
+  }
+  .ai-action-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .ai-action-scroll::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
 }
 
 /* =============================================================================

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* =============================================================================
@@ -17,27 +17,23 @@ export interface SourceChipProps extends React.ButtonHTMLAttributes<HTMLButtonEl
 }
 
 const SourceChip = React.forwardRef<HTMLButtonElement, SourceChipProps>(
-  ({ className, label, sectionId, icon, external = false, ...props }, ref) => (
+  ({ className, label, icon, ...props }, ref) => (
     <button
       ref={ref}
       type="button"
       className={cn(
-        "inline-flex items-center gap-xs",
-        "px-sm py-xs rounded-full",
+        "inline-flex items-center gap-1.5",
+        "px-2.5 py-1 rounded-full",
         "bg-primary/12 text-primary hover:bg-primary/20",
-        "text-small font-medium",
+        "text-xs font-medium",
         "transition-colors duration-micro",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className
       )}
       {...props}
     >
-      {icon || <FileText className="w-3.5 h-3.5" />}
-      <span className="truncate max-w-[150px]">{label}</span>
-      {sectionId && (
-        <span className="text-primary/70">§{sectionId}</span>
-      )}
-      {external && <ExternalLink className="w-3 h-3" />}
+      {icon || <FileText className="w-3.5 h-3.5 shrink-0" />}
+      <span className="truncate">{label}</span>
     </button>
   )
 );

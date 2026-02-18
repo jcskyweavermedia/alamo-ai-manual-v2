@@ -186,7 +186,6 @@ const Ask = () => {
               if (citation) handleSourceClick(citation);
             }}
             onExpand={handleExpandAnswer}
-            onFeedback={(type) => console.log("Feedback:", type)}
           />
         ) : null}
       </div>
@@ -303,7 +302,6 @@ const Ask = () => {
                   if (citation) handleSourceClick(citation);
                 }}
                 onExpand={handleExpandAnswer}
-                onFeedback={(type) => console.log("Feedback:", type)}
               />
             )}
           </div>
