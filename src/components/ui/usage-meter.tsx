@@ -1,5 +1,4 @@
 import * as React from "react";
-import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* =============================================================================
@@ -48,7 +47,7 @@ const UsageMeter = React.forwardRef<HTMLDivElement, UsageMeterProps>(
       ? "bg-destructive"
       : isWarning
       ? "bg-warning"
-      : "bg-primary";
+      : "bg-orange-500";
 
     const textColor = isCritical
       ? "text-destructive"
@@ -65,7 +64,7 @@ const UsageMeter = React.forwardRef<HTMLDivElement, UsageMeterProps>(
         <div className="flex items-center justify-between gap-md">
           <div className="flex items-center gap-xs">
             {showIcon && (
-              <Sparkles className={cn("w-4 h-4", textColor)} />
+              <span className="text-sm leading-none">⚡</span>
             )}
             <span className={cn("text-small font-medium", textColor)}>
               {remaining} {label}

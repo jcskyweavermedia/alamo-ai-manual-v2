@@ -156,6 +156,27 @@ const FORMATTERS: Record<string, (row: unknown) => string> = {
   search_beer_liquor: formatBeerLiquorDetail,
 };
 
+// =============================================================================
+// HELPER: stripStopWords (matches /ask function for consistent FTS matching)
+// =============================================================================
+
+const QUESTION_STOP_WORDS = [
+  "what", "how", "why", "when", "where", "who", "which",
+  "explain", "describe", "tell", "show",
+  "is", "are", "the", "a", "an",
+  "do", "does", "can", "could", "should", "would",
+  "about", "me",
+];
+
+function stripStopWords(query: string): string {
+  const stripped = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => !QUESTION_STOP_WORDS.includes(w) && w.length > 1)
+    .join(" ");
+  return stripped || query; // Fallback to original if all words stripped
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -204,7 +225,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log('[realtime-search] Query:', query, 'Language:', language, 'Tool:', tool, 'User:', userId);
+    // Strip stop words for better FTS matching (use raw query for embedding)
+    const searchQuery = stripStopWords(query);
+    console.log('[realtime-search] Query:', query, '→ FTS:', searchQuery, 'Language:', language, 'Tool:', tool, 'User:', userId);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -267,7 +290,7 @@ Deno.serve(async (req) => {
       console.log('[realtime-search] Product search via RPC:', productRpc);
 
       const rpcParams: Record<string, unknown> = {
-        search_query: query,
+        search_query: searchQuery,
         result_limit: 3,
       };
       if (embedding) {
@@ -373,7 +396,7 @@ Deno.serve(async (req) => {
 
       // deno-lint-ignore no-explicit-any
       const rpcParams: Record<string, any> = {
-        search_query: query,
+        search_query: searchQuery,
         p_group_id: groupId,
         search_language: language,
         result_limit: 5,
@@ -430,29 +453,28 @@ Deno.serve(async (req) => {
     // HANDBOOK SEARCH (default: search_handbook)
     // =========================================================================
 
-    // Perform search
+    // Perform search using search_manual_v2 (hybrid RRF: FTS + vector)
     let results;
     if (embedding) {
-      // Hybrid search (FTS + vector with RRF)
-      console.log('[realtime-search] Running hybrid search...');
-      const { data, error } = await supabase.rpc('hybrid_search_manual', {
-        search_query: query,
+      console.log('[realtime-search] Running hybrid search (search_manual_v2)...');
+      const { data, error } = await supabase.rpc('search_manual_v2', {
+        search_query: searchQuery,
         query_embedding: JSON.stringify(embedding),
         search_language: language,
-        result_limit: 2,
+        result_limit: 5,
       });
       results = data;
-      if (error) console.error('[realtime-search] Hybrid search error:', error);
+      if (error) console.error('[realtime-search] search_manual_v2 error:', error);
     } else {
-      // Keyword-only fallback
-      console.log('[realtime-search] Running keyword search...');
+      // Keyword-only fallback (no embedding available)
+      console.log('[realtime-search] Running keyword search (search_manual)...');
       const { data, error } = await supabase.rpc('search_manual', {
-        search_query: query,
+        search_query: searchQuery,
         search_language: language,
-        result_limit: 2,
+        result_limit: 5,
       });
       results = data;
-      if (error) console.error('[realtime-search] Keyword search error:', error);
+      if (error) console.error('[realtime-search] search_manual error:', error);
     }
 
     if (!results?.length) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, PanelLeft, PanelLeftClose, BarChart3 } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, PanelLeft, PanelLeftClose, BarChart3, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -19,6 +19,7 @@ const iconMap = {
   ConciergeBell,
   GraduationCap,
   BarChart3,
+  Plus,
 } as const;
 
 interface SidebarProps {
@@ -46,6 +47,7 @@ export function Sidebar({
         { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
         { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
         { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
+        { path: '/admin/ingest', label: 'Ingest', icon: 'Plus' },
         { path: '/admin/training', label: 'Training Dashboard', icon: 'BarChart3' },
         { path: '/admin', label: 'Admin', icon: 'Settings' },
       ]
@@ -53,10 +55,10 @@ export function Sidebar({
 
   // Group items: main navigation vs profile/admin
   const mainItems = navItems.filter(item =>
-    !['/profile', '/admin', '/admin/training'].includes(item.path)
+    !['/profile', '/admin', '/admin/training', '/admin/ingest'].includes(item.path)
   );
   const secondaryItems = navItems.filter(item =>
-    ['/profile', '/admin', '/admin/training'].includes(item.path)
+    ['/profile', '/admin', '/admin/training', '/admin/ingest'].includes(item.path)
   );
 
   // Section headers injected before specific paths
@@ -104,14 +106,18 @@ export function Sidebar({
           "active:scale-[0.98]",
           collapsed && "justify-center px-0",
           isActive
-            ? "bg-primary/10 text-primary font-medium"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            ? "text-[#2aa962] font-medium"
+            : "text-slate-400 dark:text-slate-500 hover:text-foreground"
         )}
       >
-        <Icon className={cn(
-          "h-5 w-5 shrink-0",
-          isActive && "stroke-[2.5px]"
-        )} />
+        <span className={cn(
+          "flex items-center justify-center shrink-0 rounded-md transition-colors duration-150",
+          isActive
+            ? "w-9 h-9 bg-[#2aa962] text-white"
+            : "w-9 h-9"
+        )}>
+          <Icon className="h-5 w-5" />
+        </span>
         {!collapsed && (
           <span className="text-sm">{item.label}</span>
         )}
@@ -165,7 +171,7 @@ export function Sidebar({
         {/* Abbreviation - fades in when collapsed */}
         <span
           className={cn(
-            "text-lg font-bold text-primary absolute transition-all duration-300",
+            "text-lg font-bold text-[#2aa962] absolute transition-all duration-300",
             collapsed
               ? "opacity-100 scale-100"
               : "opacity-0 scale-95"
@@ -186,12 +192,14 @@ export function Sidebar({
                 className={cn(
                   "flex items-center justify-center",
                   "w-full min-h-[44px] rounded-lg",
-                  "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  "text-slate-400 dark:text-slate-500 hover:text-foreground",
                   "transition-colors duration-150",
                   "active:scale-[0.98]"
                 )}
               >
-                <PanelLeft className="h-5 w-5" />
+                <span className="flex items-center justify-center shrink-0 w-9 h-9">
+                  <PanelLeft className="h-5 w-5" />
+                </span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -205,12 +213,14 @@ export function Sidebar({
             className={cn(
               "flex items-center gap-3",
               "w-full min-h-[44px] px-3 rounded-lg",
-              "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "text-slate-400 dark:text-slate-500 hover:text-foreground",
               "transition-colors duration-150",
               "active:scale-[0.98]"
             )}
           >
-            <PanelLeftClose className="h-5 w-5 shrink-0" />
+            <span className="flex items-center justify-center shrink-0 w-9 h-9">
+              <PanelLeftClose className="h-5 w-5" />
+            </span>
             <span className="text-sm">Collapse</span>
           </button>
         )}

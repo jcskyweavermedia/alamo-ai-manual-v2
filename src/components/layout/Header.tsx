@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, ChangeEvent } from 'react';
-import { Menu, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Menu, Sparkles, ChevronLeft, ChevronRight, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SearchInput } from '@/components/ui/search-input';
 import { LanguageToggle } from '@/components/ui/language-toggle';
@@ -27,6 +27,8 @@ interface HeaderProps {
   itemNav?: ItemNav;
   /** Optional toolbar content rendered between left and right sections (e.g. SOS AI buttons) */
   toolbar?: React.ReactNode;
+  /** Optional content injected into the left section (before search) */
+  leftContent?: React.ReactNode;
   className?: string;
 }
 
@@ -41,6 +43,7 @@ export function Header({
   onAskAIClick,
   itemNav,
   toolbar,
+  leftContent,
   className,
 }: HeaderProps) {
   const askLabel = language === 'es' ? 'Preguntar IA' : 'Ask AI';
@@ -82,12 +85,12 @@ export function Header({
         "flex items-center justify-between gap-3",
         "h-14 px-4 md:px-6",
         "bg-background",
-        "border-b border-border",
+        "",
         className
       )}
     >
-      {/* Left section: Menu button + Search */}
-      <div className={cn("flex items-center gap-3 min-w-0", toolbar ? "flex-1" : "flex-1")}>
+      {/* Left section: Menu button + left content */}
+      <div className="flex items-center gap-3 shrink-0">
         {/* Menu button for mobile (when sidebar is hidden) */}
         {showMenuButton && (
           <Button
@@ -100,8 +103,14 @@ export function Header({
           </Button>
         )}
 
-        {/* Search bar */}
-        {showSearch && (
+        {leftContent}
+      </div>
+
+      {/* Center section: toolbar or manual search */}
+      <div className="flex-1 flex items-center justify-center min-w-0">
+        {toolbar ? (
+          toolbar
+        ) : showSearch ? (
           <div className="flex-1 max-w-md relative">
             <SearchInput
               ref={inputRef}
@@ -119,18 +128,11 @@ export function Header({
               </kbd>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Center toolbar slot (e.g. SOS AI action buttons) */}
-      {toolbar && (
-        <div className="flex-1 flex items-center justify-center">
-          {toolbar}
-        </div>
-      )}
-
       {/* Right section: Actions */}
-      <div className={cn("flex items-center gap-1.5", toolbar && "flex-1 justify-end")}>
+      <div className="flex items-center gap-1.5 shrink-0">
         {/* Ask AI button */}
         {showAskAI && (
           <Button
@@ -181,6 +183,16 @@ export function Header({
             </button>
           </div>
         )}
+
+        {/* Mic button (unconnected) */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          aria-label="Voice input"
+        >
+          <Mic className="h-4 w-4" />
+        </Button>
 
         {/* Language toggle */}
         <LanguageToggle

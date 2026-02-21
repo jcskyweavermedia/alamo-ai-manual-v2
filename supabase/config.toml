@@ -17,3 +17,36 @@ verify_jwt = false
 
 [functions.realtime-search]
 verify_jwt = false
+
+[functions.ask-product]
+verify_jwt = false
+
+[functions.embed-products]
+verify_jwt = false
+
+[functions.ingest]
+verify_jwt = false
+
+[functions.course-tutor]
+verify_jwt = false
+
+[functions.course-assess]
+verify_jwt = false
+
+[functions.course-evaluate]
+verify_jwt = false
+
+[functions.course-quiz-generate]
+verify_jwt = false
+
+[functions.tts]
+verify_jwt = false
+
+[functions.ingest-file]
+verify_jwt = false
+
+[functions.ingest-vision]
+verify_jwt = false
+
+[functions.generate-image]
+verify_jwt = false

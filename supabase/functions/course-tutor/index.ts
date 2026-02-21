@@ -7,101 +7,11 @@
  * Auth: verify_jwt=false — manual JWT verification via getClaims()
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// =============================================================================
-// CORS
-// =============================================================================
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function errorResponse(error: string, message?: string, status = 400) {
-  const body: Record<string, unknown> = { error };
-  if (message) body.message = message;
-  return jsonResponse(body, status);
-}
-
-// =============================================================================
-// CONTENT SERIALIZERS (same as course-quiz-generate)
-// =============================================================================
-
-function serializeManualSection(item: Record<string, unknown>, lang: string): string {
-  const content = lang === "es" && item.content_es
-    ? item.content_es as string
-    : item.content_en as string;
-  return content?.substring(0, 4000) || "";
-}
-
-function serializeDish(d: Record<string, unknown>): string {
-  return [
-    `Dish: ${d.menu_name || d.name}`,
-    d.short_description ? `Description: ${d.short_description}` : null,
-    d.key_ingredients ? `Key Ingredients: ${(d.key_ingredients as string[]).join(", ")}` : null,
-    d.allergens ? `Allergens: ${(d.allergens as string[]).join(", ") || "none"}` : null,
-  ].filter(Boolean).join("\n");
-}
-
-function serializeWine(w: Record<string, unknown>): string {
-  return [
-    `Wine: ${w.name}`,
-    w.region ? `Region: ${w.region}` : null,
-    w.tasting_notes ? `Tasting: ${w.tasting_notes}` : null,
-  ].filter(Boolean).join("\n");
-}
-
-function serializeCocktail(c: Record<string, unknown>): string {
-  return [
-    `Cocktail: ${c.name}`,
-    c.ingredients ? `Ingredients: ${c.ingredients}` : null,
-    c.tasting_notes ? `Tasting: ${c.tasting_notes}` : null,
-  ].filter(Boolean).join("\n");
-}
-
-function serializeBeerLiquor(b: Record<string, unknown>): string {
-  return [
-    `${b.category || "Item"}: ${b.name}`,
-    b.style ? `Style: ${b.style}` : null,
-    b.description ? `Description: ${b.description}` : null,
-  ].filter(Boolean).join("\n");
-}
-
-function serializeRecipe(r: Record<string, unknown>): string {
-  return [
-    `Recipe: ${r.menu_name || r.name}`,
-    r.short_description ? `Description: ${r.short_description}` : null,
-  ].filter(Boolean).join("\n");
-}
-
-const CONTENT_SERIALIZERS: Record<string, (item: Record<string, unknown>, lang?: string) => string> = {
-  manual_sections: serializeManualSection,
-  foh_plate_specs: serializeDish,
-  plate_specs: serializeRecipe,
-  prep_recipes: serializeRecipe,
-  wines: serializeWine,
-  cocktails: serializeCocktail,
-  beer_liquor_list: serializeBeerLiquor,
-};
-
-const SOURCE_TABLE: Record<string, string> = {
-  manual_sections: "manual_sections",
-  foh_plate_specs: "foh_plate_specs",
-  plate_specs: "plate_specs",
-  prep_recipes: "prep_recipes",
-  wines: "wines",
-  cocktails: "cocktails",
-  beer_liquor_list: "beer_liquor_list",
-};
+import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
+import { loadSectionContent } from "../_shared/content.ts";
+import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
+import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 
 // =============================================================================
 // TUTOR RESPONSE SCHEMA
@@ -124,6 +34,15 @@ const tutorResponseSchema = {
   additionalProperties: false,
 };
 
+interface TutorResponse {
+  reply: string;
+  readiness_score: number;
+  suggest_test: boolean;
+  topics_covered: string[];
+  questions_asked: number;
+  correct_answers: number;
+}
+
 // =============================================================================
 // MAIN HANDLER
 // =============================================================================
@@ -137,29 +56,7 @@ Deno.serve(async (req) => {
 
   try {
     // 1. Authenticate
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", "Missing authorization header", 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabaseAuth.auth.getClaims(token);
-
-    if (claimsError || !claimsData?.claims) {
-      return errorResponse("Unauthorized", "Invalid token", 401);
-    }
-
-    const userId = claimsData.claims.sub as string;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { userId, supabase } = await authenticateWithClaims(req);
 
     // 2. Parse request
     const body = await req.json();
@@ -170,12 +67,7 @@ Deno.serve(async (req) => {
     }
 
     // 3. Check usage limits
-    const { data: usageData } = await supabase.rpc("get_user_usage", {
-      _user_id: userId,
-      _group_id: groupId,
-    });
-
-    const usage = usageData?.[0];
+    const usage = await checkUsage(supabase, userId, groupId);
     if (!usage?.can_ask) {
       return errorResponse("limit_exceeded", "Usage limit reached", 429);
     }
@@ -204,33 +96,9 @@ Deno.serve(async (req) => {
       .eq("status", "published")
       .order("sort_order", { ascending: true });
 
-    let contentContext = "";
-    if (sections && sections.length > 0) {
-      const parts: string[] = [];
-      for (const sec of sections) {
-        const contentSource = sec.content_source as string;
-        const contentIds = (sec.content_ids || []) as string[];
-        if (contentSource === "custom" || contentIds.length === 0) continue;
-
-        const tableName = SOURCE_TABLE[contentSource];
-        if (!tableName) continue;
-
-        const { data: items } = await supabase
-          .from(tableName)
-          .select("*")
-          .in("id", contentIds);
-
-        if (!items || items.length === 0) continue;
-
-        const serializer = CONTENT_SERIALIZERS[contentSource];
-        const title = language === "es" && sec.title_es ? sec.title_es : sec.title_en;
-        const serialized = items
-          .map((item: Record<string, unknown>) => serializer(item, language))
-          .join("\n");
-        parts.push(`=== ${title} ===\n${serialized}`);
-      }
-      contentContext = parts.join("\n\n");
-    }
+    const contentContext = sections && sections.length > 0
+      ? await loadSectionContent(supabase, sections, language)
+      : "";
 
     // 6. Load existing session if provided
     let existingMessages: Array<{ role: string; content: string }> = [];
@@ -255,78 +123,25 @@ Deno.serve(async (req) => {
       { role: "system", content: `${systemPrompt}\n\nCourse Content:\n${contentContext}` },
     ];
 
-    // Add conversation history (last 20 messages)
     const historySlice = existingMessages.slice(-20);
     for (const msg of historySlice) {
       aiMessages.push({ role: msg.role, content: msg.content });
     }
-
-    // Add current user message
     aiMessages.push({ role: "user", content: message });
 
     // 8. Call OpenAI
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      return errorResponse("server_error", "AI service not configured", 500);
-    }
-
     console.log("[course-tutor] Calling OpenAI...");
 
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: aiMessages,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "tutor_response",
-            strict: true,
-            schema: tutorResponseSchema,
-          },
-        },
-        temperature: 0.6,
-        max_tokens: 800,
-      }),
+    const tutorResponse = await callOpenAI<TutorResponse>({
+      messages: aiMessages,
+      schema: tutorResponseSchema,
+      schemaName: "tutor_response",
+      temperature: 0.6,
+      maxTokens: 800,
     });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("[course-tutor] OpenAI error:", aiResponse.status, errorText);
-      return errorResponse("ai_error", "Failed to get tutor response", 500);
-    }
-
-    const aiData = await aiResponse.json();
-    const content = aiData.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return errorResponse("ai_error", "Empty response from tutor", 500);
-    }
-
-    let tutorResponse: {
-      reply: string;
-      readiness_score: number;
-      suggest_test: boolean;
-      topics_covered: string[];
-      questions_asked: number;
-      correct_answers: number;
-    };
-
-    try {
-      tutorResponse = JSON.parse(content);
-    } catch {
-      return errorResponse("ai_error", "Invalid tutor response format", 500);
-    }
 
     // Increment usage
-    await supabase.rpc("increment_usage", {
-      _user_id: userId,
-      _group_id: groupId,
-    });
+    await incrementUsage(supabase, userId, groupId);
 
     // 9. Upsert tutor_sessions
     const now = new Date().toISOString();
@@ -352,7 +167,6 @@ Deno.serve(async (req) => {
         })
         .eq("id", session_id);
     } else {
-      // Fetch enrollment
       const { data: enrollment } = await supabase
         .from("course_enrollments")
         .select("id")
@@ -393,6 +207,15 @@ Deno.serve(async (req) => {
       session_id: sessionId,
     });
   } catch (err) {
+    if (err instanceof AuthError) {
+      return errorResponse("Unauthorized", err.message, 401);
+    }
+    if (err instanceof OpenAIError) {
+      return errorResponse("ai_error", err.message, err.status);
+    }
+    if (err instanceof UsageError) {
+      return errorResponse("server_error", err.message, 500);
+    }
     console.error("[course-tutor] Unhandled error:", err);
     return errorResponse(
       "server_error",

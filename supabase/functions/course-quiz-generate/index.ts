@@ -9,34 +9,16 @@
  * Auth: verify_jwt=false — manual JWT verification via getClaims()
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// =============================================================================
-// CORS
-// =============================================================================
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
+import type { SupabaseClient } from "../_shared/supabase.ts";
+import { SOURCE_TABLE, CONTENT_SERIALIZERS, loadSectionContent } from "../_shared/content.ts";
+import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
+import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function errorResponse(error: string, message?: string, status = 400) {
-  const body: Record<string, unknown> = { error };
-  if (message) body.message = message;
-  return jsonResponse(body, status);
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -46,108 +28,6 @@ function shuffle<T>(arr: T[]): T[] {
   }
   return a;
 }
-
-// =============================================================================
-// CONTENT SERIALIZATION (mirrors use-learning-session.ts patterns)
-// =============================================================================
-
-function serializeManualSection(item: Record<string, unknown>, lang: string): string {
-  const content = lang === "es" && item.content_es
-    ? item.content_es as string
-    : item.content_en as string;
-  return content?.substring(0, 4000) || "";
-}
-
-function serializeDish(d: Record<string, unknown>): string {
-  const parts = [
-    `Dish: ${d.menu_name || d.name}`,
-    d.plate_type ? `Type: ${d.plate_type}` : null,
-    d.short_description ? `Description: ${d.short_description}` : null,
-    d.key_ingredients ? `Key Ingredients: ${(d.key_ingredients as string[]).join(", ")}` : null,
-    d.allergens ? `Allergens: ${(d.allergens as string[]).join(", ") || "none"}` : null,
-    d.preparation_notes ? `Preparation: ${d.preparation_notes}` : null,
-    d.upsell_notes ? `Upsell: ${d.upsell_notes}` : null,
-  ];
-  return parts.filter(Boolean).join("\n");
-}
-
-function serializeWine(w: Record<string, unknown>): string {
-  const parts = [
-    `Wine: ${w.name}`,
-    w.region ? `Region: ${w.region}` : null,
-    w.grape_varieties ? `Grapes: ${(w.grape_varieties as string[]).join(", ")}` : null,
-    w.tasting_notes ? `Tasting: ${w.tasting_notes}` : null,
-    w.food_pairings ? `Pairings: ${(w.food_pairings as string[]).join(", ")}` : null,
-    w.serving_temp ? `Serving Temp: ${w.serving_temp}` : null,
-  ];
-  return parts.filter(Boolean).join("\n");
-}
-
-function serializeCocktail(c: Record<string, unknown>): string {
-  const parts = [
-    `Cocktail: ${c.name}`,
-    c.category ? `Category: ${c.category}` : null,
-    c.base_spirit ? `Base Spirit: ${c.base_spirit}` : null,
-    c.ingredients ? `Ingredients: ${(c.ingredients as string[]).join(", ")}` : null,
-    c.flavor_profile ? `Flavor: ${c.flavor_profile}` : null,
-    c.garnish ? `Garnish: ${c.garnish}` : null,
-  ];
-  return parts.filter(Boolean).join("\n");
-}
-
-function serializeBeerLiquor(b: Record<string, unknown>): string {
-  const parts = [
-    `${b.item_type || "Item"}: ${b.name}`,
-    b.category ? `Category: ${b.category}` : null,
-    b.style ? `Style: ${b.style}` : null,
-    b.origin ? `Origin: ${b.origin}` : null,
-    b.abv ? `ABV: ${b.abv}%` : null,
-    b.tasting_notes ? `Tasting: ${b.tasting_notes}` : null,
-    b.food_pairings ? `Pairings: ${(b.food_pairings as string[]).join(", ")}` : null,
-  ];
-  return parts.filter(Boolean).join("\n");
-}
-
-function serializeRecipe(r: Record<string, unknown>): string {
-  const parts = [
-    `Recipe: ${r.menu_name || r.name}`,
-    r.short_description ? `Description: ${r.short_description}` : null,
-  ];
-  if (r.ingredients && Array.isArray(r.ingredients)) {
-    const ingredientList = (r.ingredients as Array<Record<string, unknown>>)
-      .map((i) => `${i.qty || ""} ${i.unit || ""} ${i.item || ""}`.trim())
-      .join(", ");
-    parts.push(`Ingredients: ${ingredientList}`);
-  }
-  if (r.procedure && Array.isArray(r.procedure)) {
-    const steps = (r.procedure as Array<Record<string, unknown>>)
-      .map((s) => `${s.step}: ${s.text}`)
-      .join("; ");
-    parts.push(`Procedure: ${steps}`);
-  }
-  return parts.filter(Boolean).join("\n");
-}
-
-const CONTENT_SERIALIZERS: Record<string, (item: Record<string, unknown>, lang?: string) => string> = {
-  manual_sections: serializeManualSection,
-  foh_plate_specs: serializeDish,
-  plate_specs: serializeRecipe,
-  prep_recipes: serializeRecipe,
-  wines: serializeWine,
-  cocktails: serializeCocktail,
-  beer_liquor_list: serializeBeerLiquor,
-};
-
-// Table name mapping (content_source → actual table name)
-const SOURCE_TABLE: Record<string, string> = {
-  manual_sections: "manual_sections",
-  foh_plate_specs: "foh_plate_specs",
-  plate_specs: "plate_specs",
-  prep_recipes: "prep_recipes",
-  wines: "wines",
-  cocktails: "cocktails",
-  beer_liquor_list: "beer_liquor_list",
-};
 
 // =============================================================================
 // OPENAI STRUCTURED OUTPUT SCHEMA
@@ -231,43 +111,16 @@ Deno.serve(async (req) => {
   console.log("[quiz-generate] Request received");
 
   try {
-    // =========================================================================
-    // 1. AUTHENTICATE
-    // =========================================================================
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", "Missing authorization header", 401);
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabaseAuth.auth.getClaims(token);
-
-    if (claimsError || !claimsData?.claims) {
-      return errorResponse("Unauthorized", "Invalid token", 401);
-    }
-
-    const userId = claimsData.claims.sub as string;
+    // 1. Authenticate
+    const { userId, supabase } = await authenticateWithClaims(req);
     console.log("[quiz-generate] User:", userId);
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // =========================================================================
-    // 2. PARSE REQUEST
-    // =========================================================================
+    // 2. Parse request
     const body = await req.json();
     const {
       section_id,
       course_id,
-      mode = "section_quiz",  // 'section_quiz' | 'module_test'
+      mode = "section_quiz",
       language = "en",
       groupId,
       question_count,
@@ -291,24 +144,11 @@ Deno.serve(async (req) => {
       return errorResponse("bad_request", "groupId is required", 400);
     }
 
-    // =========================================================================
-    // 3. CHECK USAGE LIMITS
-    // =========================================================================
-    const { data: usageData, error: usageError } = await supabase.rpc(
-      "get_user_usage",
-      { _user_id: userId, _group_id: groupId }
-    );
-
-    if (usageError) {
-      console.error("[quiz-generate] Usage check error:", usageError.message);
-      return errorResponse("server_error", "Failed to check usage limits", 500);
-    }
-
-    const usage = usageData?.[0];
+    // 3. Check usage limits
+    const usage = await checkUsage(supabase, userId, groupId);
     if (!usage) {
       return errorResponse("forbidden", "Not a member of this group", 403);
     }
-
     if (!usage.can_ask) {
       const limitType =
         usage.daily_count >= usage.daily_limit ? "daily" : "monthly";
@@ -325,9 +165,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // =========================================================================
-    // 4. FETCH SECTION CONFIG
-    // =========================================================================
+    // 4. Fetch section config
     const { data: section, error: sectionError } = await supabase
       .from("course_sections")
       .select("id, content_source, content_ids, quiz_enabled, quiz_question_count, quiz_passing_score, title_en, title_es")
@@ -350,9 +188,7 @@ Deno.serve(async (req) => {
       `[quiz-generate] Section: ${section.title_en} | Source: ${section.content_source} | Questions: ${numQuestions}`
     );
 
-    // =========================================================================
-    // 5. CHECK FOR EXISTING QUESTIONS
-    // =========================================================================
+    // 5. Check for existing questions
     if (!force_regenerate) {
       const { data: existing, error: existingError } = await supabase
         .from("quiz_questions")
@@ -365,7 +201,6 @@ Deno.serve(async (req) => {
           `[quiz-generate] Found ${existing.length} existing questions, reusing`
         );
 
-        // Fetch enrollment for this user
         const { data: enrollment } = await supabase
           .from("course_enrollments")
           .select("id")
@@ -383,7 +218,6 @@ Deno.serve(async (req) => {
           return errorResponse("bad_request", "Not enrolled in this course", 400);
         }
 
-        // Get next attempt number
         const { count: prevAttempts } = await supabase
           .from("quiz_attempts")
           .select("id", { count: "exact", head: true })
@@ -392,7 +226,6 @@ Deno.serve(async (req) => {
 
         const attemptNumber = (prevAttempts || 0) + 1;
 
-        // Create quiz attempt
         const { data: attempt, error: attemptError } = await supabase
           .from("quiz_attempts")
           .insert({
@@ -410,7 +243,6 @@ Deno.serve(async (req) => {
           return errorResponse("server_error", "Failed to create quiz attempt", 500);
         }
 
-        // Shuffle and pick the requested number
         const selected = shuffle(existing).slice(0, numQuestions);
 
         return jsonResponse({
@@ -424,12 +256,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // =========================================================================
-    // 6. FETCH CONTENT FOR AI GENERATION
-    // =========================================================================
+    // 6. Fetch content for AI generation
     const contentSource = section.content_source;
     const contentIds = section.content_ids || [];
-    let contentText = "";
 
     if (contentSource === "custom" || contentIds.length === 0) {
       return errorResponse(
@@ -455,7 +284,7 @@ Deno.serve(async (req) => {
     }
 
     const serializer = CONTENT_SERIALIZERS[contentSource];
-    contentText = contentItems
+    const contentText = contentItems
       .map((item: Record<string, unknown>) => serializer(item, language))
       .join("\n\n---\n\n");
 
@@ -463,9 +292,7 @@ Deno.serve(async (req) => {
       `[quiz-generate] Content serialized: ${contentText.length} chars from ${contentItems.length} items`
     );
 
-    // =========================================================================
-    // 7. FETCH QUIZ GENERATOR PROMPT
-    // =========================================================================
+    // 7. Fetch quiz generator prompt
     const { data: promptData, error: promptError } = await supabase
       .from("ai_prompts")
       .select("prompt_en, prompt_es")
@@ -483,14 +310,7 @@ Deno.serve(async (req) => {
         ? promptData.prompt_es
         : promptData.prompt_en;
 
-    // =========================================================================
-    // 8. CALL OPENAI
-    // =========================================================================
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      return errorResponse("server_error", "AI service not configured", 500);
-    }
-
+    // 8. Call OpenAI
     const sectionTitle =
       language === "es" && section.title_es
         ? section.title_es
@@ -500,54 +320,16 @@ Deno.serve(async (req) => {
 
     console.log("[quiz-generate] Calling OpenAI...");
 
-    const aiResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "quiz_generation",
-              strict: true,
-              schema: quizGenerationSchema,
-            },
-          },
-          temperature: 0.7,
-          max_tokens: 3000,
-        }),
-      }
-    );
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("[quiz-generate] OpenAI error:", aiResponse.status, errorText);
-      return errorResponse("ai_error", "Failed to generate quiz questions", 500);
-    }
-
-    const aiData = await aiResponse.json();
-    const content = aiData.choices?.[0]?.message?.content;
-
-    if (!content) {
-      return errorResponse("ai_error", "Empty response from AI", 500);
-    }
-
-    let parsed: { questions: Array<Record<string, unknown>> };
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      console.error("[quiz-generate] JSON parse error:", content);
-      return errorResponse("ai_error", "Invalid AI response format", 500);
-    }
+    const parsed = await callOpenAI<{ questions: Array<Record<string, unknown>> }>({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      schema: quizGenerationSchema,
+      schemaName: "quiz_generation",
+      temperature: 0.7,
+      maxTokens: 3000,
+    });
 
     if (!parsed.questions || !Array.isArray(parsed.questions)) {
       return errorResponse("ai_error", "No questions in AI response", 500);
@@ -555,15 +337,10 @@ Deno.serve(async (req) => {
 
     console.log(`[quiz-generate] AI generated ${parsed.questions.length} questions`);
 
-    // Increment usage (AI call consumed)
-    await supabase.rpc("increment_usage", {
-      _user_id: userId,
-      _group_id: groupId,
-    });
+    // Increment usage
+    await incrementUsage(supabase, userId, groupId);
 
-    // =========================================================================
-    // 9. PERSIST QUESTIONS TO DB
-    // =========================================================================
+    // 9. Persist questions to DB
     const insertRows = parsed.questions.map((q) => ({
       section_id,
       question_type: q.question_type,
@@ -601,10 +378,7 @@ Deno.serve(async (req) => {
 
     console.log(`[quiz-generate] Saved ${insertedQuestions.length} questions to DB`);
 
-    // =========================================================================
-    // 10. CREATE QUIZ ATTEMPT
-    // =========================================================================
-    // Fetch enrollment
+    // 10. Create quiz attempt
     const { data: sectionForCourse } = await supabase
       .from("course_sections")
       .select("course_id")
@@ -622,7 +396,6 @@ Deno.serve(async (req) => {
       return errorResponse("bad_request", "Not enrolled in this course", 400);
     }
 
-    // Get next attempt number
     const { count: prevAttempts } = await supabase
       .from("quiz_attempts")
       .select("id", { count: "exact", head: true })
@@ -648,9 +421,7 @@ Deno.serve(async (req) => {
       return errorResponse("server_error", "Failed to create quiz attempt", 500);
     }
 
-    // =========================================================================
-    // 11. RETURN CLIENT-SAFE RESPONSE
-    // =========================================================================
+    // 11. Return client-safe response
     return jsonResponse({
       questions: insertedQuestions.map((q: Record<string, unknown>) =>
         toClientQuestion(q, language)
@@ -660,6 +431,15 @@ Deno.serve(async (req) => {
       passing_score: passingScore,
     });
   } catch (err) {
+    if (err instanceof AuthError) {
+      return errorResponse("Unauthorized", err.message, 401);
+    }
+    if (err instanceof OpenAIError) {
+      return errorResponse("ai_error", err.message, err.status);
+    }
+    if (err instanceof UsageError) {
+      return errorResponse("server_error", err.message, 500);
+    }
     console.error("[quiz-generate] Unhandled error:", err);
     return errorResponse(
       "server_error",
@@ -742,7 +522,7 @@ const moduleTestSchema = {
 };
 
 async function handleModuleTestGenerate(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   courseId: string,
   language: string,
@@ -753,15 +533,7 @@ async function handleModuleTestGenerate(
   console.log(`[quiz-generate:module_test] Course: ${courseId}`);
 
   // 1. Check usage limits
-  const { data: usageData, error: usageError } = await supabase.rpc(
-    "get_user_usage",
-    { _user_id: userId, _group_id: groupId }
-  );
-
-  if (usageError) {
-    return errorResponse("server_error", "Failed to check usage limits", 500);
-  }
-  const usage = usageData?.[0];
+  const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
     return errorResponse("limit_exceeded", "Usage limit reached", 429);
   }
@@ -797,36 +569,7 @@ async function handleModuleTestGenerate(
   }
 
   // 4. Fetch and serialize content from all sections
-  const sectionContents: string[] = [];
-  for (const sec of sections) {
-    const contentSource = sec.content_source as string;
-    const contentIds = (sec.content_ids || []) as string[];
-
-    if (contentSource === "custom" || contentIds.length === 0) {
-      const title = language === "es" && sec.title_es ? sec.title_es : sec.title_en;
-      sectionContents.push(`=== Section: ${title} ===\n(No content available)`);
-      continue;
-    }
-
-    const tableName = SOURCE_TABLE[contentSource];
-    if (!tableName) continue;
-
-    const { data: items } = await supabase
-      .from(tableName)
-      .select("*")
-      .in("id", contentIds);
-
-    if (!items || items.length === 0) continue;
-
-    const serializer = CONTENT_SERIALIZERS[contentSource];
-    const title = language === "es" && sec.title_es ? sec.title_es : sec.title_en;
-    const serialized = items
-      .map((item: Record<string, unknown>) => serializer(item, language))
-      .join("\n");
-    sectionContents.push(`=== Section: ${title} ===\n${serialized}`);
-  }
-
-  const contentText = sectionContents.join("\n\n");
+  const contentText = await loadSectionContent(supabase, sections, language, true);
   console.log(`[quiz-generate:module_test] Content: ${contentText.length} chars from ${sections.length} sections`);
 
   // 5. Fetch module-test-generator prompt
@@ -858,11 +601,6 @@ async function handleModuleTestGenerate(
   const passingScore = course?.passing_score || 70;
 
   // 7. Call OpenAI
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    return errorResponse("server_error", "AI service not configured", 500);
-  }
-
   const sectionList = sections.map((s, i) => `${i}. ${s.title_en}`).join(", ");
   const userPrompt = `Generate ${numQuestions} certification test questions for the course "${courseTitle}".
 
@@ -874,50 +612,16 @@ ${contentText}`;
 
   console.log("[quiz-generate:module_test] Calling OpenAI...");
 
-  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "module_test_generation",
-          strict: true,
-          schema: moduleTestSchema,
-        },
-      },
-      temperature: 0.7,
-      max_tokens: 5000,
-    }),
+  const parsed = await callOpenAI<{ questions: Array<Record<string, unknown>> }>({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    schema: moduleTestSchema,
+    schemaName: "module_test_generation",
+    temperature: 0.7,
+    maxTokens: 5000,
   });
-
-  if (!aiResponse.ok) {
-    const errorText = await aiResponse.text();
-    console.error("[quiz-generate:module_test] OpenAI error:", aiResponse.status, errorText);
-    return errorResponse("ai_error", "Failed to generate test questions", 500);
-  }
-
-  const aiData = await aiResponse.json();
-  const content = aiData.choices?.[0]?.message?.content;
-
-  if (!content) {
-    return errorResponse("ai_error", "Empty response from AI", 500);
-  }
-
-  let parsed: { questions: Array<Record<string, unknown>> };
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    return errorResponse("ai_error", "Invalid AI response format", 500);
-  }
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
     return errorResponse("ai_error", "No questions in AI response", 500);
@@ -926,10 +630,7 @@ ${contentText}`;
   console.log(`[quiz-generate:module_test] AI generated ${parsed.questions.length} questions`);
 
   // Increment usage
-  await supabase.rpc("increment_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
+  await incrementUsage(supabase, userId, groupId);
 
   // 8. Persist questions with both section_id and course_id
   const insertRows = parsed.questions.map((q) => {
@@ -978,7 +679,7 @@ ${contentText}`;
 }
 
 async function createModuleTestAttemptAndRespond(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   courseId: string,
   questions: Array<Record<string, unknown>>,
@@ -1059,7 +760,6 @@ function toClientQuestion(
   };
 
   if (q.question_type === "multiple_choice" && q.options) {
-    // Strip `correct` field from options
     base.options = (q.options as Array<Record<string, unknown>>).map((o) => ({
       id: o.id,
       text: isEs && o.text_es ? o.text_es : o.text_en,
@@ -1067,7 +767,6 @@ function toClientQuestion(
   }
 
   if (q.question_type === "voice" && q.rubric) {
-    // Provide a brief rubric summary (criteria names only, no point values)
     const criteria = q.rubric as Array<Record<string, unknown>>;
     base.rubric_summary = criteria
       .map((c) => c.criterion || c.description)

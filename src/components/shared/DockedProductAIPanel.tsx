@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { AskAboutContent } from '@/components/manual/AskAboutContent';
@@ -94,7 +94,7 @@ export function DockedProductAIPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-sm min-w-0">
-          <Sparkles className="h-5 w-5 text-primary shrink-0" />
+          <span className="flex items-center justify-center w-8 h-8 rounded-[10px] bg-slate-100 dark:bg-slate-800 text-lg leading-none shrink-0">🤖</span>
           <span className="text-base font-semibold truncate">
             {actionLabel} — {displayTitle}
           </span>

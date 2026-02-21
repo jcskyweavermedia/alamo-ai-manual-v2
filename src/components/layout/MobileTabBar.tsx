@@ -70,16 +70,18 @@ export function MobileTabBar({ isAdmin = false, className }: MobileTabBarProps) 
               "rounded-lg transition-colors duration-150",
               "active:scale-[0.98]",
               isActive 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
+                ? "text-[#2aa962]"
+                : "text-slate-400 dark:text-slate-500 hover:text-foreground"
             )}
           >
-            <Icon 
-              className={cn(
-                "h-6 w-6 mb-1 transition-colors duration-150",
-                isActive && "stroke-[2.5px]"
-              )} 
-            />
+            <span className={cn(
+              "flex items-center justify-center rounded-md mb-1 transition-colors duration-150",
+              isActive
+                ? "w-9 h-9 bg-[#2aa962] text-white"
+                : "w-9 h-9"
+            )}>
+              <Icon className="h-5 w-5" />
+            </span>
             <span 
               className={cn(
                 "text-[11px] font-medium leading-tight",

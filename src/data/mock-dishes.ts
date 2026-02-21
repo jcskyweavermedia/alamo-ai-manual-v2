@@ -43,33 +43,33 @@ export const DISH_AI_ACTIONS: { key: DishAIAction; label: string; icon: string }
 
 export const DISH_CATEGORY_CONFIG: Record<DishCategory, {
   label: string;
-  light: string;
-  dark: string;
+  color: string;
+  darkColor: string;
   textColor: string;
 }> = {
   appetizer: {
     label: 'Appetizer',
-    light: 'bg-emerald-100 text-emerald-900',
-    dark: 'dark:bg-emerald-900/30 dark:text-emerald-300',
-    textColor: 'text-emerald-700 dark:text-emerald-400',
+    color: 'bg-[#2aa962] text-white',
+    darkColor: '',
+    textColor: 'text-[#2aa962]',
   },
   entree: {
     label: 'Entree',
-    light: 'bg-red-100 text-red-900',
-    dark: 'dark:bg-red-900/30 dark:text-red-300',
-    textColor: 'text-red-700 dark:text-red-400',
+    color: 'bg-red-600 text-white',
+    darkColor: 'dark:bg-red-700',
+    textColor: 'text-red-600 dark:text-red-400',
   },
   side: {
     label: 'Side',
-    light: 'bg-sky-100 text-sky-900',
-    dark: 'dark:bg-sky-900/30 dark:text-sky-300',
-    textColor: 'text-sky-700 dark:text-sky-400',
+    color: 'bg-sky-600 text-white',
+    darkColor: 'dark:bg-sky-700',
+    textColor: 'text-sky-600 dark:text-sky-400',
   },
   dessert: {
     label: 'Dessert',
-    light: 'bg-purple-100 text-purple-900',
-    dark: 'dark:bg-purple-900/30 dark:text-purple-300',
-    textColor: 'text-purple-700 dark:text-purple-400',
+    color: 'bg-amber-500 text-white',
+    darkColor: 'dark:bg-amber-600',
+    textColor: 'text-amber-600 dark:text-amber-400',
   },
 };
 
@@ -78,15 +78,17 @@ export const DISH_CATEGORY_CONFIG: Record<DishCategory, {
 export const ALLERGEN_CONFIG: Record<AllergenType, {
   label: string;
   emoji: string;
+  color: string;
+  darkColor: string;
 }> = {
-  dairy: { label: 'Dairy', emoji: '\u{1F95B}' },
-  gluten: { label: 'Gluten', emoji: '\u{1F33E}' },
-  eggs: { label: 'Eggs', emoji: '\u{1F95A}' },
-  shellfish: { label: 'Shellfish', emoji: '\u{1F990}' },
-  fish: { label: 'Fish', emoji: '\u{1F41F}' },
-  'tree-nuts': { label: 'Tree Nuts', emoji: '\u{1F330}' },
-  soy: { label: 'Soy', emoji: '\u{1FAD8}' },
-  peanuts: { label: 'Peanuts', emoji: '\u{1F95C}' },
+  dairy: { label: 'Dairy', emoji: '\u{1F95B}', color: 'bg-amber-500 text-white', darkColor: 'dark:bg-amber-600' },
+  gluten: { label: 'Gluten', emoji: '\u{1F33E}', color: 'bg-orange-600 text-white', darkColor: 'dark:bg-orange-700' },
+  eggs: { label: 'Eggs', emoji: '\u{1F95A}', color: 'bg-yellow-600 text-white', darkColor: 'dark:bg-yellow-700' },
+  shellfish: { label: 'Shellfish', emoji: '\u{1F990}', color: 'bg-rose-600 text-white', darkColor: 'dark:bg-rose-700' },
+  fish: { label: 'Fish', emoji: '\u{1F41F}', color: 'bg-sky-600 text-white', darkColor: 'dark:bg-sky-700' },
+  'tree-nuts': { label: 'Tree Nuts', emoji: '\u{1F330}', color: 'bg-red-600 text-white', darkColor: 'dark:bg-red-700' },
+  soy: { label: 'Soy', emoji: '\u{1FAD8}', color: 'bg-lime-600 text-white', darkColor: 'dark:bg-lime-700' },
+  peanuts: { label: 'Peanuts', emoji: '\u{1F95C}', color: 'bg-orange-500 text-white', darkColor: 'dark:bg-orange-600' },
 };
 
 // --- Category display order ---

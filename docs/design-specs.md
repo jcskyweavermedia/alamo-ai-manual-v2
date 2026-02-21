@@ -71,6 +71,7 @@ Accent tokens:
 
 Use system-like, restrained semantics. Avoid neon saturation; ensure contrast.
 
+* **Green (standard):** `#2AA962` — use as the go-to green across the app (controls, badges, success states)
 * **Success:** `#16A34A` (light), `#22C55E` (dark)
 * **Warning:** `#F59E0B` (light), `#FBBF24` (dark)
 * **Error:** `#DC2626` (light), `#EF4444` (dark)

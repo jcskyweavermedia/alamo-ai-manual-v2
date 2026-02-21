@@ -1,25 +1,19 @@
 /**
  * useVoiceRecording Hook
- * 
+ *
  * Handles microphone access, audio recording, and transcription via OpenAI Whisper.
- * 
+ *
  * Features:
  * - MediaRecorder with audio/webm format
  * - Elapsed time tracking
- * - Auto-stop at MAX_RECORDING_SECONDS (60s)
+ * - Configurable max recording duration (default 60s)
+ * - Optional silence detection via AudioContext + AnalyserNode
  * - Error handling for permissions and transcription
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-
-// =============================================================================
-// CONSTANTS
-// =============================================================================
-
-const MAX_RECORDING_SECONDS = 60;
-const WARNING_SECONDS = 50; // When to show warning state
 
 // =============================================================================
 // TYPES
@@ -34,6 +28,10 @@ interface UseVoiceRecordingOptions {
   onTranscription?: (text: string) => void;
   /** Callback when error occurs */
   onError?: (error: string) => void;
+  /** Auto-stop after this many ms of silence. 0 = disabled (default) */
+  silenceTimeoutMs?: number;
+  /** Max recording duration in seconds (default: 60) */
+  maxRecordingSeconds?: number;
 }
 
 interface UseVoiceRecordingReturn {
@@ -51,6 +49,8 @@ interface UseVoiceRecordingReturn {
   error: string | null;
   /** Whether retry is available (has failed audio blob) */
   canRetry: boolean;
+  /** Current audio input level (0–1), updated ~10fps while recording */
+  audioLevel: number;
   /** Start recording from microphone */
   startRecording: () => Promise<void>;
   /** Stop recording and begin transcription */
@@ -66,12 +66,17 @@ interface UseVoiceRecordingReturn {
 // =============================================================================
 
 export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVoiceRecordingReturn {
-  const { language = 'en', onTranscription, onError } = options;
+  const { language = 'en', onTranscription, onError, silenceTimeoutMs = 0, maxRecordingSeconds = 60 } = options;
+
+  // Configurable limits
+  const maxSeconds = maxRecordingSeconds;
+  const warningSeconds = maxSeconds - 10;
 
   // State
   const [state, setState] = useState<RecordingState>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [audioLevel, setAudioLevel] = useState(0);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -79,12 +84,16 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastAudioBlobRef = useRef<Blob | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+  const lastSoundTimeRef = useRef<number>(0);
+  const lastLevelUpdateRef = useRef<number>(0);
 
   // Derived state
   const canRetry = lastAudioBlobRef.current !== null && state === 'idle' && error !== null;
   const isRecording = state === 'recording';
   const isTranscribing = state === 'transcribing';
-  const isWarning = elapsedSeconds >= WARNING_SECONDS;
+  const isWarning = elapsedSeconds >= warningSeconds;
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -92,6 +101,21 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+
+    // Reset audio level
+    setAudioLevel(0);
+
+    // Cancel silence detection animation frame
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+
+    // Close AudioContext used for silence detection
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
 
     // Stop media recorder
@@ -212,7 +236,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
         setElapsedSeconds((prev) => {
           const next = prev + 1;
           // Auto-stop at max time
-          if (next >= MAX_RECORDING_SECONDS) {
+          if (next >= maxSeconds) {
             console.log('Auto-stopping at max recording time');
             // Use setTimeout to avoid state update during render
             setTimeout(() => {
@@ -224,6 +248,56 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
           return next;
         });
       }, 1000);
+
+      // Set up silence detection if enabled
+      if (silenceTimeoutMs > 0) {
+        try {
+          const audioContext = new AudioContext();
+          audioContextRef.current = audioContext;
+
+          const source = audioContext.createMediaStreamSource(stream);
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          lastSoundTimeRef.current = Date.now();
+
+          const checkSilence = () => {
+            // Bail out if recording has already stopped
+            if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+              return;
+            }
+
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((sum, v) => sum + v, 0) / dataArray.length;
+
+            // Throttled audio level update (~10fps)
+            const now = Date.now();
+            if (now - lastLevelUpdateRef.current > 100) {
+              lastLevelUpdateRef.current = now;
+              setAudioLevel(Math.min(average / 80, 1)); // normalize: 80+ → 1.0
+            }
+
+            if (average > 10) {
+              lastSoundTimeRef.current = Date.now();
+            } else if (Date.now() - lastSoundTimeRef.current > silenceTimeoutMs) {
+              console.log('Auto-stopping due to silence');
+              // Use setTimeout(0) to avoid calling during rAF
+              setTimeout(() => stopRecordingInternal(), 0);
+              return;
+            }
+
+            animFrameRef.current = requestAnimationFrame(checkSilence);
+          };
+
+          animFrameRef.current = requestAnimationFrame(checkSilence);
+          console.log(`Silence detection enabled (timeout: ${silenceTimeoutMs}ms)`);
+        } catch (err) {
+          console.warn('Failed to set up silence detection:', err);
+          // Non-fatal — recording continues without silence detection
+        }
+      }
 
     } catch (err) {
       console.error('Error starting recording:', err);
@@ -247,7 +321,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
       cleanup();
       setState('idle');
     }
-  }, [cleanup, language, onError]);
+  }, [cleanup, language, onError, silenceTimeoutMs, maxSeconds]);
 
   // Internal stop recording (for auto-stop)
   const stopRecordingInternal = useCallback(async () => {
@@ -404,6 +478,7 @@ export function useVoiceRecording(options: UseVoiceRecordingOptions = {}): UseVo
     isWarning,
     error,
     canRetry,
+    audioLevel,
     startRecording,
     stopRecording,
     cancelRecording,

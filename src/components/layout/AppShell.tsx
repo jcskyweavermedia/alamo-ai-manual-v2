@@ -41,6 +41,8 @@ interface AppShellProps {
   itemNav?: ItemNav;
   /** Optional toolbar content for Header (e.g. SOS AI buttons) */
   headerToolbar?: React.ReactNode;
+  /** Optional content for Header left section (e.g. back button) */
+  headerLeft?: React.ReactNode;
   className?: string;
 }
 
@@ -59,6 +61,7 @@ export function AppShell({
   aiPanel,
   itemNav,
   headerToolbar,
+  headerLeft,
   className,
 }: AppShellProps) {
   const isMobile = useIsMobile();
@@ -78,7 +81,7 @@ export function AppShell({
       />
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Header */}
         <Header
           showSearch={showSearch}
@@ -89,6 +92,7 @@ export function AppShell({
           onAskAIClick={onAskAIClick}
           itemNav={itemNav}
           toolbar={headerToolbar}
+          leftContent={headerLeft}
         />
 
         {/* Content + optional AI panel wrapper */}
@@ -109,6 +113,7 @@ export function AppShell({
             <aside className={cn(
               "hidden lg:flex flex-col",
               "w-80 xl:w-96",
+              "min-h-0 overflow-hidden",
               "border-l border-border",
               "bg-card"
             )}>

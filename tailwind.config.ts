@@ -136,6 +136,7 @@ export default {
         'card': 'var(--shadow-card)',
         'elevated': 'var(--shadow-elevated)',
         'floating': 'var(--shadow-floating)',
+        'tile': 'var(--shadow-tile)',
       },
       
       /* =========================================================================

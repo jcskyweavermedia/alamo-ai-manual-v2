@@ -1,6 +1,5 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { AlertTriangle, Lightbulb, CheckSquare, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* =============================================================================
@@ -24,7 +23,7 @@ const calloutVariants = cva(
       variant: {
         critical: "bg-destructive/8 border-l-destructive dark:bg-destructive/12",
         warning: "bg-warning/8 border-l-warning dark:bg-warning/12",
-        tip: "bg-primary/8 border-l-primary dark:bg-primary/12",
+        tip: "bg-amber-500/8 border-l-amber-500 dark:bg-amber-500/12",
         info: "bg-muted border-l-muted-foreground",
         checklist: "bg-success/8 border-l-success dark:bg-success/12",
       },
@@ -35,18 +34,18 @@ const calloutVariants = cva(
   }
 );
 
-const calloutIconMap = {
-  critical: AlertTriangle,
-  warning: AlertTriangle,
-  tip: Lightbulb,
-  info: Info,
-  checklist: CheckSquare,
+const calloutEmojiMap = {
+  critical: "\u26A0\uFE0F",
+  warning: "\u26A0\uFE0F",
+  tip: "\uD83D\uDCA1",
+  info: "\u2139\uFE0F",
+  checklist: "\u2705",
 };
 
-const calloutIconColorMap = {
+const calloutTitleColorMap = {
   critical: "text-destructive",
   warning: "text-warning",
-  tip: "text-primary",
+  tip: "text-amber-600",
   info: "text-muted-foreground",
   checklist: "text-success",
 };
@@ -61,8 +60,8 @@ export interface CalloutProps
 
 const Callout = React.forwardRef<HTMLDivElement, CalloutProps>(
   ({ className, variant = "info", title, icon, hideIcon = false, children, ...props }, ref) => {
-    const IconComponent = calloutIconMap[variant || "info"];
-    const iconColor = calloutIconColorMap[variant || "info"];
+    const emoji = calloutEmojiMap[variant || "info"];
+    const titleColor = calloutTitleColorMap[variant || "info"];
 
     return (
       <div
@@ -73,13 +72,13 @@ const Callout = React.forwardRef<HTMLDivElement, CalloutProps>(
       >
         <div className="flex gap-md">
           {!hideIcon && (
-            <div className={cn("flex-shrink-0 mt-0.5", iconColor)}>
-              {icon || <IconComponent className="w-5 h-5" />}
+            <div className="flex-shrink-0 mt-0.5">
+              {icon || <span className="text-[18px] h-[18px] leading-[18px] inline-block">{emoji}</span>}
             </div>
           )}
           <div className="flex-1 min-w-0">
             {title && (
-              <h4 className={cn("text-subsection mb-xs", iconColor)}>
+              <h4 className={cn("text-subsection mb-xs", titleColor)}>
                 {title}
               </h4>
             )}

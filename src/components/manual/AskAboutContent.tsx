@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sparkles, RotateCcw, Volume2, Square } from 'lucide-react';
+import { RotateCcw, Volume2, Square, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { VoiceChatInput } from '@/components/ui/voice-chat-input';
@@ -137,6 +137,25 @@ const PRODUCT_LOADING_STAGES = {
 };
 
 // =============================================================================
+// DOMAIN EMOJI MAP
+// =============================================================================
+
+const DOMAIN_EMOJI: Record<string, { emoji: string; heroEn: string; heroEs: string }> = {
+  recipes:      { emoji: '🔥', heroEn: 'Ask the kitchen',          heroEs: 'Pregunta a la cocina' },
+  dishes:       { emoji: '🍽️', heroEn: 'Know your plates',         heroEs: 'Conoce tus platos' },
+  wines:        { emoji: '🍷', heroEn: 'Become a sommelier',       heroEs: 'Conviértete en sommelier' },
+  cocktails:    { emoji: '🍸', heroEn: 'Master the bar',           heroEs: 'Domina la barra' },
+  beer_liquor:  { emoji: '🍺', heroEn: 'Pour with confidence',     heroEs: 'Sirve con confianza' },
+};
+
+const DEFAULT_EMOJI = { emoji: '💬', heroEn: 'Ask anything', heroEs: 'Pregunta lo que quieras' };
+
+function getDomainEmoji(domain?: string) {
+  if (domain && DOMAIN_EMOJI[domain]) return DOMAIN_EMOJI[domain];
+  return DEFAULT_EMOJI;
+}
+
+// =============================================================================
 // COMPONENT
 // =============================================================================
 
@@ -200,13 +219,7 @@ export function AskAboutContent({
 
   // Labels — adapt for product mode
   const labels = {
-    placeholder: isProductMode
-      ? (language === 'es'
-        ? `Pregunta sobre "${itemName}"...`
-        : `Ask about "${itemName}"...`)
-      : (language === 'es'
-        ? `Pregunta sobre "${sectionTitle}"...`
-        : `Ask about "${sectionTitle}"...`),
+    placeholder: language === 'es' ? 'Haz una pregunta...' : 'Ask a question...',
     emptyPrompt: isProductMode
       ? (language === 'es'
         ? `¿Qué quieres saber sobre ${itemName}?`
@@ -380,6 +393,7 @@ export function AskAboutContent({
     : [];
 
   const loadingStages = isProductMode ? PRODUCT_LOADING_STAGES : LOADING_STAGES;
+  const domainEmoji = getDomainEmoji(domain);
 
   return (
     <div
@@ -401,65 +415,24 @@ export function AskAboutContent({
         />
       </div>
 
-      {/* Input Area - switches between text and voice mode */}
-      {/* Hide input for voice-tts mode (no mic, no text input needed) */}
-      {actionConfig?.mode !== 'voice-tts' && (
-        <div className="px-4 py-3 border-b border-border">
-          {isVoiceActive ? (
-            // Voice mode: show VoiceModeButton only
-            <div className="flex items-center gap-3">
-              <VoiceModeButton
-                state={voiceHook.state}
-                onConnect={handleVoiceConnect}
-                onDisconnect={handleVoiceDisconnect}
-                disabled={!voiceEnabled || !groupId}
-                language={language}
-              />
-              <span className="text-sm text-muted-foreground flex-1">
-                {labels.voiceActive}
-              </span>
-            </div>
-          ) : (
-            // Text mode: show VoiceChatInput with voice toggle
-            <>
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <VoiceChatInput
-                    value={question}
-                    onChange={setQuestion}
-                    onSubmit={handleSubmit}
-                    placeholder={labels.placeholder}
-                    disabled={isAtLimit}
-                    isLoading={isLoading}
-                    language={language}
-                    voiceEnabled={false} // Disable built-in voice mode button
-                  />
-                </div>
-                {/* Separate voice mode toggle */}
-                {voiceEnabled && groupId && (
-                  <VoiceModeButton
-                    state={voiceHook.state}
-                    onConnect={handleVoiceConnect}
-                    onDisconnect={handleVoiceDisconnect}
-                    disabled={isAtLimit}
-                    language={language}
-                  />
-                )}
-              </div>
-              {isAtLimit && (
-                <p className="text-small text-destructive mt-sm">
-                  {labels.limitReached}
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4">
-        {/* Voice Mode: Show transcript */}
-        {isVoiceActive ? (
+        {/* Connecting State */}
+        {voiceHook.state === 'connecting' && (
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-center">
+            <span className="text-[48px] leading-none mb-4">🎙️</span>
+            <p className="text-lg font-bold text-foreground mb-1">
+              {language === 'es' ? 'Conectando con tu' : 'Connecting to your'}
+            </p>
+            <p className="text-lg font-bold text-foreground">
+              AI Coach...
+            </p>
+            <Loader2 className="h-5 w-5 text-muted-foreground animate-spin mt-4" />
+          </div>
+        )}
+
+        {/* Voice Mode: Show transcript (not during connecting) */}
+        {isVoiceActive && voiceHook.state !== 'connecting' ? (
           <VoiceTranscript
             entries={voiceHook.transcript}
             maxEntries={actionConfig?.mode === 'voice-tts' ? 1 : 5}
@@ -487,12 +460,15 @@ export function AskAboutContent({
               {language === 'es' ? 'Escuchar de nuevo' : 'Listen again'}
             </Button>
           </div>
-        ) : (
+        ) : voiceHook.state !== 'connecting' && (
           <>
-            {/* Text Mode: Empty State */}
+            {/* Text Mode: Empty State — domain emoji + invitation */}
             {contentState === 'empty' && (
               <div className="flex flex-col items-center justify-center py-xl text-center h-full min-h-[200px]">
-                <Sparkles className="h-12 w-12 text-primary/30 mb-md" />
+                <span className="text-[48px] leading-none mb-md">{domainEmoji.emoji}</span>
+                <p className="text-lg font-bold text-foreground mb-1">
+                  {language === 'es' ? domainEmoji.heroEs : domainEmoji.heroEn}
+                </p>
                 <p className="text-body text-muted-foreground mb-lg">
                   {labels.emptyPrompt}
                 </p>
@@ -516,11 +492,11 @@ export function AskAboutContent({
               </div>
             )}
 
-            {/* Text Mode: Loading State */}
+            {/* Text Mode: Loading State — domain emoji with pulse */}
             {contentState === 'loading' && (
               <div className="flex flex-col items-center justify-center py-xl text-center h-full min-h-[200px]">
                 <div className="relative mb-md">
-                  <Sparkles className="h-10 w-10 text-primary animate-pulse" />
+                  <span className="text-[36px] leading-none animate-pulse">{domainEmoji.emoji}</span>
                 </div>
                 <p className="text-body text-muted-foreground">
                   {loadingStages[loadingStage][language]}
@@ -583,6 +559,48 @@ export function AskAboutContent({
           </>
         )}
       </div>
+
+      {/* Input Area — pinned to bottom */}
+      {/* Hide input for voice-tts mode (no mic, no text input needed) */}
+      {actionConfig?.mode !== 'voice-tts' && (
+        <div className="px-4 py-3 border-t border-border">
+          {isVoiceActive ? (
+            // Voice mode: show VoiceModeButton only
+            <div className="flex items-center gap-3">
+              <VoiceModeButton
+                state={voiceHook.state}
+                onConnect={handleVoiceConnect}
+                onDisconnect={handleVoiceDisconnect}
+                disabled={!voiceEnabled || !groupId}
+                language={language}
+              />
+              <span className="text-sm text-muted-foreground flex-1">
+                {labels.voiceActive}
+              </span>
+            </div>
+          ) : (
+            // Text mode: show VoiceChatInput
+            <>
+              <VoiceChatInput
+                value={question}
+                onChange={setQuestion}
+                onSubmit={handleSubmit}
+                placeholder={labels.placeholder}
+                disabled={isAtLimit}
+                isLoading={isLoading}
+                language={language}
+                voiceEnabled={voiceEnabled && !!groupId}
+                onVoiceMode={handleVoiceConnect}
+              />
+              {isAtLimit && (
+                <p className="text-small text-destructive mt-sm">
+                  {labels.limitReached}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

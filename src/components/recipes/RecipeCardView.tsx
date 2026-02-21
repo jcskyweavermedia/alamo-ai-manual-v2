@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Clock, Expand, FileText, Package, X, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AllergenBadge } from './AllergenBadge';
 import { BatchSizeSelector } from './BatchSizeSelector';
@@ -8,6 +8,8 @@ import { ProcedureColumn } from './ProcedureColumn';
 import { Button } from '@/components/ui/button';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Recipe, PrepRecipe, PlateSpec, BatchScaling, TrainingNotes } from '@/types/products';
+import { useAuth } from '@/hooks/use-auth';
+import { useNavigate } from 'react-router-dom';
 
 interface RecipeCardViewProps {
   recipe: Recipe;
@@ -34,6 +36,8 @@ export function RecipeCardView({
   activeAction,
   onActionChange,
 }: RecipeCardViewProps) {
+  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const isPrep = recipe.type === 'prep';
   const prep = isPrep ? (recipe as PrepRecipe) : null;
   const plate = !isPrep ? (recipe as PlateSpec) : null;
@@ -73,8 +77,8 @@ export function RecipeCardView({
           className={cn(
             'flex items-center justify-center shrink-0',
             'h-10 w-10 rounded-lg',
-            'bg-primary text-primary-foreground',
-            'hover:bg-primary/90 active:bg-primary/80',
+            'bg-orange-500 text-white',
+            'hover:bg-slate-800 dark:hover:bg-slate-500 active:bg-slate-900',
             'shadow-sm transition-colors duration-150'
           )}
           title={backLabel ?? 'All Recipes'}
@@ -83,15 +87,30 @@ export function RecipeCardView({
         </button>
         <h1 className="text-page-title text-foreground flex-1">{recipe.name}</h1>
 
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2"
+            onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/${recipe.type === 'prep' ? 'prep_recipes' : 'plate_specs'}/${recipe.id}`); }}
+            title="Edit product"
+          >
+            <span className="text-[14px] leading-none">✏️</span>
+          </Button>
+        )}
+
         {/* Ask a Question — plate specs: far right of title row */}
         {plate && (
           <Button
-            variant={activeAction === 'questions' ? 'default' : 'outline'}
+            variant="outline"
             size="sm"
-            className="shrink-0"
+            className={cn(
+              'shrink-0',
+              activeAction === 'questions' && 'bg-orange-400 text-white border-orange-400 hover:bg-orange-400 hover:text-white'
+            )}
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
-            <HelpCircle className={cn('h-4 w-4', activeAction !== 'questions' && 'text-primary')} />
+            <span className="text-[14px] leading-none">❓</span>
             Ask a question
           </Button>
         )}
@@ -105,8 +124,8 @@ export function RecipeCardView({
               'inline-flex items-center rounded-full px-2.5 py-0.5',
               'text-[11px] font-bold uppercase tracking-wide',
               isPrep
-                ? 'bg-primary/10 text-primary'
-                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                ? 'bg-[#2aa962] text-white'
+                : 'bg-amber-500 text-white dark:bg-amber-600'
             )}
           >
             {isPrep ? 'Prep' : plate!.plateType}
@@ -117,13 +136,13 @@ export function RecipeCardView({
         </div>
 
         {prep && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Package className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-3 text-xs leading-none text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">📦</span>
               {prep.yieldQty} {prep.yieldUnit}
             </span>
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">🕐</span>
               {prep.shelfLifeValue} {prep.shelfLifeUnit}
             </span>
           </div>
@@ -135,12 +154,15 @@ export function RecipeCardView({
         {/* Ask a Question — prep recipes: left of batch calculator */}
         {prep && (
           <Button
-            variant={activeAction === 'questions' ? 'default' : 'outline'}
+            variant="outline"
             size="sm"
-            className="shrink-0"
+            className={cn(
+              'shrink-0',
+              activeAction === 'questions' && 'bg-orange-400 text-white border-orange-400 hover:bg-orange-400 hover:text-white'
+            )}
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
-            <HelpCircle className={cn('h-4 w-4', activeAction !== 'questions' && 'text-primary')} />
+            <span className="text-[14px] leading-none">❓</span>
             Ask a question
           </Button>
         )}
@@ -177,7 +199,7 @@ export function RecipeCardView({
                         'flex items-center justify-center shrink-0',
                         'w-6 h-6 rounded-full',
                         'text-[11px] font-bold',
-                        'bg-primary text-primary-foreground'
+                        'bg-slate-400 text-white dark:bg-slate-500'
                       )}
                     >
                       {gi + 1}
@@ -210,7 +232,7 @@ export function RecipeCardView({
                             <span className="flex-1 text-foreground">
                               {comp.name}
                               {isLinked && (
-                                <FileText className="inline-block h-3.5 w-3.5 text-muted-foreground ml-1.5 -mt-0.5" />
+                                <span className="inline-block text-[14px] leading-none ml-1.5 -mt-0.5">📄</span>
                               )}
                             </span>
                           </Row>
@@ -231,7 +253,7 @@ export function RecipeCardView({
                   key={i}
                   type="button"
                   onClick={() => setExpandedImage(src)}
-                  className="relative group w-full rounded-lg overflow-hidden cursor-pointer"
+                  className="relative group w-full rounded-[20px] overflow-hidden cursor-pointer shadow-[6px_14px_24px_-6px_rgba(0,0,0,0.4),3px_8px_14px_-3px_rgba(0,0,0,0.25)]"
                 >
                   <img
                     src={src}

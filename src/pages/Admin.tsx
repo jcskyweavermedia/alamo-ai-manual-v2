@@ -2,7 +2,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageTitle, SectionTitle, MetaText } from "@/components/ui/typography";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Users, FileText, BarChart3, Settings, GraduationCap } from "lucide-react";
+// Icons replaced with emojis
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/hooks/use-language";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
@@ -14,9 +14,9 @@ const Admin = () => {
   const isEs = language === 'es';
 
   const stats = [
-    { label: "Active Users", value: "24", icon: Users },
-    { label: "Documents", value: "156", icon: FileText },
-    { label: "AI Queries Today", value: "89", icon: BarChart3 },
+    { label: "Active Users", value: "24", emoji: "👥" },
+    { label: "Documents", value: "156", emoji: "📄" },
+    { label: "AI Queries Today", value: "89", emoji: "🤖" },
   ];
 
   return (
@@ -39,9 +39,7 @@ const Admin = () => {
             <Card key={stat.label}>
               <CardContent>
                 <div className="flex items-center gap-md">
-                  <div className="p-md rounded-lg bg-primary/10">
-                    <stat.icon className="h-5 w-5 text-primary" />
-                  </div>
+                  <span className="text-[28px] leading-none">{stat.emoji}</span>
                   <div>
                     <MetaText>{stat.label}</MetaText>
                     <SectionTitle>{stat.value}</SectionTitle>
@@ -59,7 +57,7 @@ const Admin = () => {
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5 text-primary" />
+              <span className="text-[20px] leading-none">🎓</span>
               {isEs ? 'Dashboard de Entrenamiento' : 'Training Dashboard'}
             </CardTitle>
           </CardHeader>
@@ -76,7 +74,7 @@ const Admin = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
+              <span className="text-[20px] leading-none">⚙️</span>
               {isEs ? 'Acciones Rapidas' : 'Quick Actions'}
             </CardTitle>
           </CardHeader>

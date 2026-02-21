@@ -1,42 +1,22 @@
 /**
  * Course Evaluate Edge Function
  *
- * Three actions:
+ * Six actions:
  *   1. grade_mc — Server-side MC grading (no AI, checks correct option)
  *   2. grade_voice — AI evaluation of voice transcription against rubric
  *   3. section_evaluation — AI dual feedback after quiz completion
+ *   4. module_test_evaluation — Certification test with per-section breakdown
+ *   5. course_final — Comprehensive AI evaluation (manager-only)
+ *   6. conversation_evaluation — AI evaluation of conversational assessment transcript
  *
- * Auth: verify_jwt=false — manual JWT verification via getClaims()
+ * Auth: verify_jwt=false — manual JWT verification via getUser()
  */
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// =============================================================================
-// CORS
-// =============================================================================
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function jsonResponse(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function errorResponse(error: string, message?: string, status = 400) {
-  const body: Record<string, unknown> = { error };
-  if (message) body.message = message;
-  return jsonResponse(body, status);
-}
+import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
+import type { SupabaseClient } from "../_shared/supabase.ts";
+import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
+import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 
 // =============================================================================
 // VOICE EVALUATION SCHEMA (OpenAI structured output)
@@ -107,6 +87,94 @@ const sectionEvalSchema = {
 };
 
 // =============================================================================
+// CONVERSATION EVALUATION SCHEMA (conversational assessment)
+// =============================================================================
+
+const conversationEvalSchema = {
+  type: "object" as const,
+  properties: {
+    score: { type: "number" as const },
+    competency_level: {
+      type: "string" as const,
+      enum: ["novice", "competent", "proficient", "expert"],
+    },
+    conversation_summary: { type: "string" as const },
+    student_feedback: {
+      type: "object" as const,
+      properties: {
+        strengths: { type: "array" as const, items: { type: "string" as const } },
+        areas_for_improvement: { type: "array" as const, items: { type: "string" as const } },
+        encouragement: { type: "string" as const },
+      },
+      required: ["strengths", "areas_for_improvement", "encouragement"],
+      additionalProperties: false,
+    },
+    manager_feedback: {
+      type: "object" as const,
+      properties: {
+        competency_gaps: { type: "array" as const, items: { type: "string" as const } },
+        recommended_actions: { type: "array" as const, items: { type: "string" as const } },
+        risk_level: { type: "string" as const, enum: ["low", "medium", "high"] },
+        coaching_dependency: { type: "string" as const, enum: ["low", "medium", "high"] },
+        conversation_notes: { type: "string" as const },
+      },
+      required: ["competency_gaps", "recommended_actions", "risk_level", "coaching_dependency", "conversation_notes"],
+      additionalProperties: false,
+    },
+  },
+  required: ["score", "competency_level", "conversation_summary", "student_feedback", "manager_feedback"],
+  additionalProperties: false,
+};
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface VoiceEvalResult {
+  total_score: number;
+  criteria_scores: Array<{
+    criterion: string;
+    points_earned: number;
+    points_possible: number;
+    met: boolean;
+  }>;
+  feedback_en: string;
+  feedback_es: string;
+}
+
+interface SectionEvalResult {
+  competency_level: string;
+  student_feedback: {
+    strengths: string[];
+    areas_for_improvement: string[];
+    encouragement: string;
+  };
+  manager_feedback: {
+    competency_gaps: string[];
+    recommended_actions: string[];
+    risk_level: string;
+  };
+}
+
+interface ConversationEvalResult {
+  score: number;
+  competency_level: string;
+  conversation_summary: string;
+  student_feedback: {
+    strengths: string[];
+    areas_for_improvement: string[];
+    encouragement: string;
+  };
+  manager_feedback: {
+    competency_gaps: string[];
+    recommended_actions: string[];
+    risk_level: string;
+    coaching_dependency: string;
+    conversation_notes: string;
+  };
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -118,36 +186,10 @@ Deno.serve(async (req) => {
   console.log("[evaluate] Request received");
 
   try {
-    // =========================================================================
-    // 1. AUTHENTICATE
-    // =========================================================================
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("Unauthorized", "Missing authorization header", 401);
-    }
+    // 1. Authenticate
+    const { userId, supabase } = await authenticateWithUser(req);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } =
-      await supabaseAuth.auth.getUser(token);
-
-    if (userError || !userData?.user) {
-      return errorResponse("Unauthorized", "Invalid token", 401);
-    }
-
-    const userId = userData.user.id;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // =========================================================================
-    // 2. PARSE REQUEST
-    // =========================================================================
+    // 2. Parse request
     const body = await req.json();
     const { action, language = "en", groupId } = body;
 
@@ -160,9 +202,7 @@ Deno.serve(async (req) => {
 
     console.log(`[evaluate] Action: ${action} | Lang: ${language}`);
 
-    // =========================================================================
-    // 3. ROUTE TO ACTION HANDLER
-    // =========================================================================
+    // 3. Route to action handler
     switch (action) {
       case "grade_mc":
         return await handleGradeMC(supabase, userId, body, language);
@@ -179,10 +219,22 @@ Deno.serve(async (req) => {
       case "course_final":
         return await handleCourseFinal(supabase, userId, groupId, body, language);
 
+      case "conversation_evaluation":
+        return await handleConversationEvaluation(supabase, userId, groupId, body, language);
+
       default:
         return errorResponse("bad_request", `Unknown action: ${action}`, 400);
     }
   } catch (err) {
+    if (err instanceof AuthError) {
+      return errorResponse("Unauthorized", err.message, 401);
+    }
+    if (err instanceof OpenAIError) {
+      return errorResponse("ai_error", err.message, err.status);
+    }
+    if (err instanceof UsageError) {
+      return errorResponse("server_error", err.message, 500);
+    }
     console.error("[evaluate] Unhandled error:", err);
     return errorResponse(
       "server_error",
@@ -197,7 +249,7 @@ Deno.serve(async (req) => {
 // =============================================================================
 
 async function handleGradeMC(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   body: Record<string, unknown>,
   language: string,
@@ -293,7 +345,6 @@ async function handleGradeMC(
       _was_correct: isCorrect,
     });
     if (rpcErr) {
-      // RPC doesn't exist — fallback to direct update
       await supabase
         .from("quiz_questions")
         .update({
@@ -303,7 +354,6 @@ async function handleGradeMC(
         .eq("id", question_id);
     }
   } catch {
-    // Analytics failure should never block grading
     console.error("[evaluate:grade_mc] Analytics update failed (non-critical)");
   }
 
@@ -322,7 +372,7 @@ async function handleGradeMC(
 // =============================================================================
 
 async function handleGradeVoice(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   groupId: string,
   body: Record<string, unknown>,
@@ -377,12 +427,7 @@ async function handleGradeVoice(
   }
 
   // Check usage limits
-  const { data: usageData } = await supabase.rpc("get_user_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
-
-  const usage = usageData?.[0];
+  const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
     return errorResponse("limit_exceeded", "Usage limit reached", 429);
   }
@@ -416,75 +461,21 @@ async function handleGradeVoice(
   const userPrompt = `Question: ${questionText}\n\nRubric:\n${rubricText}\n\nStudent's answer (transcription):\n"${transcription}"\n\nEvaluate this answer against the rubric.`;
 
   // Call OpenAI
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    return errorResponse("server_error", "AI service not configured", 500);
-  }
-
   console.log("[evaluate:grade_voice] Calling OpenAI...");
 
-  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "voice_evaluation",
-          strict: true,
-          schema: voiceEvalSchema,
-        },
-      },
-      temperature: 0.3,
-      max_tokens: 800,
-    }),
+  const evalResult = await callOpenAI<VoiceEvalResult>({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    schema: voiceEvalSchema,
+    schemaName: "voice_evaluation",
+    temperature: 0.3,
+    maxTokens: 800,
   });
-
-  if (!aiResponse.ok) {
-    const errorText = await aiResponse.text();
-    console.error("[evaluate:grade_voice] OpenAI error:", aiResponse.status, errorText);
-    return errorResponse("ai_error", "Failed to evaluate answer", 500);
-  }
-
-  const aiData = await aiResponse.json();
-  const content = aiData.choices?.[0]?.message?.content;
-
-  if (!content) {
-    return errorResponse("ai_error", "Empty evaluation response", 500);
-  }
-
-  let evalResult: {
-    total_score: number;
-    criteria_scores: Array<{
-      criterion: string;
-      points_earned: number;
-      points_possible: number;
-      met: boolean;
-    }>;
-    feedback_en: string;
-    feedback_es: string;
-  };
-
-  try {
-    evalResult = JSON.parse(content);
-  } catch {
-    console.error("[evaluate:grade_voice] Parse error:", content);
-    return errorResponse("ai_error", "Invalid evaluation format", 500);
-  }
 
   // Increment usage
-  await supabase.rpc("increment_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
+  await incrementUsage(supabase, userId, groupId);
 
   // Persist answer
   const voiceScore = Math.min(100, Math.max(0, Math.round(evalResult.total_score)));
@@ -543,7 +534,7 @@ async function handleGradeVoice(
 // =============================================================================
 
 async function handleSectionEvaluation(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   groupId: string,
   body: Record<string, unknown>,
@@ -630,7 +621,6 @@ async function handleSectionEvaluation(
 
   // Update section_progress
   if (enrollment_id) {
-    // Get current progress
     const { data: progress } = await supabase
       .from("section_progress")
       .select("id, quiz_attempts")
@@ -639,8 +629,6 @@ async function handleSectionEvaluation(
       .maybeSingle();
 
     if (progress) {
-      // Record quiz score for informational display only.
-      // Section completion is driven by reading content, not by quiz pass.
       const updates: Record<string, unknown> = {
         quiz_score: finalScore,
         quiz_passed: passed,
@@ -655,14 +643,8 @@ async function handleSectionEvaluation(
   }
 
   // Check usage before AI call
-  const { data: usageData } = await supabase.rpc("get_user_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
-
-  const usage = usageData?.[0];
+  const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
-    // Return basic result without AI feedback if limit reached
     return jsonResponse({
       score: finalScore,
       passed,
@@ -686,7 +668,6 @@ async function handleSectionEvaluation(
     .single();
 
   if (!promptData) {
-    // Fallback without AI feedback
     return jsonResponse({
       score: finalScore,
       passed,
@@ -725,50 +706,23 @@ async function handleSectionEvaluation(
 
   const userPrompt = `Section: ${sectionTitle}\nOverall Score: ${finalScore}%\nPassed: ${passed ? "Yes" : "No"}\nCompetency Level: ${competencyLevel}\n\nQuiz Results:\n${answersContext}\n\nGenerate the dual evaluation feedback.`;
 
-  // Call OpenAI
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    return jsonResponse({
-      score: finalScore,
-      passed,
-      competency_level: competencyLevel,
-      student_feedback: {
-        strengths: [],
-        areas_for_improvement: [],
-        encouragement: passed ? "Congratulations!" : "Keep studying!",
-      },
-    });
-  }
-
+  // Call OpenAI (with graceful degradation)
   console.log("[evaluate:section] Calling OpenAI for dual feedback...");
 
-  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
+  let evalResult: SectionEvalResult;
+  try {
+    evalResult = await callOpenAI<SectionEvalResult>({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "section_evaluation",
-          strict: true,
-          schema: sectionEvalSchema,
-        },
-      },
+      schema: sectionEvalSchema,
+      schemaName: "section_evaluation",
       temperature: 0.4,
-      max_tokens: 1000,
-    }),
-  });
-
-  if (!aiResponse.ok) {
-    console.error("[evaluate:section] OpenAI error:", aiResponse.status);
+      maxTokens: 1000,
+    });
+  } catch (err) {
+    console.error("[evaluate:section] AI error:", err instanceof Error ? err.message : err);
     return jsonResponse({
       score: finalScore,
       passed,
@@ -781,44 +735,8 @@ async function handleSectionEvaluation(
     });
   }
 
-  const aiData = await aiResponse.json();
-  const aiContent = aiData.choices?.[0]?.message?.content;
-
-  let evalResult: {
-    competency_level: string;
-    student_feedback: {
-      strengths: string[];
-      areas_for_improvement: string[];
-      encouragement: string;
-    };
-    manager_feedback: {
-      competency_gaps: string[];
-      recommended_actions: string[];
-      risk_level: string;
-    };
-  };
-
-  try {
-    evalResult = JSON.parse(aiContent);
-  } catch {
-    console.error("[evaluate:section] Parse error");
-    return jsonResponse({
-      score: finalScore,
-      passed,
-      competency_level: competencyLevel,
-      student_feedback: {
-        strengths: [],
-        areas_for_improvement: [],
-        encouragement: passed ? "You passed!" : "Keep trying!",
-      },
-    });
-  }
-
   // Increment usage
-  await supabase.rpc("increment_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
+  await incrementUsage(supabase, userId, groupId);
 
   // Persist evaluation to DB (both student and manager feedback)
   await supabase.from("evaluations").insert({
@@ -847,7 +765,7 @@ async function handleSectionEvaluation(
 // =============================================================================
 
 async function handleModuleTestEvaluation(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   groupId: string,
   body: Record<string, unknown>,
@@ -987,12 +905,7 @@ async function handleModuleTestEvaluation(
   }
 
   // Check usage before AI call
-  const { data: usageData } = await supabase.rpc("get_user_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
-
-  const usage = usageData?.[0];
+  const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
     return jsonResponse({
       score: finalScore,
@@ -1060,62 +973,35 @@ async function handleModuleTestEvaluation(
 
   const userPrompt = `Course: ${courseTitle}\nOverall Score: ${finalScore}%\nPassed: ${passed ? "Yes" : "No"}\nCompetency Level: ${competencyLevel}\n\nPer-Section Breakdown:\n${sectionBreakdown}\n\nTest Results:\n${answersContext}\n\nGenerate the dual evaluation feedback.`;
 
-  // Call OpenAI
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    return jsonResponse({
-      score: finalScore, passed, competency_level: competencyLevel, section_scores: sectionScores,
-      student_feedback: { strengths: [], areas_for_improvement: [], encouragement: "Done!" },
-    });
-  }
-
-  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
+  // Call OpenAI (with graceful degradation)
+  let evalResult: SectionEvalResult;
+  try {
+    evalResult = await callOpenAI<SectionEvalResult>({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "module_test_evaluation",
-          strict: true,
-          schema: sectionEvalSchema,
-        },
-      },
+      schema: sectionEvalSchema,
+      schemaName: "module_test_evaluation",
       temperature: 0.4,
-      max_tokens: 1200,
-    }),
-  });
-
-  if (!aiResponse.ok) {
-    return jsonResponse({
-      score: finalScore, passed, competency_level: competencyLevel, section_scores: sectionScores,
-      student_feedback: { strengths: [], areas_for_improvement: [], encouragement: passed ? "Well done!" : "Keep practicing!" },
+      maxTokens: 1200,
     });
-  }
-
-  const aiData = await aiResponse.json();
-  const aiContent = aiData.choices?.[0]?.message?.content;
-  let evalResult: { competency_level: string; student_feedback: Record<string, unknown>; manager_feedback: Record<string, unknown> };
-
-  try {
-    evalResult = JSON.parse(aiContent);
   } catch {
     return jsonResponse({
-      score: finalScore, passed, competency_level: competencyLevel, section_scores: sectionScores,
-      student_feedback: { strengths: [], areas_for_improvement: [], encouragement: passed ? "You passed!" : "Keep trying!" },
+      score: finalScore,
+      passed,
+      competency_level: competencyLevel,
+      section_scores: sectionScores,
+      student_feedback: {
+        strengths: [],
+        areas_for_improvement: [],
+        encouragement: passed ? "Well done!" : "Keep practicing!",
+      },
     });
   }
 
   // Increment usage
-  await supabase.rpc("increment_usage", { _user_id: userId, _group_id: groupId });
+  await incrementUsage(supabase, userId, groupId);
 
   // Persist evaluation
   await supabase.from("evaluations").insert({
@@ -1141,7 +1027,7 @@ async function handleModuleTestEvaluation(
 // =============================================================================
 
 async function handleCourseFinal(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   groupId: string,
   body: Record<string, unknown>,
@@ -1213,12 +1099,7 @@ async function handleCourseFinal(
     .order("created_at", { ascending: false });
 
   // 6. Check usage limits
-  const { data: usageData } = await supabase.rpc("get_user_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
-
-  const usage = usageData?.[0];
+  const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
     return errorResponse("limit_exceeded", "Usage limit reached", 429);
   }
@@ -1243,7 +1124,7 @@ async function handleCourseFinal(
     .join("\n\n");
 
   const evalContext = (existingEvals ?? [])
-    .slice(0, 10) // Limit to last 10
+    .slice(0, 10)
     .map((ev: Record<string, unknown>) => {
       const mf = ev.manager_feedback as Record<string, unknown> | null;
       return `Level: ${ev.competency_level}\n  Gaps: ${(mf?.competency_gaps as string[] || []).join(", ")}\n  Risk: ${mf?.risk_level || "unknown"}`;
@@ -1279,77 +1160,21 @@ Generate a comprehensive dual evaluation with:
 3. manager_feedback with competency_gaps, recommended_actions, and risk_level`;
 
   // 9. Call OpenAI
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    return errorResponse("server_error", "AI service not configured", 500);
-  }
-
   console.log("[evaluate:course_final] Calling OpenAI for comprehensive evaluation...");
 
-  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "course_final_evaluation",
-          strict: true,
-          schema: sectionEvalSchema,
-        },
-      },
-      temperature: 0.4,
-      max_tokens: 1200,
-    }),
+  const evalResult = await callOpenAI<SectionEvalResult>({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    schema: sectionEvalSchema,
+    schemaName: "course_final_evaluation",
+    temperature: 0.4,
+    maxTokens: 1200,
   });
-
-  if (!aiResponse.ok) {
-    const errorText = await aiResponse.text();
-    console.error("[evaluate:course_final] OpenAI error:", aiResponse.status, errorText);
-    return errorResponse("ai_error", "Failed to generate evaluation", 500);
-  }
-
-  const aiData = await aiResponse.json();
-  const content = aiData.choices?.[0]?.message?.content;
-
-  if (!content) {
-    return errorResponse("ai_error", "Empty evaluation response", 500);
-  }
-
-  let evalResult: {
-    competency_level: string;
-    student_feedback: {
-      strengths: string[];
-      areas_for_improvement: string[];
-      encouragement: string;
-    };
-    manager_feedback: {
-      competency_gaps: string[];
-      recommended_actions: string[];
-      risk_level: string;
-    };
-  };
-
-  try {
-    evalResult = JSON.parse(content);
-  } catch {
-    console.error("[evaluate:course_final] Parse error:", content);
-    return errorResponse("ai_error", "Invalid evaluation format", 500);
-  }
 
   // 10. Increment usage
-  await supabase.rpc("increment_usage", {
-    _user_id: userId,
-    _group_id: groupId,
-  });
+  await incrementUsage(supabase, userId, groupId);
 
   // 11. Persist evaluation
   await supabase.from("evaluations").insert({
@@ -1369,5 +1194,302 @@ Generate a comprehensive dual evaluation with:
     student_feedback: evalResult.student_feedback,
     manager_feedback: evalResult.manager_feedback,
     cached: false,
+  });
+}
+
+// =============================================================================
+// ACTION F: conversation_evaluation — AI evaluation of conversational assessment
+// =============================================================================
+
+async function handleConversationEvaluation(
+  supabase: SupabaseClient,
+  userId: string,
+  groupId: string,
+  body: Record<string, unknown>,
+  language: string,
+) {
+  const { attempt_id, section_id, enrollment_id } = body;
+
+  if (!attempt_id || !section_id) {
+    return errorResponse("bad_request", "attempt_id and section_id are required", 400);
+  }
+
+  // 1. Fetch attempt and verify ownership + status
+  const { data: attempt } = await supabase
+    .from("quiz_attempts")
+    .select("id, user_id, status, quiz_mode, section_id, competency_score, questions_covered, teaching_moments, additional_questions_asked")
+    .eq("id", attempt_id)
+    .eq("user_id", userId)
+    .single();
+
+  if (!attempt) {
+    return errorResponse("not_found", "Quiz attempt not found", 404);
+  }
+  if (attempt.quiz_mode !== "conversation") {
+    return errorResponse("bad_request", "Not a conversation attempt", 400);
+  }
+  if (attempt.status !== "awaiting_evaluation") {
+    return errorResponse("bad_request", "Attempt is not awaiting evaluation", 400);
+  }
+
+  // 2. Load conversation messages
+  const { data: messages } = await supabase
+    .from("conversation_messages")
+    .select("role, content, metadata, created_at")
+    .eq("attempt_id", attempt_id)
+    .order("created_at", { ascending: true });
+
+  if (!messages || messages.length === 0) {
+    return errorResponse("bad_request", "No conversation messages found", 400);
+  }
+
+  // 3. Transcript truncation for large conversations (Fix #17)
+  // If > 40 messages, summarize older ones, keep last 20 verbatim
+  let transcriptText: string;
+  if (messages.length > 40) {
+    const olderMessages = messages.slice(0, messages.length - 20);
+    const recentMessages = messages.slice(-20);
+
+    // Summarize older topics
+    const olderTopics = new Set<string>();
+    for (const msg of olderMessages) {
+      if (msg.role === "assistant") {
+        const meta = msg.metadata as Record<string, unknown> | null;
+        if (meta?.topics_assessed) {
+          for (const t of meta.topics_assessed as string[]) {
+            olderTopics.add(t);
+          }
+        }
+      }
+    }
+
+    const olderSummary = olderTopics.size > 0
+      ? `[Earlier in the conversation: discussed ${Array.from(olderTopics).join(", ")}]`
+      : `[Earlier: ${olderMessages.length} messages exchanged]`;
+
+    transcriptText = olderSummary + "\n\n" + recentMessages.map(m =>
+      `${m.role === "user" ? "Trainee" : "Assessor"}: ${m.content}`
+    ).join("\n\n");
+  } else {
+    transcriptText = messages.map(m =>
+      `${m.role === "user" ? "Trainee" : "Assessor"}: ${m.content}`
+    ).join("\n\n");
+  }
+
+  // 4. Fetch section info
+  const { data: section } = await supabase
+    .from("course_sections")
+    .select("quiz_passing_score, title_en, title_es, course_id")
+    .eq("id", section_id)
+    .single();
+
+  const passingScore = section?.quiz_passing_score || 70;
+  const isEs = language === "es";
+  const sectionTitle = isEs && section?.title_es ? section.title_es : section?.title_en || "Unknown";
+
+  // 5. Load quiz questions for context
+  const { data: questions } = await supabase
+    .from("quiz_questions")
+    .select("id, question_en, question_es")
+    .eq("section_id", section_id)
+    .eq("is_active", true);
+
+  const topicsTotal = questions?.length || 0;
+  const topicsCovered = (attempt.questions_covered || []).length;
+
+  // 6. Check usage limits
+  const usage = await checkUsage(supabase, userId, groupId);
+  if (!usage?.can_ask) {
+    // Graceful degradation -- use server-side competency_score
+    return handleConversationEvalFallback(supabase, attempt, section_id, enrollment_id as string, userId, passingScore, sectionTitle, topicsCovered, topicsTotal, language);
+  }
+
+  // 7. Fetch evaluation prompt
+  const { data: promptData } = await supabase
+    .from("ai_prompts")
+    .select("prompt_en, prompt_es")
+    .eq("slug", "conversation-evaluator")
+    .eq("is_active", true)
+    .single();
+
+  if (!promptData) {
+    return handleConversationEvalFallback(supabase, attempt, section_id, enrollment_id as string, userId, passingScore, sectionTitle, topicsCovered, topicsTotal, language);
+  }
+
+  const systemPrompt = isEs && promptData.prompt_es
+    ? promptData.prompt_es
+    : promptData.prompt_en;
+
+  // 8. Build evaluation context
+  const userPrompt = `Section: ${sectionTitle}
+Topics Covered: ${topicsCovered} of ${topicsTotal}
+Teaching Moments: ${attempt.teaching_moments || 0}
+Additional Questions Asked: ${attempt.additional_questions_asked || 0}
+Running Competency Score: ${attempt.competency_score || 0}
+
+Conversation Transcript:
+${transcriptText}
+
+Generate the comprehensive dual evaluation.`;
+
+  // 9. Call OpenAI (with graceful degradation)
+  console.log("[evaluate:conversation] Calling OpenAI for conversation evaluation...");
+
+  let evalResult: ConversationEvalResult;
+  try {
+    evalResult = await callOpenAI<ConversationEvalResult>({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      schema: conversationEvalSchema,
+      schemaName: "conversation_evaluation",
+      temperature: 0.3,
+      maxTokens: 1500,
+    });
+  } catch (err) {
+    console.error("[evaluate:conversation] AI error:", err instanceof Error ? err.message : err);
+    return handleConversationEvalFallback(supabase, attempt, section_id, enrollment_id as string, userId, passingScore, sectionTitle, topicsCovered, topicsTotal, language);
+  }
+
+  // 10. Clamp score
+  const finalScore = Math.min(100, Math.max(0, Math.round(evalResult.score)));
+  const passed = finalScore >= passingScore;
+
+  // 11. Increment usage
+  await incrementUsage(supabase, userId, groupId);
+
+  // 12. Mark attempt as completed
+  await supabase
+    .from("quiz_attempts")
+    .update({
+      status: "completed",
+      score: finalScore,
+      passed,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", attempt_id);
+
+  // 13. Update section_progress
+  if (enrollment_id) {
+    const { data: progress } = await supabase
+      .from("section_progress")
+      .select("id, quiz_attempts")
+      .eq("user_id", userId)
+      .eq("section_id", section_id)
+      .maybeSingle();
+
+    if (progress) {
+      await supabase
+        .from("section_progress")
+        .update({
+          quiz_score: finalScore,
+          quiz_passed: passed,
+          quiz_attempts: (progress.quiz_attempts || 0) + 1,
+        })
+        .eq("id", progress.id);
+    }
+  }
+
+  // 14. Persist evaluation
+  await supabase.from("evaluations").insert({
+    user_id: userId,
+    enrollment_id: enrollment_id || null,
+    section_id,
+    eval_type: "quiz",
+    student_feedback: evalResult.student_feedback,
+    manager_feedback: evalResult.manager_feedback,
+    competency_level: evalResult.competency_level,
+  });
+
+  console.log(`[evaluate:conversation] Score: ${finalScore}%, Level: ${evalResult.competency_level}`);
+
+  // 15. Return response with student feedback + summary (NOT manager feedback)
+  return jsonResponse({
+    score: finalScore,
+    passed,
+    competency_level: evalResult.competency_level,
+    conversation_summary: evalResult.conversation_summary,
+    topics_covered: topicsCovered,
+    topics_total: topicsTotal,
+    student_feedback: evalResult.student_feedback,
+  });
+}
+
+// =============================================================================
+// FALLBACK: conversation evaluation without AI (graceful degradation)
+// =============================================================================
+
+async function handleConversationEvalFallback(
+  supabase: SupabaseClient,
+  attempt: Record<string, unknown>,
+  sectionId: string,
+  enrollmentId: string,
+  userId: string,
+  passingScore: number,
+  sectionTitle: string,
+  topicsCovered: number,
+  topicsTotal: number,
+  language: string,
+) {
+  // Use server-side competency_score as the score
+  const fallbackScore = Math.min(100, Math.max(0, attempt.competency_score as number || 0));
+  const passed = fallbackScore >= passingScore;
+
+  let competencyLevel: string;
+  if (fallbackScore >= 90) competencyLevel = "expert";
+  else if (fallbackScore >= 80) competencyLevel = "proficient";
+  else if (fallbackScore >= 60) competencyLevel = "competent";
+  else competencyLevel = "novice";
+
+  // Mark attempt as completed
+  await supabase
+    .from("quiz_attempts")
+    .update({
+      status: "completed",
+      score: fallbackScore,
+      passed,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", attempt.id);
+
+  // Update section_progress
+  if (enrollmentId) {
+    const { data: progress } = await supabase
+      .from("section_progress")
+      .select("id, quiz_attempts")
+      .eq("user_id", userId)
+      .eq("section_id", sectionId)
+      .maybeSingle();
+
+    if (progress) {
+      await supabase
+        .from("section_progress")
+        .update({
+          quiz_score: fallbackScore,
+          quiz_passed: passed,
+          quiz_attempts: (progress.quiz_attempts || 0) + 1,
+        })
+        .eq("id", progress.id);
+    }
+  }
+
+  const isEs = language === "es";
+  return jsonResponse({
+    score: fallbackScore,
+    passed,
+    competency_level: competencyLevel,
+    conversation_summary: isEs
+      ? `Evaluacion de la seccion "${sectionTitle}" completada.`
+      : `Assessment of section "${sectionTitle}" completed.`,
+    topics_covered: topicsCovered,
+    topics_total: topicsTotal,
+    student_feedback: {
+      strengths: [isEs ? "Evaluacion completada" : "Assessment completed"],
+      areas_for_improvement: [],
+      encouragement: isEs
+        ? "Tu instructor no pudo generar retroalimentacion detallada. La puntuacion se basa en tu conversacion."
+        : "Your trainer was unable to generate detailed feedback. Score based on your conversation.",
+    },
   });
 }

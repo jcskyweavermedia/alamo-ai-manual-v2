@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ArrowLeft, Expand, X, Mic, Play, GraduationCap, UtensilsCrossed, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { WineStyleBadge } from './WineStyleBadge';
-import { TopSellerBadge } from '@/components/shared/TopSellerBadge';
+import { BodyIndicator } from './BodyIndicator';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
-import type { Wine, WineBody } from '@/types/products';
+import type { Wine } from '@/types/products';
 import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
+import { useAuth } from '@/hooks/use-auth';
+import { useNavigate } from 'react-router-dom';
 
 interface WineCardViewProps {
   wine: Wine;
@@ -17,27 +19,17 @@ interface WineCardViewProps {
   onActionChange: (action: string | null) => void;
 }
 
-function BodyIndicator({ body }: { body: WineBody }) {
-  const filled = body === 'light' ? 1 : body === 'medium' ? 2 : 3;
-  const label = body.charAt(0).toUpperCase() + body.slice(1);
-
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {[1, 2, 3].map(i => (
-        <span
-          key={i}
-          className={cn(
-            'inline-block w-2 h-2 rounded-full',
-            i <= filled ? 'bg-foreground' : 'bg-border'
-          )}
-        />
-      ))}
-      <span className="text-xs text-muted-foreground">{label}</span>
-    </span>
-  );
-}
+const AI_EMOJI_MAP: Record<string, string> = {
+  mic: '\uD83C\uDF99\uFE0F',
+  play: '\u25B6\uFE0F',
+  'graduation-cap': '\uD83C\uDF93',
+  'utensils-crossed': '\uD83C\uDF74',
+  'help-circle': '\u2753',
+};
 
 export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onActionChange }: WineCardViewProps) {
+  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const { ref: swipeRef } = useSwipeNavigation({
@@ -60,8 +52,8 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
             className={cn(
               'flex items-center justify-center shrink-0',
               'h-10 w-10 rounded-lg',
-              'bg-primary text-primary-foreground',
-              'hover:bg-primary/90 active:bg-primary/80',
+              'bg-orange-500 text-white',
+              'hover:bg-orange-600 active:bg-orange-700',
               'shadow-sm transition-colors duration-150',
               'mt-0.5'
             )}
@@ -75,12 +67,24 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
               {wine.name}
             </h1>
           </div>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2"
+              onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/wines/${wine.id}`); }}
+              title="Edit product"
+            >
+              <span className="text-[14px] leading-none">✏️</span>
+            </Button>
+          )}
         </div>
 
         {/* Top seller badge */}
         {wine.isTopSeller && (
-          <div className="pl-[52px]">
-            <TopSellerBadge size="md" />
+          <div className="pl-[52px] flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+            <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
+            <span>Top Seller</span>
           </div>
         )}
 
@@ -104,22 +108,38 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
       {/* Divider */}
       <div className="border-t border-border mb-4 md:mb-3 shrink-0" />
 
-      {/* AI Action Buttons */}
-      <div className="flex items-center justify-center gap-1.5 mb-5 md:mb-4 overflow-x-auto ai-action-scroll">
+      {/* AI Action Buttons — white, emoji tile, no chevron */}
+      <div className="flex items-center justify-center gap-2 mb-5 md:mb-4 flex-wrap">
         {PRODUCT_AI_ACTIONS.wines.map(({ key, label, icon }) => {
-          const Icon = { mic: Mic, play: Play, 'graduation-cap': GraduationCap, 'utensils-crossed': UtensilsCrossed, 'help-circle': HelpCircle }[icon] as typeof Mic | undefined;
+          const emoji = AI_EMOJI_MAP[icon];
           const isActive = activeAction === key;
           return (
-            <Button
+            <button
               key={key}
-              variant={isActive ? 'default' : 'outline'}
-              size="sm"
-              className="shrink-0 h-8 px-2 text-[11px] min-h-0"
+              type="button"
               onClick={() => onActionChange(isActive ? null : key)}
+              className={cn(
+                'flex items-center gap-1.5',
+                'h-10 px-2.5 rounded-xl',
+                'text-[12px] font-medium',
+                'transition-all duration-150',
+                'active:scale-[0.97]',
+                isActive
+                  ? 'bg-orange-400 text-white shadow-sm'
+                  : 'bg-card text-foreground shadow-sm hover:shadow-md'
+              )}
             >
-              {Icon && <Icon className={cn('h-3.5 w-3.5', !isActive && 'text-primary')} />}
-              {label}
-            </Button>
+              {emoji && (
+                <span className={cn(
+                  'flex items-center justify-center shrink-0',
+                  'w-8 h-8 rounded-[10px]',
+                  isActive ? 'bg-white/30' : 'bg-slate-100 dark:bg-slate-800'
+                )}>
+                  <span className="text-[18px] h-[18px] leading-[18px]">{emoji}</span>
+                </span>
+              )}
+              <span>{label}</span>
+            </button>
           );
         })}
       </div>
@@ -131,11 +151,11 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
           <button
             type="button"
             onClick={() => setLightboxOpen(true)}
-            className="relative group w-full rounded-lg overflow-hidden cursor-pointer bg-muted"
+            className="relative group w-full rounded-[20px] overflow-hidden cursor-pointer bg-muted shadow-[6px_14px_24px_-6px_rgba(0,0,0,0.4),3px_8px_14px_-3px_rgba(0,0,0,0.25)]"
           >
             <div className="aspect-[2/3] max-h-48 md:max-h-none">
               <img
-                src={wine.image}
+                src={wine.image ?? ''}
                 alt={wine.name}
                 className="w-full h-full object-contain"
                 loading="lazy"
@@ -155,37 +175,67 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
           </button>
         </div>
 
-        {/* Right column — info sections */}
-        <div className="flex-1 min-w-0 space-y-3 md:space-y-2 md:overflow-hidden">
+        {/* Right column — info cards */}
+        <div className="flex-1 min-w-0 space-y-3 md:overflow-y-auto">
           {/* Tasting Notes */}
-          <section>
-            <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
-              Tasting Notes
-            </h2>
-            <p className="text-sm leading-snug text-foreground md:line-clamp-8">
-              {wine.tastingNotes}
-            </p>
-          </section>
+          {wine.tastingNotes && (
+            <div className="relative rounded-xl bg-card shadow-sm p-4 pt-5 pr-16">
+              <span className={cn(
+                'absolute top-3 right-3',
+                'flex items-center justify-center',
+                'w-10 h-10 rounded-full',
+                'bg-red-100 dark:bg-red-900/30'
+              )}>
+                <span className="text-[22px] h-[22px] leading-[22px]">🍷</span>
+              </span>
+              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Tasting Notes
+              </h2>
+              <p className="text-sm leading-relaxed text-foreground">
+                {wine.tastingNotes}
+              </p>
+            </div>
+          )}
 
-          {/* Producer Notes */}
-          <section>
-            <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
-              Producer Notes
-            </h2>
-            <p className="text-sm leading-snug text-foreground md:line-clamp-6">
-              {wine.producerNotes}
-            </p>
-          </section>
+          {/* Producer Fun Facts */}
+          {wine.producerNotes && (
+            <div className="relative rounded-xl bg-card shadow-sm p-4 pt-5 pr-16">
+              <span className={cn(
+                'absolute top-3 right-3',
+                'flex items-center justify-center',
+                'w-10 h-10 rounded-full',
+                'bg-amber-100 dark:bg-amber-900/30'
+              )}>
+                <span className="text-[22px] h-[22px] leading-[22px]">🏰</span>
+              </span>
+              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Producer Fun Facts
+              </h2>
+              <p className="text-sm leading-relaxed text-foreground">
+                {wine.producerNotes}
+              </p>
+            </div>
+          )}
 
-          {/* Notes (pairing, service) */}
-          <section>
-            <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
-              Notes
-            </h2>
-            <p className="text-sm leading-snug text-foreground md:line-clamp-4">
-              {wine.notes}
-            </p>
-          </section>
+          {/* Notes */}
+          {wine.notes && (
+            <div className="relative rounded-xl bg-card shadow-sm p-4 pt-5 pr-16">
+              <span className={cn(
+                'absolute top-3 right-3',
+                'flex items-center justify-center',
+                'w-10 h-10 rounded-full',
+                'bg-green-100 dark:bg-green-900/30'
+              )}>
+                <span className="text-[22px] h-[22px] leading-[22px]">📝</span>
+              </span>
+              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+                Notes
+              </h2>
+              <p className="text-sm leading-relaxed text-foreground">
+                {wine.notes}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -209,7 +259,7 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
             <X className="h-5 w-5" />
           </button>
           <img
-            src={wine.image}
+            src={wine.image ?? ''}
             alt={wine.name}
             className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
             onClick={e => e.stopPropagation()}

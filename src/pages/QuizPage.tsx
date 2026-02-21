@@ -11,12 +11,15 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { useQuizSession } from '@/hooks/use-quiz-session';
 import { useLearningSession } from '@/hooks/use-learning-session';
+import { useAssessmentChat } from '@/hooks/use-assessment-chat';
 import { QuizProgressBar } from '@/components/training/QuizProgressBar';
 import { QuizMCQuestion } from '@/components/training/QuizMCQuestion';
 import { QuizVoiceQuestion } from '@/components/training/QuizVoiceQuestion';
 import { QuizResultsView } from '@/components/training/QuizResults';
+import { AssessmentChatPanel } from '@/components/training/AssessmentChatPanel';
 import type { MCAnswerResult, VoiceAnswerResult } from '@/types/training';
 
 export default function QuizPage() {
@@ -25,7 +28,18 @@ export default function QuizPage() {
   const navigate = useNavigate();
 
   const session = useLearningSession();
+  const { permissions } = useAuth();
   const isEs = language === 'es';
+
+  const isConversationMode = session.currentSection?.quizMode === 'conversation';
+  const groupId = permissions?.memberships?.[0]?.groupId || '';
+
+  const assessment = useAssessmentChat({
+    sectionId: session.currentSection?.id || '',
+    enrollmentId: session.enrollment?.id || '',
+    language,
+    groupId,
+  });
 
   const quiz = useQuizSession({
     sectionId: session.currentSection?.id,
@@ -48,6 +62,14 @@ export default function QuizPage() {
     : '';
 
   const backUrl = `/courses/${programSlug}/${courseSlug}/${sectionSlug}`;
+
+  const handleContinue = () => {
+    if (session.nextSection) {
+      navigate(`/courses/${programSlug}/${courseSlug}/${session.nextSection.slug}`);
+    } else {
+      navigate(`/courses/${programSlug}/${courseSlug}`);
+    }
+  };
 
   // Loading state (session)
   if (session.isLoading) {
@@ -100,142 +122,154 @@ export default function QuizPage() {
 
         {/* Content area */}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-lg mx-auto px-4 py-6">
+          {isConversationMode ? (
+            <AssessmentChatPanel
+              state={assessment.state}
+              sectionTitle={sectionTitle}
+              passingScore={session.currentSection?.quizPassingScore || 70}
+              onStartAssessment={assessment.startAssessment}
+              onSendMessage={assessment.sendMessage}
+              onEndEarly={assessment.endEarly}
+              onRequestEvaluation={assessment.requestEvaluation}
+              onRetry={assessment.retry}
+              onResumeAttempt={assessment.resumeAttempt}
+              onAbandonAndRestart={assessment.abandonAndRestart}
+              onContinue={handleContinue}
+              onRetryAssessment={() => {
+                assessment.abandonAndRestart();
+              }}
+              language={language}
+            />
+          ) : (
+            <div className="max-w-lg mx-auto px-4 py-6">
 
-            {/* Loading questions */}
-            {quiz.quizState === 'loading' && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  {isEs ? 'Preparando quiz...' : 'Preparing quiz...'}
-                </p>
-              </div>
-            )}
-
-            {/* Error */}
-            {quiz.error && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <AlertCircle className="h-6 w-6 text-destructive" />
-                <p className="text-sm text-muted-foreground">{quiz.error}</p>
-                <Button variant="outline" size="sm" onClick={quiz.retryQuiz}>
-                  {isEs ? 'Reintentar' : 'Retry'}
-                </Button>
-              </div>
-            )}
-
-            {/* Ready state — show start button */}
-            {quiz.quizState === 'ready' && quiz.attempt && (
-              <div className="flex flex-col items-center justify-center py-12 gap-6">
-                <ClipboardCheck className="h-12 w-12 text-primary/60" />
-                <div className="text-center space-y-2">
-                  <h3 className="text-lg font-semibold">
-                    {isEs ? 'Preguntas de practica listas' : 'Practice questions ready'}
-                  </h3>
+              {/* Loading questions */}
+              {quiz.quizState === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">
-                    {quiz.totalQuestions} {isEs ? 'preguntas' : 'questions'}
+                    {isEs ? 'Preparando quiz...' : 'Preparing quiz...'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {isEs
-                      ? 'Te ayudan a prepararte para el Examen de Certificacion'
-                      : 'These help you prepare for the Certification Test'}
-                  </p>
-                </div>
-                <Button size="lg" onClick={quiz.beginQuiz} className="px-8">
-                  {isEs ? 'Comenzar practica' : 'Start practice'}
-                </Button>
-              </div>
-            )}
-
-            {/* In progress — show current question */}
-            {(quiz.quizState === 'in_progress' || quiz.quizState === 'grading_voice') &&
-              quiz.currentQuestion && (
-                <div className="space-y-6">
-                  <QuizProgressBar
-                    current={quiz.currentIndex}
-                    total={quiz.totalQuestions}
-                    answers={quiz.answers}
-                    questionIds={quiz.attempt?.questions.map((q) => q.id) ?? []}
-                  />
-
-                  {quiz.currentQuestion.question_type === 'multiple_choice' ? (
-                    <QuizMCQuestion
-                      question={quiz.currentQuestion}
-                      onSubmit={(optionId) =>
-                        quiz.submitMCAnswer(quiz.currentQuestion!.id, optionId)
-                      }
-                      result={
-                        quiz.answers.get(quiz.currentQuestion.id) as
-                          | MCAnswerResult
-                          | undefined
-                      }
-                      language={language}
-                    />
-                  ) : (
-                    <QuizVoiceQuestion
-                      question={quiz.currentQuestion}
-                      onSubmit={(transcription) =>
-                        quiz.submitVoiceAnswer(
-                          quiz.currentQuestion!.id,
-                          transcription
-                        )
-                      }
-                      result={
-                        quiz.answers.get(quiz.currentQuestion.id) as
-                          | VoiceAnswerResult
-                          | undefined
-                      }
-                      isGrading={quiz.quizState === 'grading_voice'}
-                      language={language}
-                    />
-                  )}
-
-                  {/* Next / Complete buttons */}
-                  {quiz.answers.has(quiz.currentQuestion.id) && (
-                    <div className="flex justify-end pt-2">
-                      {quiz.currentIndex < quiz.totalQuestions - 1 ? (
-                        <Button onClick={quiz.nextQuestion}>
-                          {isEs ? 'Siguiente' : 'Next'}
-                          <ArrowRight className="h-4 w-4 ml-2" />
-                        </Button>
-                      ) : quiz.allAnswered ? (
-                        <Button onClick={quiz.completeQuiz}>
-                          {isEs ? 'Terminar quiz' : 'Finish quiz'}
-                        </Button>
-                      ) : null}
-                    </div>
-                  )}
                 </div>
               )}
 
-            {/* Completing */}
-            {quiz.quizState === 'completing' && (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">
-                  {isEs ? 'Generando evaluacion...' : 'Generating evaluation...'}
-                </p>
-              </div>
-            )}
+              {/* Error */}
+              {quiz.error && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <AlertCircle className="h-6 w-6 text-destructive" />
+                  <p className="text-sm text-muted-foreground">{quiz.error}</p>
+                  <Button variant="outline" size="sm" onClick={quiz.retryQuiz}>
+                    {isEs ? 'Reintentar' : 'Retry'}
+                  </Button>
+                </div>
+              )}
 
-            {/* Results */}
-            {quiz.quizState === 'results' && quiz.results && (
-              <QuizResultsView
-                results={quiz.results}
-                passingScore={quiz.attempt?.passingScore ?? 70}
-                onRetry={quiz.retryQuiz}
-                onContinue={() => {
-                  if (session.nextSection) {
-                    navigate(
-                      `/courses/${programSlug}/${courseSlug}/${session.nextSection.slug}`
-                    );
-                  } else {
-                    navigate(`/courses/${programSlug}/${courseSlug}`);
-                  }
-                }}
-                language={language}
-              />
-            )}
-          </div>
+              {/* Ready state — show start button */}
+              {quiz.quizState === 'ready' && quiz.attempt && (
+                <div className="flex flex-col items-center justify-center py-12 gap-6">
+                  <ClipboardCheck className="h-12 w-12 text-primary/60" />
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-semibold">
+                      {isEs ? 'Preguntas de practica listas' : 'Practice questions ready'}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {quiz.totalQuestions} {isEs ? 'preguntas' : 'questions'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isEs
+                        ? 'Te ayudan a prepararte para el Examen de Certificacion'
+                        : 'These help you prepare for the Certification Test'}
+                    </p>
+                  </div>
+                  <Button size="lg" onClick={quiz.beginQuiz} className="px-8">
+                    {isEs ? 'Comenzar practica' : 'Start practice'}
+                  </Button>
+                </div>
+              )}
+
+              {/* In progress — show current question */}
+              {(quiz.quizState === 'in_progress' || quiz.quizState === 'grading_voice') &&
+                quiz.currentQuestion && (
+                  <div className="space-y-6">
+                    <QuizProgressBar
+                      current={quiz.currentIndex}
+                      total={quiz.totalQuestions}
+                      answers={quiz.answers}
+                      questionIds={quiz.attempt?.questions.map((q) => q.id) ?? []}
+                    />
+
+                    {quiz.currentQuestion.question_type === 'multiple_choice' ? (
+                      <QuizMCQuestion
+                        question={quiz.currentQuestion}
+                        onSubmit={(optionId) =>
+                          quiz.submitMCAnswer(quiz.currentQuestion!.id, optionId)
+                        }
+                        result={
+                          quiz.answers.get(quiz.currentQuestion.id) as
+                            | MCAnswerResult
+                            | undefined
+                        }
+                        language={language}
+                      />
+                    ) : (
+                      <QuizVoiceQuestion
+                        question={quiz.currentQuestion}
+                        onSubmit={(transcription) =>
+                          quiz.submitVoiceAnswer(
+                            quiz.currentQuestion!.id,
+                            transcription
+                          )
+                        }
+                        result={
+                          quiz.answers.get(quiz.currentQuestion.id) as
+                            | VoiceAnswerResult
+                            | undefined
+                        }
+                        isGrading={quiz.quizState === 'grading_voice'}
+                        language={language}
+                      />
+                    )}
+
+                    {/* Next / Complete buttons */}
+                    {quiz.answers.has(quiz.currentQuestion.id) && (
+                      <div className="flex justify-end pt-2">
+                        {quiz.currentIndex < quiz.totalQuestions - 1 ? (
+                          <Button onClick={quiz.nextQuestion}>
+                            {isEs ? 'Siguiente' : 'Next'}
+                            <ArrowRight className="h-4 w-4 ml-2" />
+                          </Button>
+                        ) : quiz.allAnswered ? (
+                          <Button onClick={quiz.completeQuiz}>
+                            {isEs ? 'Terminar quiz' : 'Finish quiz'}
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Completing */}
+              {quiz.quizState === 'completing' && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">
+                    {isEs ? 'Generando evaluacion...' : 'Generating evaluation...'}
+                  </p>
+                </div>
+              )}
+
+              {/* Results */}
+              {quiz.quizState === 'results' && quiz.results && (
+                <QuizResultsView
+                  results={quiz.results}
+                  passingScore={quiz.attempt?.passingScore ?? 70}
+                  onRetry={quiz.retryQuiz}
+                  onContinue={handleContinue}
+                  language={language}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

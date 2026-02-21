@@ -1,4 +1,3 @@
-import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Callout } from '@/components/ui/callout';
 import type { RecipeProcedureGroup } from '@/types/products';
@@ -26,13 +25,13 @@ export function ProcedureColumn({ groups, sectionLabel, notes, className }: Proc
           )}
         >
           {/* Group header — number only */}
-          <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/50 border-b border-border/40">
+          <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/30 border-b border-border/40">
             <span
               className={cn(
                 'flex items-center justify-center shrink-0',
                 'w-7 h-7 rounded-full',
                 'text-xs font-bold',
-                'bg-primary text-primary-foreground'
+                'bg-slate-400 text-white dark:bg-slate-500'
               )}
             >
               {gi + 1}
@@ -60,7 +59,7 @@ export function ProcedureColumn({ groups, sectionLabel, notes, className }: Proc
 
                 <span className="flex-1 text-sm text-foreground leading-relaxed">
                   {step.critical && (
-                    <AlertTriangle className="inline-block h-3.5 w-3.5 text-destructive mr-1 -mt-0.5" />
+                    <span className="inline-block text-[14px] leading-none mr-1 -mt-0.5">⚠️</span>
                   )}
                   {step.instruction}
                 </span>

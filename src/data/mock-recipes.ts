@@ -85,12 +85,12 @@ export type Recipe = PrepRecipe | PlateSpec;
 // --- Allergen display config ---
 
 export const ALLERGEN_CONFIG: Record<Allergen, { label: string; color: string; darkColor: string }> = {
-  dairy: { label: 'Dairy', color: 'bg-amber-100 text-amber-800', darkColor: 'dark:bg-amber-900/30 dark:text-amber-300' },
-  gluten: { label: 'Gluten', color: 'bg-orange-100 text-orange-800', darkColor: 'dark:bg-orange-900/30 dark:text-orange-300' },
-  nuts: { label: 'Nuts', color: 'bg-red-100 text-red-800', darkColor: 'dark:bg-red-900/30 dark:text-red-300' },
-  shellfish: { label: 'Shellfish', color: 'bg-rose-100 text-rose-800', darkColor: 'dark:bg-rose-900/30 dark:text-rose-300' },
-  soy: { label: 'Soy', color: 'bg-yellow-100 text-yellow-800', darkColor: 'dark:bg-yellow-900/30 dark:text-yellow-300' },
-  eggs: { label: 'Eggs', color: 'bg-lime-100 text-lime-800', darkColor: 'dark:bg-lime-900/30 dark:text-lime-300' },
+  dairy: { label: 'Dairy', color: 'bg-amber-500 text-white', darkColor: 'dark:bg-amber-600 dark:text-white' },
+  gluten: { label: 'Gluten', color: 'bg-orange-600 text-white', darkColor: 'dark:bg-orange-700 dark:text-white' },
+  nuts: { label: 'Nuts', color: 'bg-red-600 text-white', darkColor: 'dark:bg-red-700 dark:text-white' },
+  shellfish: { label: 'Shellfish', color: 'bg-rose-600 text-white', darkColor: 'dark:bg-rose-700 dark:text-white' },
+  soy: { label: 'Soy', color: 'bg-yellow-600 text-white', darkColor: 'dark:bg-yellow-700 dark:text-white' },
+  eggs: { label: 'Eggs', color: 'bg-emerald-600 text-white', darkColor: 'dark:bg-emerald-700 dark:text-white' },
 };
 
 // --- Quantity scaling utility ---

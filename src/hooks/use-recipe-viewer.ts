@@ -4,7 +4,7 @@ import type { Recipe } from '@/types/products';
 
 export type FilterMode = 'all' | 'prep' | 'plate';
 
-export const BATCH_OPTIONS = [0.5, 1, 1.5, 2, 3] as const;
+export const BATCH_OPTIONS = [0.5, 1, 2, 4] as const;
 
 /** Get the category/type label for a recipe (prep_type or plate_type) */
 function getRecipeCategory(r: Recipe): string {

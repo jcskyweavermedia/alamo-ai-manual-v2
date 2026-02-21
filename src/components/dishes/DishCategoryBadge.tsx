@@ -15,7 +15,7 @@ export function DishCategoryBadge({ category, variant = 'pill', className }: Dis
     return (
       <span
         className={cn(
-          'text-[10px] font-bold uppercase tracking-wider',
+          'text-[10px] font-bold uppercase tracking-wider capitalize',
           config.textColor,
           className
         )}
@@ -29,9 +29,9 @@ export function DishCategoryBadge({ category, variant = 'pill', className }: Dis
     <span
       className={cn(
         'inline-flex items-center rounded-full px-2.5 py-0.5',
-        'text-[11px] font-bold uppercase tracking-wide',
-        config.light,
-        config.dark,
+        'text-[11px] font-bold uppercase tracking-wide capitalize',
+        config.color,
+        config.darkColor,
         className
       )}
     >

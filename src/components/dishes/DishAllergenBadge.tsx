@@ -13,13 +13,13 @@ export function DishAllergenBadge({ allergen, className }: DishAllergenBadgeProp
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5',
-        'text-[11px] font-semibold',
-        'bg-amber-100 text-amber-900',
-        'dark:bg-amber-900/25 dark:text-amber-300',
+        'text-[11px] font-semibold capitalize',
+        config.color,
+        config.darkColor,
         className
       )}
     >
-      <span className="text-xs">{config.emoji}</span>
+      <span className="text-[14px] h-[14px] leading-[14px] shrink-0">{config.emoji}</span>
       {config.label}
     </span>
   );

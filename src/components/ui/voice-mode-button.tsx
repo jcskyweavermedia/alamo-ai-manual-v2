@@ -175,7 +175,7 @@ export function VoiceModeButton({
   // Determine button variant and styling
   const getButtonStyles = () => {
     if (isDisconnected) {
-      return 'bg-muted hover:bg-muted/80 text-muted-foreground';
+      return 'bg-orange-500 text-white hover:bg-orange-600';
     }
     if (isConnecting) {
       return 'bg-muted hover:bg-destructive/90 text-muted-foreground hover:text-destructive-foreground';

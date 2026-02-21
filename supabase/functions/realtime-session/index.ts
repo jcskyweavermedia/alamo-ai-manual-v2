@@ -475,6 +475,7 @@ Deno.serve(async (req) => {
       model: 'gpt-realtime-2025-08-28',
       voice,
       instructions: systemPrompt,
+      input_audio_noise_reduction: { type: 'near_field' },
       tools: listenOnly && !LISTEN_WITH_TOOLS.has(action || '') ? [] : tools,
       tool_choice: listenOnly && !LISTEN_WITH_TOOLS.has(action || '') ? 'none' : 'auto',
     };
@@ -484,9 +485,9 @@ Deno.serve(async (req) => {
       sessionConfig.input_audio_transcription = { model: 'whisper-1' };
       sessionConfig.turn_detection = {
         type: 'server_vad',
-        threshold: 0.5,
-        prefix_padding_ms: 300,
-        silence_duration_ms: 800,
+        threshold: 0.7,
+        prefix_padding_ms: 500,
+        silence_duration_ms: 1200,
       };
     }
     // Listen-only: no turn_detection, no transcription = AI speaks once then waits

@@ -10,6 +10,7 @@ interface QuizResultsProps {
   onRetry: () => void;
   onContinue: () => void;
   language: 'en' | 'es';
+  conversationSummary?: string;
 }
 
 const COMPETENCY_LABELS = {
@@ -33,6 +34,7 @@ export function QuizResultsView({
   onRetry,
   onContinue,
   language,
+  conversationSummary,
 }: QuizResultsProps) {
   const isEs = language === 'es';
   const { score, passed, competencyLevel, studentFeedback } = results;
@@ -63,6 +65,13 @@ export function QuizResultsView({
         {isEs ? 'Nivel: ' : 'Level: '}
         <span className="font-semibold text-foreground">{competencyLabel}</span>
       </p>
+
+      {/* Conversation summary (conversation assessments only) */}
+      {conversationSummary && (
+        <p className="text-sm text-muted-foreground italic bg-muted/50 rounded-lg px-4 py-3 w-full">
+          {conversationSummary}
+        </p>
+      )}
 
       {/* Strengths */}
       {studentFeedback.strengths.length > 0 && (

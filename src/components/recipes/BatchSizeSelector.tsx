@@ -21,7 +21,7 @@ export function BatchSizeSelector({ value, onChange, className }: BatchSizeSelec
             'transition-colors duration-150',
             'active:scale-[0.97]',
             value === opt
-              ? 'bg-primary text-primary-foreground shadow-sm'
+              ? 'bg-[#2aa962] text-white shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-background'
           )}
         >

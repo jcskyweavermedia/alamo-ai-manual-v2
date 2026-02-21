@@ -44,33 +44,33 @@ export const WINE_AI_ACTIONS: { key: WineAIAction; label: string; icon: string }
 
 export const WINE_STYLE_CONFIG: Record<WineStyle, {
   label: string;
-  light: string;
-  dark: string;
+  color: string;
+  darkColor: string;
   textColor: string;
 }> = {
   red: {
     label: 'Red',
-    light: 'bg-red-100 text-red-900',
-    dark: 'dark:bg-red-900/30 dark:text-red-300',
+    color: 'bg-red-700 text-white',
+    darkColor: 'dark:bg-red-800',
     textColor: 'text-red-700 dark:text-red-400',
   },
   white: {
     label: 'White',
-    light: 'bg-amber-50 text-amber-800',
-    dark: 'dark:bg-amber-900/20 dark:text-amber-300',
-    textColor: 'text-amber-700 dark:text-amber-400',
+    color: 'bg-amber-500 text-white',
+    darkColor: 'dark:bg-amber-600',
+    textColor: 'text-amber-600 dark:text-amber-400',
   },
   rosé: {
     label: 'Rosé',
-    light: 'bg-pink-100 text-pink-800',
-    dark: 'dark:bg-pink-900/30 dark:text-pink-300',
-    textColor: 'text-pink-700 dark:text-pink-400',
+    color: 'bg-pink-500 text-white',
+    darkColor: 'dark:bg-pink-600',
+    textColor: 'text-pink-600 dark:text-pink-400',
   },
   sparkling: {
     label: 'Sparkling',
-    light: 'bg-sky-50 text-sky-800',
-    dark: 'dark:bg-sky-900/30 dark:text-sky-300',
-    textColor: 'text-sky-700 dark:text-sky-400',
+    color: 'bg-sky-500 text-white',
+    darkColor: 'dark:bg-sky-600',
+    textColor: 'text-sky-600 dark:text-sky-400',
   },
 };
 

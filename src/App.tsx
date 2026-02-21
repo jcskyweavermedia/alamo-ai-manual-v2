@@ -26,6 +26,9 @@ import QuizPage from "./pages/QuizPage";
 import ModuleTestPage from "./pages/ModuleTestPage";
 import PracticeTutorPage from "./pages/PracticeTutorPage";
 import ManagerTrainingDashboard from "./pages/ManagerTrainingDashboard";
+import IngestDashboard from "./pages/IngestDashboard";
+import IngestWizard from "./pages/IngestWizard";
+import IngestPage from "./pages/IngestPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -146,6 +149,28 @@ const App = () => (
             <Route path="/admin/training" element={
               <ProtectedRoute requiredRole="manager">
                 <ManagerTrainingDashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* Data Ingestion - requires admin role */}
+            <Route path="/admin/ingest" element={
+              <ProtectedRoute requiredRole="admin">
+                <IngestDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/ingest/new" element={
+              <ProtectedRoute requiredRole="admin">
+                <IngestWizard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/ingest/:sessionId" element={
+              <ProtectedRoute requiredRole="admin">
+                <IngestPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/ingest/edit/:table/:productId" element={
+              <ProtectedRoute requiredRole="admin">
+                <IngestPage />
               </ProtectedRoute>
             } />
             

@@ -70,6 +70,26 @@ async function getQueryEmbedding(query: string): Promise<number[] | null> {
 }
 
 /**
+ * Strip stop words for better FTS matching (matches /ask function logic)
+ */
+const QUESTION_STOP_WORDS = [
+  "what", "how", "why", "when", "where", "who", "which",
+  "explain", "describe", "tell", "show",
+  "is", "are", "the", "a", "an",
+  "do", "does", "can", "could", "should", "would",
+  "about", "me",
+];
+
+function stripStopWords(query: string): string {
+  const stripped = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => !QUESTION_STOP_WORDS.includes(w) && w.length > 1)
+    .join(" ");
+  return stripped || query;
+}
+
+/**
  * Handle search_handbook tool call using existing hybrid search
  */
 async function handleSearchHandbook(
@@ -77,33 +97,35 @@ async function handleSearchHandbook(
   query: string,
   language: 'en' | 'es'
 ): Promise<string> {
-  console.log('[realtime-voice] Tool call: search_handbook, query:', query);
+  // Strip stop words for FTS, keep raw query for embedding
+  const searchQuery = stripStopWords(query);
+  console.log('[realtime-voice] Tool call: search_handbook, query:', query, '→ FTS:', searchQuery);
 
-  // Generate embedding for hybrid search
+  // Generate embedding for hybrid search (use raw query for semantic matching)
   const embedding = await getQueryEmbedding(query);
-  
+
   if (!embedding) {
     // Fallback to keyword-only search
     const { data: results, error } = await supabase.rpc('search_manual', {
-      search_query: query,
+      search_query: searchQuery,
       search_language: language,
-      result_limit: 2,
+      result_limit: 5,
     });
-    
+
     if (error || !results?.length) {
       console.log('[realtime-voice] No results found (keyword search)');
       return "No relevant information found in the handbook.";
     }
-    
+
     return formatSearchResults(supabase, results, language);
   }
 
-  // Hybrid search (FTS + vector)
-  const { data: results, error } = await supabase.rpc('hybrid_search_manual', {
-    search_query: query,
+  // Hybrid search (FTS + vector with RRF) — use search_manual_v2
+  const { data: results, error } = await supabase.rpc('search_manual_v2', {
+    search_query: searchQuery,
     query_embedding: JSON.stringify(embedding),
     search_language: language,
-    result_limit: 2,
+    result_limit: 5,
   });
 
   if (error || !results?.length) {
@@ -194,11 +216,12 @@ EXAMPLES OF WHEN TO SEARCH:
       input_audio_format: 'pcm16',
       output_audio_format: 'pcm16',
       input_audio_transcription: { model: 'whisper-1' },
+      input_audio_noise_reduction: { type: 'near_field' },
       turn_detection: {
         type: 'server_vad',
-        threshold: 0.5,
-        prefix_padding_ms: 300,
-        silence_duration_ms: 800,
+        threshold: 0.7,
+        prefix_padding_ms: 500,
+        silence_duration_ms: 1200,
       },
       instructions: systemPrompt,
       tools: [

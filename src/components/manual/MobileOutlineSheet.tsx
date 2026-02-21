@@ -49,7 +49,10 @@ export function MobileOutlineSheet({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader className="flex flex-row items-center justify-between border-b pb-4">
-          <DrawerTitle className="text-section-title">Contents</DrawerTitle>
+          <DrawerTitle className="text-section-title flex items-center gap-2">
+            <span className="flex items-center justify-center w-8 h-8 rounded-[10px] bg-slate-100 dark:bg-slate-800 text-lg leading-none">📑</span>
+            Contents
+          </DrawerTitle>
           <DrawerClose asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
               <X className="h-4 w-4" />

@@ -1,146 +1,129 @@
-import { Search, X } from 'lucide-react';
+import { Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AllergenBadge } from './AllergenBadge';
-import type { Recipe } from '@/types/products';
-import type { FilterMode } from '@/hooks/use-recipe-viewer';
+import { usePinnedRecipes } from '@/hooks/use-pinned-recipes';
+import type { Recipe, PrepRecipe, PlateSpec } from '@/types/products';
 
 interface RecipeGridProps {
   recipes: Recipe[];
-  searchQuery: string;
-  filterMode: FilterMode;
   onSelectRecipe: (slug: string) => void;
-  onSearchChange: (query: string) => void;
-  onFilterChange: (mode: FilterMode) => void;
 }
-
-const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'prep', label: 'Prep' },
-  { value: 'plate', label: 'Plate' },
-];
 
 export function RecipeGrid({
   recipes,
-  searchQuery,
-  filterMode,
   onSelectRecipe,
-  onSearchChange,
-  onFilterChange,
 }: RecipeGridProps) {
+  const { togglePin, isPinned, sortPinnedFirst } = usePinnedRecipes();
+  const sorted = sortPinnedFirst(recipes);
+
   return (
     <div className="space-y-lg">
-      {/* Search + Filter bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <div className="relative flex-1 w-full sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={e => onSearchChange(e.target.value)}
-            placeholder="Search recipes..."
-            className={cn(
-              'flex h-11 w-full rounded-lg border border-input bg-background',
-              'pl-10 pr-10 py-2 text-body',
-              'ring-offset-background transition-colors duration-150',
-              'placeholder:text-muted-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              '[&::-webkit-search-cancel-button]:hidden'
-            )}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full flex items-center justify-center hover:bg-muted transition-colors"
-              aria-label="Clear search"
-            >
-              <X className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          {FILTER_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onFilterChange(opt.value)}
-              className={cn(
-                'min-h-[36px] px-4 rounded-md text-xs font-semibold',
-                'transition-colors duration-150',
-                filterMode === opt.value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Grid */}
-      {recipes.length === 0 ? (
+      {/* Grid — 1 col phone, 2 cols sm, 3 cols md (iPad+) */}
+      {sorted.length === 0 ? (
         <p className="text-center text-muted-foreground py-12">No recipes found.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-          {recipes.map(recipe => (
-            <button
-              key={recipe.slug}
-              type="button"
-              onClick={() => onSelectRecipe(recipe.slug)}
-              className={cn(
-                'group flex flex-col rounded-card overflow-hidden',
-                'bg-card text-left',
-                'shadow-card dark:border dark:border-border/50',
-                'hover:shadow-elevated active:scale-[0.98]',
-                'transition-all duration-150'
-              )}
-            >
-              {/* Thumbnail */}
-              <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-                {recipe.images[0] ? (
-                  <img
-                    src={recipe.images[0].url}
-                    alt={recipe.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                    No image
-                  </div>
-                )}
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {sorted.map(recipe => {
+            const isPrep = recipe.type === 'prep';
+            const prep = isPrep ? (recipe as PrepRecipe) : null;
+            const plate = !isPrep ? (recipe as PlateSpec) : null;
+            const pinned = isPinned(recipe.slug);
 
-              {/* Info */}
-              <div className="p-3 space-y-1">
-                <span
-                  className={cn(
-                    'text-[10px] font-bold uppercase tracking-wider',
-                    recipe.type === 'prep'
-                      ? 'text-primary dark:text-primary'
-                      : 'text-amber-700 dark:text-amber-400'
-                  )}
-                >
-                  {recipe.type === 'prep' ? 'Prep Recipe' : 'Plate Spec'}
-                </span>
-                <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2">
+            return (
+              <button
+                key={recipe.slug}
+                type="button"
+                onClick={() => onSelectRecipe(recipe.slug)}
+                className={cn(
+                  'group relative flex flex-col',
+                  'p-5',
+                  'bg-card rounded-[20px]',
+                  'border border-black/[0.04] dark:border-white/[0.06]',
+                  'shadow-card',
+                  'hover:bg-muted/20 dark:hover:bg-muted/10',
+                  'active:scale-[0.99]',
+                  'transition-all duration-150',
+                  'text-left'
+                )}
+              >
+                {/* Top row: Image tile left, Pin icon top-right */}
+                <div className="flex items-start justify-between mb-4">
+                  {/* Square Image Tile */}
+                  <div
+                    className={cn(
+                      'w-[72px] h-[72px] md:w-[88px] md:h-[88px]',
+                      'rounded-[14px] overflow-hidden shrink-0',
+                      'shadow-[3px_8px_12px_-3px_rgba(0,0,0,0.4),2px_4px_8px_-2px_rgba(0,0,0,0.25)]',
+                      'bg-muted'
+                    )}
+                  >
+                    {recipe.images[0] ? (
+                      <img
+                        src={recipe.images[0].url}
+                        alt={recipe.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                        No image
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bookmark — grey filled idle, orange circle when active */}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label={pinned ? 'Remove bookmark' : 'Bookmark recipe'}
+                    onClick={e => { e.stopPropagation(); togglePin(recipe.slug); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); togglePin(recipe.slug); } }}
+                    className={cn(
+                      'flex items-center justify-center',
+                      'h-8 w-8 rounded-full',
+                      'transition-all duration-150',
+                      pinned
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                    )}
+                  >
+                    <Bookmark className="h-4 w-4 fill-current" />
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h3 className="text-base font-semibold text-foreground leading-tight line-clamp-2">
                   {recipe.name}
                 </h3>
-                <p className="text-[11px] text-muted-foreground capitalize">
-                  {recipe.type === 'prep' ? recipe.prepType : recipe.plateType}
+
+                {/* Subtitle */}
+                <p className="text-sm text-muted-foreground capitalize mt-0.5">
+                  {isPrep ? `Prep · ${prep!.prepType}` : `Plate · ${plate!.plateType}`}
                 </p>
-                {recipe.type === 'plate' && recipe.allergens.length > 0 && (
-                  <div className="flex flex-wrap gap-1 -ml-0.5">
-                    {recipe.allergens.map(a => (
-                      <AllergenBadge key={a} allergen={a as any} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </button>
-          ))}
+
+                {/* Metadata row — anchored to bottom with emojis */}
+                <div className="flex items-center gap-3 mt-auto pt-3 text-[13px] leading-none text-muted-foreground">
+                  {isPrep && prep ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-[16px] h-[16px] leading-[16px] shrink-0">📦</span>
+                        <span className="tabular-nums">{prep.yieldQty} {prep.yieldUnit}</span>
+                      </span>
+                      <span className="text-black/10 dark:text-white/10">·</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="text-[16px] h-[16px] leading-[16px] shrink-0">🕐</span>
+                        <span className="tabular-nums">{prep.shelfLifeValue} {prep.shelfLifeUnit}</span>
+                      </span>
+                    </>
+                  ) : plate ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[16px] h-[16px] leading-[16px] shrink-0">⚠️</span>
+                      <span>{plate.allergens.length} allergen{plate.allergens.length !== 1 ? 's' : ''}</span>
+                    </span>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

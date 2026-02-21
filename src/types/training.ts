@@ -240,6 +240,7 @@ export interface CourseSectionRaw {
   quiz_enabled: boolean;
   quiz_question_count: number | null;
   quiz_passing_score: number | null;
+  quiz_mode: 'classic' | 'conversation';
   created_at: string;
   updated_at: string;
 }
@@ -265,6 +266,7 @@ export interface CourseSection {
   quizEnabled: boolean;
   quizQuestionCount: number | null;
   quizPassingScore: number | null;
+  quizMode: 'classic' | 'conversation';
   createdAt: string;
   updatedAt: string;
 }
@@ -299,6 +301,7 @@ export function transformCourseSection(raw: CourseSectionRaw): CourseSection {
     quizEnabled: raw.quiz_enabled,
     quizQuestionCount: raw.quiz_question_count,
     quizPassingScore: raw.quiz_passing_score,
+    quizMode: raw.quiz_mode ?? 'classic',
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };

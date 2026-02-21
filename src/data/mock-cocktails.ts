@@ -42,33 +42,33 @@ export const COCKTAIL_AI_ACTIONS: { key: CocktailAIAction; label: string; icon: 
 
 export const COCKTAIL_STYLE_CONFIG: Record<CocktailStyle, {
   label: string;
-  light: string;
-  dark: string;
+  color: string;
+  darkColor: string;
   textColor: string;
 }> = {
   classic: {
     label: 'Classic',
-    light: 'bg-amber-100 text-amber-900',
-    dark: 'dark:bg-amber-900/30 dark:text-amber-300',
+    color: 'bg-amber-600 text-white',
+    darkColor: 'dark:bg-amber-700',
     textColor: 'text-amber-700 dark:text-amber-400',
   },
   modern: {
     label: 'Modern',
-    light: 'bg-violet-100 text-violet-900',
-    dark: 'dark:bg-violet-900/30 dark:text-violet-300',
+    color: 'bg-violet-600 text-white',
+    darkColor: 'dark:bg-violet-700',
     textColor: 'text-violet-700 dark:text-violet-400',
   },
   tiki: {
     label: 'Tiki',
-    light: 'bg-teal-100 text-teal-900',
-    dark: 'dark:bg-teal-900/30 dark:text-teal-300',
-    textColor: 'text-teal-700 dark:text-teal-400',
+    color: 'bg-[#2aa962] text-white',
+    darkColor: 'dark:bg-[#239354]',
+    textColor: 'text-[#2aa962] dark:text-emerald-400',
   },
   refresher: {
     label: 'Refresher',
-    light: 'bg-lime-100 text-lime-900',
-    dark: 'dark:bg-lime-900/30 dark:text-lime-300',
-    textColor: 'text-lime-700 dark:text-lime-400',
+    color: 'bg-sky-500 text-white',
+    darkColor: 'dark:bg-sky-600',
+    textColor: 'text-sky-600 dark:text-sky-400',
   },
 };
 

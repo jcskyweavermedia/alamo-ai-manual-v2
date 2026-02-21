@@ -1,4 +1,3 @@
-import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AllergenBadge } from './AllergenBadge';
 import type { RecipeIngredientGroup } from '@/types/products';
@@ -30,7 +29,7 @@ export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, cl
                 'flex items-center justify-center shrink-0',
                 'w-6 h-6 rounded-full',
                 'text-[11px] font-bold',
-                'bg-primary text-primary-foreground'
+                'bg-slate-400 text-white dark:bg-slate-500'
               )}
             >
               {gi + 1}
@@ -63,7 +62,7 @@ export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, cl
                     <span className="flex-1 text-foreground">
                       {item.name}
                       {isLinked && (
-                        <FileText className="inline-block h-3.5 w-3.5 text-muted-foreground ml-1.5 -mt-0.5" />
+                        <span className="inline-block text-[14px] leading-none ml-1.5 -mt-0.5">📄</span>
                       )}
                     </span>
                     {item.allergens && item.allergens.length > 0 && (

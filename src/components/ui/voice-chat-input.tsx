@@ -1,20 +1,20 @@
 /**
  * VoiceChatInput Component
- * 
+ *
  * A composite input component with voice recording capability.
- * Includes microphone button, wave/send action button, and elapsed time display.
- * 
- * Icon states:
- * - Empty: Mic + Wave (disabled, "Coming soon")
- * - Has text: Mic + Send
- * - Recording: Mic (pulsing red) + Stop + Timer
- * - Transcribing: Mic (disabled) + Loader
+ * 2-icon layout: Mic (left) | Text Input | Waveform/Send (right, orange).
+ *
+ * Icon states (right button, solid orange circle):
+ * - Empty (no text): AudioWaveform — triggers onVoiceMode (live voice)
+ * - Has text: Send — submits text
+ * - Recording: Square (stop, destructive red) — stops recording
+ * - Transcribing: Loader2 spinning, disabled
+ * - Can retry: RotateCcw outline
  */
 
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
@@ -106,11 +106,10 @@ export function VoiceChatInput({
     stop: language === 'es' ? 'Detener grabación' : 'Stop recording',
     send: language === 'es' ? 'Enviar' : 'Send',
     retry: language === 'es' ? 'Reintentar transcripción' : 'Retry transcription',
-    voiceMode: language === 'es' ? 'Próximamente' : 'Coming soon',
-    voiceModeActive: language === 'es' ? 'Modo voz' : 'Voice mode',
+    voiceMode: language === 'es' ? 'Modo voz' : 'Voice mode',
     transcribing: language === 'es' ? 'Transcribiendo...' : 'Transcribing...',
-    micNotSupported: language === 'es' 
-      ? 'Micrófono no disponible' 
+    micNotSupported: language === 'es'
+      ? 'Micrófono no disponible'
       : 'Microphone not available',
   };
 
@@ -136,50 +135,50 @@ export function VoiceChatInput({
     }
   };
 
-  // Handle action button click (send/stop)
+  // Handle right action button click
   const handleActionClick = () => {
     if (isRecording) {
       stopRecording();
     } else if (hasText && !isProcessing) {
       onSubmit();
+    } else if (!hasText && voiceEnabled) {
+      onVoiceMode?.();
     }
-    // Wave icon click does nothing (future voice mode)
   };
 
-  // Determine action button state
+  // Base styles for the right-side circle button
+  const circleBase = 'shrink-0 flex items-center justify-center w-9 h-9 rounded-full transition-colors';
+
+  // Determine right action button (plain <button> to avoid Button min-h/px overrides)
   const getActionButton = () => {
-    // Transcribing: show loader
+    // Transcribing: show loader (orange, disabled)
     if (isTranscribing) {
       return (
-        <Button
+        <button
           type="button"
-          size="icon"
-          variant="ghost"
           disabled
-          className="shrink-0"
+          className={cn(circleBase, 'bg-orange-500 text-white opacity-70')}
           aria-label={labels.transcribing}
         >
           <Loader2 className="h-4 w-4 animate-spin" />
-        </Button>
+        </button>
       );
     }
 
-    // Can retry: show retry button
+    // Can retry: show retry button (outline)
     if (canRetry) {
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+              <button
                 type="button"
-                size="icon"
-                variant="outline"
                 onClick={() => retryTranscription()}
-                className="shrink-0"
+                className={cn(circleBase, 'border border-input text-foreground hover:bg-accent')}
                 aria-label={labels.retry}
               >
                 <RotateCcw className="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               <p>{labels.retry}</p>
@@ -189,60 +188,56 @@ export function VoiceChatInput({
       );
     }
 
-    // Recording: show stop button
+    // Recording: stop button (red)
     if (isRecording) {
       return (
-        <Button
+        <button
           type="button"
-          size="icon"
-          variant="destructive"
           onClick={handleActionClick}
-          className="shrink-0"
+          className={cn(circleBase, 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
           aria-label={labels.stop}
         >
           <Square className="h-4 w-4" />
-        </Button>
+        </button>
       );
     }
 
-    // Has text: show send button
+    // Has text: send button (orange)
     if (hasText) {
       return (
-        <Button
+        <button
           type="button"
-          size="icon"
           onClick={handleActionClick}
           disabled={isProcessing}
-          className="shrink-0"
+          className={cn(circleBase, 'bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50')}
           aria-label={labels.send}
         >
           <Send className="h-4 w-4" />
-        </Button>
+        </button>
       );
     }
 
-    // Default: show wave icon (voice mode if enabled, otherwise disabled)
+    // Default: AudioWaveform (orange circle) — triggers voice mode
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
+            <button
               type="button"
-              size="icon"
-              variant={voiceEnabled ? 'outline' : 'ghost'}
               disabled={!voiceEnabled}
               onClick={() => voiceEnabled && onVoiceMode?.()}
               className={cn(
-                'shrink-0',
-                !voiceEnabled && 'opacity-50'
+                circleBase,
+                'bg-orange-500 text-white hover:bg-orange-600',
+                !voiceEnabled && 'opacity-50 cursor-not-allowed'
               )}
-              aria-label={voiceEnabled ? labels.voiceModeActive : labels.voiceMode}
+              aria-label={labels.voiceMode}
             >
               <AudioWaveform className="h-4 w-4" />
-            </Button>
+            </button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{voiceEnabled ? labels.voiceModeActive : labels.voiceMode}</p>
+            <p>{labels.voiceMode}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -251,7 +246,21 @@ export function VoiceChatInput({
 
   return (
     <div className={cn('flex gap-sm items-center', className)}>
-      {/* Text Input */}
+      {/* Recording Timer Badge (left edge when recording) */}
+      {isRecording && (
+        <span
+          className={cn(
+            'text-small font-mono tabular-nums px-2 py-1 rounded-md',
+            isWarning
+              ? 'bg-warning/20 text-warning-foreground dark:bg-warning/10'
+              : 'bg-destructive/10 text-destructive'
+          )}
+        >
+          {formatRecordingTime(elapsedSeconds)}
+        </span>
+      )}
+
+      {/* Text Input (flex-1) */}
       <Input
         ref={inputRef}
         value={value}
@@ -259,44 +268,33 @@ export function VoiceChatInput({
         onKeyDown={handleKeyDown}
         placeholder={isTranscribing ? labels.transcribing : placeholder}
         disabled={disabled || isTranscribing}
-        className="flex-1"
+        className="flex-1 focus-visible:ring-orange-500"
       />
 
-      {/* Button Group */}
-      <div className="flex gap-xs items-center">
-        {/* Recording Timer Badge */}
-        {isRecording && (
-          <span
-            className={cn(
-              'text-small font-mono tabular-nums px-2 py-1 rounded-md',
-              isWarning
-                ? 'bg-warning/20 text-warning-foreground dark:bg-warning/10'
-                : 'bg-destructive/10 text-destructive'
-            )}
-          >
-            {formatRecordingTime(elapsedSeconds)}
-          </span>
-        )}
-
-        {/* Mic Button */}
+      {/* Right button group: Mic + Action */}
+      <div className="flex gap-1 items-center">
+        {/* Mic Button — plain icon, no background */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
+              <button
                 type="button"
-                size="icon"
-                variant={isRecording ? 'destructive' : 'ghost'}
                 onClick={handleMicClick}
                 disabled={!canRecord && !isRecording}
                 className={cn(
-                  'shrink-0 relative',
-                  isRecording && (isWarning ? 'recording-indicator-warning' : 'recording-indicator'),
-                  isRecording && 'bg-destructive text-destructive-foreground'
+                  'shrink-0 relative flex items-center justify-center w-9 h-9 rounded-full transition-colors',
+                  'disabled:pointer-events-none disabled:opacity-50',
+                  isRecording
+                    ? cn(
+                        'bg-destructive text-destructive-foreground',
+                        isWarning ? 'recording-indicator-warning' : 'recording-indicator'
+                      )
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
                 aria-label={isRecording ? labels.stop : labels.record}
               >
                 <Mic className="h-4 w-4" />
-              </Button>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               <p>
@@ -310,7 +308,7 @@ export function VoiceChatInput({
           </Tooltip>
         </TooltipProvider>
 
-        {/* Action Button (Wave/Send/Stop/Loader) */}
+        {/* Action Button — Waveform/Send/Stop/Loader (orange circle) */}
         {getActionButton()}
       </div>
     </div>
