@@ -155,7 +155,7 @@ const Wines = () => {
       ) : (
         <>
           <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight">
+            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
               Sip, Savor
               <br />
               <span className="font-bold">Discover</span> 🍷

@@ -1,12 +1,6 @@
 import { cn } from '@/lib/utils';
-import { AllergenBadge } from './AllergenBadge';
+import { LinkedItemRow } from './LinkedItemRow';
 import type { RecipeIngredientGroup } from '@/types/products';
-
-/** Format a scaled quantity for display (trims trailing zeros) */
-function formatScaled(qty: number, multiplier: number): string {
-  const val = qty * multiplier;
-  return val % 1 === 0 ? String(val) : parseFloat(val.toFixed(2)).toString();
-}
 
 interface IngredientsColumnProps {
   groups: RecipeIngredientGroup[];
@@ -36,46 +30,19 @@ export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, cl
             </span>
           </div>
           <ul className="space-y-0">
-            {group.items.map((item, ii) => {
-              const isLinked = !!item.prep_recipe_ref;
-              const Row = isLinked ? 'button' : 'div';
-
-              return (
-                <li key={ii}>
-                  <Row
-                    {...(isLinked ? {
-                      type: 'button' as const,
-                      onClick: () => onTapPrepRecipe?.(item.prep_recipe_ref!),
-                    } : {})}
-                    className={cn(
-                      'flex items-baseline gap-2 py-1 px-1 text-sm w-full text-left',
-                      isLinked && 'rounded-lg cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors'
-                    )}
-                  >
-                    {(item.quantity || item.unit) ? (
-                      <span className="font-mono text-xs text-muted-foreground shrink-0 w-16 text-right tabular-nums">
-                        {formatScaled(item.quantity, batchMultiplier)}{' '}{item.unit}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 w-16" />
-                    )}
-                    <span className="flex-1 text-foreground">
-                      {item.name}
-                      {isLinked && (
-                        <span className="inline-block text-[14px] leading-none ml-1.5 -mt-0.5">📄</span>
-                      )}
-                    </span>
-                    {item.allergens && item.allergens.length > 0 && (
-                      <span className="flex gap-1 shrink-0">
-                        {item.allergens.map(a => (
-                          <AllergenBadge key={a} allergen={a} />
-                        ))}
-                      </span>
-                    )}
-                  </Row>
-                </li>
-              );
-            })}
+            {group.items.map((item, ii) => (
+              <li key={ii}>
+                <LinkedItemRow
+                  name={item.name}
+                  quantity={item.quantity}
+                  unit={item.unit}
+                  prepRecipeRef={item.prep_recipe_ref}
+                  allergens={item.allergens}
+                  batchMultiplier={batchMultiplier}
+                  onTapPrepRecipe={onTapPrepRecipe}
+                />
+              </li>
+            ))}
           </ul>
         </div>
       ))}

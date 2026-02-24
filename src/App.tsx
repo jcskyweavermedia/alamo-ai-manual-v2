@@ -29,6 +29,8 @@ import ManagerTrainingDashboard from "./pages/ManagerTrainingDashboard";
 import IngestDashboard from "./pages/IngestDashboard";
 import IngestWizard from "./pages/IngestWizard";
 import IngestPage from "./pages/IngestPage";
+import Forms from "./pages/Forms";
+import FormDetail from "./pages/FormDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -125,6 +127,17 @@ const App = () => (
             <Route path="/courses/:programSlug/:courseSlug/:sectionSlug/quiz" element={
               <ProtectedRoute>
                 <QuizPage />
+              </ProtectedRoute>
+            } />
+            {/* Forms */}
+            <Route path="/forms" element={
+              <ProtectedRoute>
+                <Forms />
+              </ProtectedRoute>
+            } />
+            <Route path="/forms/:slug" element={
+              <ProtectedRoute>
+                <FormDetail />
               </ProtectedRoute>
             } />
             <Route path="/ask" element={

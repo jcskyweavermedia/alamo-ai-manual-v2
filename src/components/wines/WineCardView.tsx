@@ -157,7 +157,7 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
               <img
                 src={wine.image ?? ''}
                 alt={wine.name}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
                 loading="lazy"
               />
             </div>
@@ -261,7 +261,7 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
           <img
             src={wine.image ?? ''}
             alt={wine.name}
-            className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
+            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
             onClick={e => e.stopPropagation()}
           />
         </div>

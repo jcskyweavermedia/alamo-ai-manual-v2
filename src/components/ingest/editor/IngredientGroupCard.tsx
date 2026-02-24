@@ -11,6 +11,7 @@ interface IngredientGroupCardProps {
   groupIndex: number;
   isFirst: boolean;
   isLast: boolean;
+  currentRecipeSlug?: string;
   onRename: (name: string) => void;
   onRemoveGroup: () => void;
   onMoveGroupUp: () => void;
@@ -27,6 +28,7 @@ export function IngredientGroupCard({
   groupIndex,
   isFirst,
   isLast,
+  currentRecipeSlug,
   onRename,
   onRemoveGroup,
   onMoveGroupUp,
@@ -121,11 +123,12 @@ export function IngredientGroupCard({
 
         {group.items.map((item, ii) => (
           <IngredientItemRow
-            key={ii}
+            key={item._key || ii}
             item={item}
             index={ii}
             isFirst={ii === 0}
             isLast={ii === group.items.length - 1}
+            currentRecipeSlug={currentRecipeSlug}
             onUpdate={(updated) => onUpdateIngredient(ii, updated)}
             onRemove={() => onRemoveIngredient(ii)}
             onMoveUp={() => onMoveIngredientUp(ii)}

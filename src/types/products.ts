@@ -95,12 +95,16 @@ export interface RecipeIngredient {
   prep_note?: string | null;
   allergens?: string[];
   prep_recipe_ref?: string;
+  /** Client-only stable key for React list rendering; not persisted to DB */
+  _key?: string;
 }
 
 export interface RecipeIngredientGroup {
   group_name: string;
   order: number;
   items: RecipeIngredient[];
+  /** Client-only stable key for React list rendering; not persisted to DB */
+  _key?: string;
 }
 
 export interface RecipeProcedureStep {

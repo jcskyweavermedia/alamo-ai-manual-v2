@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useSupabaseRecipes } from '@/hooks/use-supabase-recipes';
 import type { Recipe } from '@/types/products';
 
@@ -11,10 +12,10 @@ function getRecipeCategory(r: Recipe): string {
   return r.type === 'prep' ? r.prepType : r.plateType;
 }
 
-export function useRecipeViewer() {
+export function useRecipeViewer(initialSlug?: string | null) {
   const { recipes: allRecipes, isLoading, error } = useSupabaseRecipes();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(initialSlug ?? null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [batchMultiplier, setBatchMultiplier] = useState(1);
@@ -92,12 +93,17 @@ export function useRecipeViewer() {
   }, []);
 
   const navigateToPrepRecipe = useCallback((prepSlug: string) => {
+    const target = allRecipes.find(r => r.slug === prepSlug && r.type === 'prep');
+    if (!target) {
+      toast.error('This linked recipe no longer exists or was unpublished.');
+      return;
+    }
     if (selectedSlug) {
       setNavStack(prev => [...prev, selectedSlug]);
     }
     setSelectedSlug(prepSlug);
     setBatchMultiplier(1);
-  }, [selectedSlug]);
+  }, [selectedSlug, allRecipes]);
 
   const navigateBack = useCallback(() => {
     if (navStack.length > 0) {

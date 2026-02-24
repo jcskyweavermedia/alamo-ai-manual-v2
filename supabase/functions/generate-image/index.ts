@@ -77,7 +77,7 @@ function buildDallePrompt(
     }
     case "plate_specs":
     case "foh_plate_specs":
-      return `Beautiful restaurant plate presentation of ${name}, fine dining, dramatic lighting, clean white plate, overhead angle${desc}`;
+      return `Wide landscape photo of ${name} plated for presentation on a clean white plate, centered in frame, no background, only the dish on the plate, overhead top-down angle, soft natural lighting, fine dining plating style${desc}`;
     case "wines":
       return `Professional wine photo of ${name}, restaurant setting, wine glass with appropriate pour, elegant lighting${desc}`;
     case "cocktails":
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
         model: "dall-e-3",
         prompt,
         n: 1,
-        size: "1024x1024",
+        size: "1792x1024",
         quality: "standard",
       }),
     });

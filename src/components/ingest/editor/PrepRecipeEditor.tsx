@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -6,12 +7,22 @@ import { MetadataFields } from './MetadataFields';
 import { IngredientsEditor } from './IngredientsEditor';
 import { ProcedureEditor } from './ProcedureEditor';
 import { ImagesEditor } from './ImagesEditor';
+import { TranslationCategories } from './TranslationCategories';
+import { TranslationBadge } from '../TranslationBadge';
 import { useIngestDraft } from '@/contexts/IngestDraftContext';
 import type { TrainingNotes } from '@/types/products';
 
 export function PrepRecipeEditor() {
   const { state, dispatch } = useIngestDraft();
   const { draft } = state;
+  const productId = state.editingProductId;
+
+  const draftAsDbFormat = useMemo(() => ({
+    name: draft.name,
+    ingredients: draft.ingredients,
+    procedure: draft.procedure,
+    training_notes: draft.trainingNotes,
+  }), [draft.name, draft.ingredients, draft.procedure, draft.trainingNotes]);
 
   // Extract training notes safely
   const tn: TrainingNotes = 'notes' in draft.trainingNotes
@@ -25,7 +36,7 @@ export function PrepRecipeEditor() {
 
   return (
     <div className="space-y-4">
-      <Accordion type="multiple" defaultValue={['info', 'ingredients', 'procedure', 'images', 'batch', 'training']}>
+      <Accordion type="multiple" defaultValue={['info', 'ingredients', 'procedure', 'images', 'batch', 'training', 'translation']}>
         {/* Recipe Info */}
         <AccordionItem value="info">
           <AccordionTrigger className="text-base font-semibold tracking-tight">Recipe Info</AccordionTrigger>
@@ -57,6 +68,7 @@ export function PrepRecipeEditor() {
             <div className="pt-2">
               <IngredientsEditor
                 groups={draft.ingredients}
+                currentRecipeSlug={draft.slug}
                 onAddGroup={(name) => dispatch({ type: 'ADD_INGREDIENT_GROUP', payload: name })}
                 onRemoveGroup={(i) => dispatch({ type: 'REMOVE_INGREDIENT_GROUP', payload: i })}
                 onRenameGroup={(i, name) => dispatch({ type: 'RENAME_INGREDIENT_GROUP', payload: { index: i, name } })}
@@ -177,8 +189,29 @@ export function PrepRecipeEditor() {
             </div>
           </AccordionContent>
         </AccordionItem>
-      </Accordion>
 
+        {/* Translation */}
+        <AccordionItem value="translation">
+          <AccordionTrigger className="text-base font-semibold tracking-tight">
+            <span className="flex items-center gap-2">
+              Translation
+              <TranslationBadge
+                productTable="prep_recipes"
+                productId={productId}
+                productData={draftAsDbFormat}
+              />
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="pt-2">
+              <TranslationCategories
+                productId={productId}
+                productData={draftAsDbFormat}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

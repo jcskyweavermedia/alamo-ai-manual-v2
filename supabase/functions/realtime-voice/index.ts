@@ -105,8 +105,8 @@ async function handleSearchHandbook(
   const embedding = await getQueryEmbedding(query);
 
   if (!embedding) {
-    // Fallback to keyword-only search
-    const { data: results, error } = await supabase.rpc('search_manual', {
+    // Fallback to keyword-only search (FTS-only mode, no embedding)
+    const { data: results, error } = await supabase.rpc('search_manual_v2', {
       search_query: searchQuery,
       search_language: language,
       result_limit: 5,

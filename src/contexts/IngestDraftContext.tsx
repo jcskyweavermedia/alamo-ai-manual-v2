@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useCallback, type Dispatch, type ReactNode } from 'react';
-import type { PrepRecipeDraft, WineDraft, CocktailDraft, ChatMessage, MobileMode, ProductType } from '@/types/ingestion';
-import { createEmptyPrepRecipeDraft, createEmptyWineDraft, createEmptyCocktailDraft, generateSlug, isPrepRecipeDraft, isCocktailDraft } from '@/types/ingestion';
+import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft, FohPlateSpecDraft, ChatMessage, MobileMode, ProductType } from '@/types/ingestion';
+import { createEmptyPrepRecipeDraft, createEmptyWineDraft, createEmptyCocktailDraft, createEmptyPlateSpecDraft, generateSlug, isPrepRecipeDraft, isCocktailDraft, isPlateSpecDraft } from '@/types/ingestion';
 import type {
   RecipeImage,
   RecipeIngredient,
@@ -9,6 +9,7 @@ import type {
   RecipeProcedureGroup,
   CocktailProcedureStep,
   CocktailStyle,
+  PlateComponentGroup,
 } from '@/types/products';
 
 // =============================================================================
@@ -18,10 +19,11 @@ import type {
 export interface IngestState {
   activeType: ProductType;
   mobileMode: MobileMode;
-  draft: PrepRecipeDraft | WineDraft | CocktailDraft;
+  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft;
   messages: ChatMessage[];
   isDirty: boolean;
   sessionId: string | null;
+  editingProductId: string | null;
   isSaving: boolean;
   draftVersion: number;
 }
@@ -33,6 +35,7 @@ const initialState: IngestState = {
   messages: [],
   isDirty: false,
   sessionId: null,
+  editingProductId: null,
   isSaving: false,
   draftVersion: 1,
 };
@@ -46,11 +49,31 @@ export type IngestAction =
   | { type: 'SET_MOBILE_MODE'; payload: MobileMode }
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'SET_MESSAGES'; payload: ChatMessage[] }
-  | { type: 'SET_DRAFT'; payload: PrepRecipeDraft | WineDraft | CocktailDraft }
+  | { type: 'SET_DRAFT'; payload: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft }
   | { type: 'RESET_DRAFT' }
   | { type: 'SET_DIRTY'; payload: boolean }
   // Metadata (shared)
   | { type: 'SET_NAME'; payload: string }
+  // Plate spec metadata
+  | { type: 'SET_PLATE_TYPE'; payload: string }
+  | { type: 'SET_MENU_CATEGORY'; payload: string }
+  | { type: 'SET_PLATE_ALLERGENS'; payload: string[] }
+  | { type: 'SET_PLATE_TAGS'; payload: string[] }
+  | { type: 'SET_PLATE_NOTES'; payload: string }
+  // Component groups (plate spec — dedicated actions)
+  | { type: 'ADD_COMPONENT_GROUP'; payload: PlateComponentGroup }
+  | { type: 'UPDATE_COMPONENT_GROUP'; payload: { index: number; group: PlateComponentGroup } }
+  | { type: 'REMOVE_COMPONENT_GROUP'; payload: number }
+  | { type: 'REORDER_COMPONENT_GROUPS'; payload: PlateComponentGroup[] }
+  // Assembly procedure (plate spec — dedicated actions, NOT reused from prep recipe)
+  | { type: 'ADD_ASSEMBLY_GROUP'; payload: RecipeProcedureGroup }
+  | { type: 'UPDATE_ASSEMBLY_GROUP'; payload: { index: number; group: RecipeProcedureGroup } }
+  | { type: 'REMOVE_ASSEMBLY_GROUP'; payload: number }
+  | { type: 'REORDER_ASSEMBLY_GROUPS'; payload: RecipeProcedureGroup[] }
+  // Dish guide (nested inside PlateSpecDraft)
+  | { type: 'SET_DISH_GUIDE'; payload: FohPlateSpecDraft }
+  | { type: 'UPDATE_DISH_GUIDE_FIELD'; payload: { field: keyof FohPlateSpecDraft; value: FohPlateSpecDraft[keyof FohPlateSpecDraft] } }
+  | { type: 'CLEAR_DISH_GUIDE' }
   // Prep recipe metadata
   | { type: 'SET_PREP_TYPE'; payload: string }
   | { type: 'SET_TAGS'; payload: string[] }
@@ -117,6 +140,7 @@ export type IngestAction =
   | { type: 'SET_COCKTAIL_TOP_SELLER'; payload: boolean }
   // Session
   | { type: 'SET_SESSION_ID'; payload: string }
+  | { type: 'SET_EDITING_PRODUCT_ID'; payload: string | null }
   | { type: 'SET_IS_SAVING'; payload: boolean }
   | { type: 'SET_DRAFT_VERSION'; payload: number };
 
@@ -155,6 +179,14 @@ function updateCocktailDraft(state: IngestState, draftUpdate: Partial<CocktailDr
   return { ...state, draft: { ...(state.draft as CocktailDraft), ...draftUpdate }, isDirty: true };
 }
 
+function updatePlateSpecDraft(
+  state: IngestState,
+  updater: (d: PlateSpecDraft) => Partial<PlateSpecDraft>
+): IngestState {
+  const d = state.draft as PlateSpecDraft;
+  return { ...state, draft: { ...d, ...updater(d) }, isDirty: true };
+}
+
 // =============================================================================
 // REDUCER
 // =============================================================================
@@ -169,15 +201,51 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       return { ...state, messages: [...state.messages, action.payload] };
     case 'SET_MESSAGES':
       return { ...state, messages: action.payload };
-    case 'SET_DRAFT':
-      return { ...state, draft: action.payload, isDirty: true };
+    case 'SET_DRAFT': {
+      // Preserve user-uploaded images when AI returns empty images array.
+      // AI extraction schemas use `additionalProperties: false` and never return
+      // user images, so we must carry them forward from the current draft.
+      let mergedPayload = action.payload;
+
+      if (state.activeType === 'plate_spec' && isPlateSpecDraft(state.draft)) {
+        const oldDraft = state.draft as PlateSpecDraft;
+        const newDraft = mergedPayload as PlateSpecDraft;
+        const patches: Partial<PlateSpecDraft> = {};
+
+        // Preserve dishGuide (mark stale if BOH changed)
+        if (oldDraft.dishGuide && !newDraft.dishGuide) {
+          patches.dishGuide = oldDraft.dishGuide;
+          patches.dishGuideStale = true;
+        }
+
+        // Preserve images if AI returned empty array but user had uploaded images
+        if (oldDraft.images.length > 0 && (!newDraft.images || newDraft.images.length === 0)) {
+          patches.images = oldDraft.images;
+        }
+
+        if (Object.keys(patches).length > 0) {
+          mergedPayload = { ...newDraft, ...patches };
+        }
+      } else if (isPrepRecipeDraft(state.draft)) {
+        const oldDraft = state.draft as PrepRecipeDraft;
+        const newDraft = mergedPayload as PrepRecipeDraft;
+        // Preserve images if AI returned empty array but user had uploaded images
+        if (oldDraft.images.length > 0 && (!newDraft.images || newDraft.images.length === 0)) {
+          mergedPayload = { ...newDraft, images: oldDraft.images };
+        }
+      }
+
+      return { ...state, draft: mergedPayload, isDirty: true };
+    }
     case 'RESET_DRAFT': {
-      const emptyDraft = state.activeType === 'cocktail'
-        ? createEmptyCocktailDraft()
-        : state.activeType === 'wine'
-          ? createEmptyWineDraft()
-          : createEmptyPrepRecipeDraft();
-      return { ...state, draft: emptyDraft, isDirty: false, messages: [], sessionId: null, isSaving: false, draftVersion: 1 };
+      const emptyDraft = state.activeType === 'plate_spec'
+        ? createEmptyPlateSpecDraft()
+        : state.activeType === 'cocktail'
+          ? createEmptyCocktailDraft()
+          : state.activeType === 'wine'
+            ? createEmptyWineDraft()
+            : createEmptyPrepRecipeDraft();
+      return { ...state, draft: emptyDraft, isDirty: false, messages: [], sessionId: null, editingProductId: null, isSaving: false, draftVersion: 1 };
     }
     case 'SET_DIRTY':
       return { ...state, isDirty: action.payload };
@@ -190,6 +258,9 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       }
       if (isCocktailDraft(state.draft)) {
         return updateCocktailDraft(state, { name: action.payload, slug });
+      }
+      if (isPlateSpecDraft(state.draft)) {
+        return updatePlateSpecDraft(state, () => ({ name: action.payload, slug }));
       }
       return updateWineDraft(state, { name: action.payload, slug });
     }
@@ -209,6 +280,7 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
         group_name: action.payload || `Group ${d.ingredients.length + 1}`,
         order: d.ingredients.length + 1,
         items: [],
+        _key: crypto.randomUUID(),
       };
       return updatePrepDraft(state, { ingredients: [...d.ingredients, newGroup] });
     }
@@ -240,7 +312,7 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
     case 'ADD_INGREDIENT': {
       const groups = [...(state.draft as PrepRecipeDraft).ingredients];
       const group = { ...groups[action.payload.groupIndex] };
-      group.items = [...group.items, { name: '', quantity: 0, unit: '', allergens: [] }];
+      group.items = [...group.items, { name: '', quantity: 0, unit: '', allergens: [], _key: crypto.randomUUID() }];
       groups[action.payload.groupIndex] = group;
       return updatePrepDraft(state, { ingredients: groups });
     }
@@ -392,7 +464,19 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
     // === IMAGES (prep recipe) ===
     case 'ADD_IMAGE': {
       const d = state.draft as PrepRecipeDraft;
-      return updatePrepDraft(state, { images: [...d.images, action.payload] });
+      const newImages = [...d.images, action.payload];
+      // Propagate first image to FOH Plate Spec thumbnail if it exists
+      if (state.activeType === 'plate_spec') {
+        const ps = state.draft as PlateSpecDraft;
+        if (ps.dishGuide) {
+          return {
+            ...state,
+            draft: { ...ps, images: newImages, dishGuide: { ...ps.dishGuide, image: newImages[0].url } },
+            isDirty: true,
+          };
+        }
+      }
+      return updatePrepDraft(state, { images: newImages });
     }
     case 'REMOVE_IMAGE': {
       const d = state.draft as PrepRecipeDraft;
@@ -458,9 +542,82 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
     case 'SET_COCKTAIL_TOP_SELLER':
       return updateCocktailDraft(state, { isTopSeller: action.payload });
 
+    // === PLATE SPEC METADATA ===
+    case 'SET_PLATE_TYPE':
+      return updatePlateSpecDraft(state, () => ({ plateType: action.payload }));
+    case 'SET_MENU_CATEGORY':
+      return updatePlateSpecDraft(state, () => ({ menuCategory: action.payload }));
+    case 'SET_PLATE_ALLERGENS':
+      return updatePlateSpecDraft(state, () => ({ allergens: action.payload }));
+    case 'SET_PLATE_TAGS':
+      return updatePlateSpecDraft(state, () => ({ tags: action.payload }));
+    case 'SET_PLATE_NOTES':
+      return updatePlateSpecDraft(state, () => ({ notes: action.payload }));
+
+    // === COMPONENT GROUPS (plate spec) ===
+    case 'ADD_COMPONENT_GROUP':
+      return updatePlateSpecDraft(state, (d) => ({
+        components: [...d.components, action.payload],
+      }));
+    case 'UPDATE_COMPONENT_GROUP':
+      return updatePlateSpecDraft(state, (d) => {
+        const components = [...d.components];
+        components[action.payload.index] = action.payload.group;
+        return { components };
+      });
+    case 'REMOVE_COMPONENT_GROUP':
+      return updatePlateSpecDraft(state, (d) => ({
+        components: d.components.filter((_, i) => i !== action.payload),
+      }));
+    case 'REORDER_COMPONENT_GROUPS':
+      return updatePlateSpecDraft(state, () => ({
+        components: action.payload,
+      }));
+
+    // === ASSEMBLY PROCEDURE (plate spec — dedicated, NOT reused from prep recipe) ===
+    case 'ADD_ASSEMBLY_GROUP':
+      return updatePlateSpecDraft(state, (d) => ({
+        assemblyProcedure: [...d.assemblyProcedure, action.payload],
+      }));
+    case 'UPDATE_ASSEMBLY_GROUP':
+      return updatePlateSpecDraft(state, (d) => {
+        const assemblyProcedure = [...d.assemblyProcedure];
+        assemblyProcedure[action.payload.index] = action.payload.group;
+        return { assemblyProcedure };
+      });
+    case 'REMOVE_ASSEMBLY_GROUP':
+      return updatePlateSpecDraft(state, (d) => ({
+        assemblyProcedure: d.assemblyProcedure.filter((_, i) => i !== action.payload),
+      }));
+    case 'REORDER_ASSEMBLY_GROUPS':
+      return updatePlateSpecDraft(state, () => ({
+        assemblyProcedure: action.payload,
+      }));
+
+    // === DISH GUIDE (nested inside PlateSpecDraft) ===
+    case 'SET_DISH_GUIDE':
+      return updatePlateSpecDraft(state, () => ({
+        dishGuide: action.payload,
+        dishGuideStale: false,
+      }));
+    case 'UPDATE_DISH_GUIDE_FIELD':
+      return updatePlateSpecDraft(state, (d) => {
+        if (!d.dishGuide) return {};
+        return {
+          dishGuide: { ...d.dishGuide, [action.payload.field]: action.payload.value },
+        };
+      });
+    case 'CLEAR_DISH_GUIDE':
+      return updatePlateSpecDraft(state, () => ({
+        dishGuide: null,
+        dishGuideStale: false,
+      }));
+
     // === SESSION ===
     case 'SET_SESSION_ID':
       return { ...state, sessionId: action.payload };
+    case 'SET_EDITING_PRODUCT_ID':
+      return { ...state, editingProductId: action.payload };
     case 'SET_IS_SAVING':
       return { ...state, isSaving: action.payload };
     case 'SET_DRAFT_VERSION':

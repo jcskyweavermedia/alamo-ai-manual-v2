@@ -6,10 +6,10 @@ import { CATEGORY_ORDER } from '@/data/mock-dishes';
 
 export type { DishFilterMode };
 
-export function useDishViewer() {
+export function useDishViewer(initialSlug?: string | null) {
   const { dishes: allDishes, isLoading, error } = useSupabaseDishes();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(initialSlug ?? null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<DishFilterMode>('all');
 

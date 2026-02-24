@@ -177,7 +177,7 @@ export function CocktailIngestPreview({ draft, onSwitchToEdit }: CocktailIngestP
           <img
             src={draft.image}
             alt={draft.name || 'Cocktail image'}
-            className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
+            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

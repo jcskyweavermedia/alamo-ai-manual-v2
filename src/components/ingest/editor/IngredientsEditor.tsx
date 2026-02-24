@@ -5,6 +5,7 @@ import type { RecipeIngredientGroup, RecipeIngredient } from '@/types/products';
 
 interface IngredientsEditorProps {
   groups: RecipeIngredientGroup[];
+  currentRecipeSlug?: string;
   onAddGroup: (name?: string) => void;
   onRemoveGroup: (index: number) => void;
   onRenameGroup: (index: number, name: string) => void;
@@ -19,6 +20,7 @@ interface IngredientsEditorProps {
 
 export function IngredientsEditor({
   groups,
+  currentRecipeSlug,
   onAddGroup,
   onRemoveGroup,
   onRenameGroup,
@@ -40,11 +42,12 @@ export function IngredientsEditor({
 
       {groups.map((group, gi) => (
         <IngredientGroupCard
-          key={gi}
+          key={group._key || gi}
           group={group}
           groupIndex={gi}
           isFirst={gi === 0}
           isLast={gi === groups.length - 1}
+          currentRecipeSlug={currentRecipeSlug}
           onRename={(name) => onRenameGroup(gi, name)}
           onRemoveGroup={() => onRemoveGroup(gi)}
           onMoveGroupUp={() => onMoveGroupUp(gi)}

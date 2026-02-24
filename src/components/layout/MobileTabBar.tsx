@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 
@@ -16,6 +16,7 @@ const iconMap = {
   Beer,
   ConciergeBell,
   GraduationCap,
+  ClipboardList,
 } as const;
 
 interface MobileTabBarProps {
@@ -36,6 +37,7 @@ export function MobileTabBar({ isAdmin = false, className }: MobileTabBarProps) 
         { path: '/wines', label: 'Wines', icon: 'Wine' },
         { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
         { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
+        { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
         { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
         { path: '/admin', label: 'Admin', icon: 'Settings' },
       ]

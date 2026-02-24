@@ -2697,26 +2697,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      hybrid_search_manual: {
-        Args: {
-          keyword_weight?: number
-          query_embedding: string
-          result_limit?: number
-          search_language?: string
-          search_query: string
-          vector_weight?: number
-        }
-        Returns: {
-          category: string
-          combined_score: number
-          file_path: string
-          id: string
-          slug: string
-          snippet: string
-          tags: string[]
-          title: string
-        }[]
-      }
       increment_usage: {
         Args: { _group_id: string; _user_id: string }
         Returns: {
@@ -2784,27 +2764,10 @@ export type Database = {
           snippet: string
         }[]
       }
-      search_manual: {
-        Args: {
-          result_limit?: number
-          search_language?: string
-          search_query: string
-        }
-        Returns: {
-          category: string
-          file_path: string
-          id: string
-          rank: number
-          slug: string
-          snippet: string
-          tags: string[]
-          title: string
-        }[]
-      }
       search_manual_v2: {
         Args: {
           keyword_weight?: number
-          query_embedding: string
+          query_embedding?: string
           result_limit?: number
           search_language?: string
           search_query: string

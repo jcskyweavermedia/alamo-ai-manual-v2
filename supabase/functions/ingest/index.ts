@@ -29,11 +29,19 @@ const corsHeaders = {
 // =============================================================================
 
 interface IngestRequest {
-  mode?: "pipeline"; // reserved for future modes
+  mode?: "pipeline" | "translate" | "generate-dish-guide";
   sessionId?: string;
   productTable: string;
   content: string;
   language?: "en" | "es";
+}
+
+interface TranslateRequest {
+  mode: "translate";
+  productTable: string;
+  productId: string;
+  targetLang: string;
+  fields: Array<{ fieldPath: string; sourceText: string }>;
 }
 
 // EnrichSuggestion removed — web enrichment is now built into
@@ -130,7 +138,72 @@ interface CocktailDraft {
   aiMessage: string;
 }
 
-type ProductDraft = PrepRecipeDraft | WineDraft | CocktailDraft;
+interface PlateComponentItem {
+  type: "raw" | "prep_recipe";
+  name: string;
+  quantity: number;
+  unit: string;
+  order: number;
+  allergens?: string[];
+  prep_recipe_ref?: string;
+}
+
+interface PlateComponentGroup {
+  group_name: string;
+  order: number;
+  items: PlateComponentItem[];
+}
+
+interface RecipeImage {
+  url: string;
+  alt?: string;
+  caption?: string;
+}
+
+interface PlateSpecDraft {
+  name: string;
+  slug: string;
+  plateType: string;
+  menuCategory: string;
+  tags: string[];
+  allergens: string[];
+  components: PlateComponentGroup[];
+  assemblyProcedure: ProcedureGroup[];
+  notes: string;
+  images: RecipeImage[];
+  confidence?: number;
+  missingFields?: string[];
+  aiMessage?: string;
+  dishGuide?: unknown;
+  dishGuideStale?: boolean;
+}
+
+interface FohPlateSpecDraft {
+  menuName: string;
+  slug: string;
+  plateType: string;
+  plateSpecId: string | null;
+  shortDescription: string;
+  detailedDescription: string;
+  ingredients: string[];
+  keyIngredients: string[];
+  flavorProfile: string[];
+  allergens: string[];
+  allergyNotes: string;
+  upsellNotes: string;
+  notes: string;
+  image: string | null;
+  isTopSeller: boolean;
+}
+
+interface GenerateDishGuideRequest {
+  mode: "generate-dish-guide";
+  sessionId: string;
+  plateSpec: PlateSpecDraft;
+  productTable?: string;
+}
+
+type ProductDraft = PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft;
 
 interface IngestResponse {
   sessionId: string;
@@ -419,6 +492,133 @@ const PROMPT_SLUG_MAP: Record<string, { chat: string; extract: string }> = {
   prep_recipes: { chat: "ingest-chat-prep-recipe", extract: "ingest-extract-prep-recipe" },
   wines: { chat: "ingest-chat-wine", extract: "ingest-extract-wine" },
   cocktails: { chat: "ingest-chat-cocktail", extract: "ingest-extract-cocktail" },
+  plate_specs: { chat: "ingest-chat-plate-spec", extract: "ingest-extract-plate-spec" },
+};
+
+// =============================================================================
+// OPENAI STRUCTURED OUTPUT SCHEMA (PlateSpecDraft)
+// =============================================================================
+
+const PLATE_SPEC_DRAFT_SCHEMA = {
+  name: "plate_spec_draft",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      plateType: { type: "string", enum: ["entree", "appetizer", "side", "dessert"] },
+      menuCategory: { type: "string" },
+      tags: { type: "array", items: { type: "string" } },
+      allergens: { type: "array", items: { type: "string" } },
+      components: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            group_name: { type: "string" },
+            order: { type: "integer" },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["raw", "prep_recipe"] },
+                  name: { type: "string" },
+                  quantity: { type: "number" },
+                  unit: { type: "string" },
+                  order: { type: "integer" },
+                  allergens: {
+                    type: ["array", "null"],
+                    items: { type: "string" },
+                    description: "Allergen tags for raw items; null for prep_recipe items",
+                  },
+                  prep_recipe_ref: {
+                    type: ["string", "null"],
+                    description: "Slug of linked prep recipe; null for raw items",
+                  },
+                },
+                required: ["type", "name", "quantity", "unit", "order", "allergens", "prep_recipe_ref"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["group_name", "order", "items"],
+          additionalProperties: false,
+        },
+      },
+      assemblyProcedure: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            group_name: { type: "string" },
+            order: { type: "integer" },
+            steps: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  step_number: { type: "integer" },
+                  instruction: { type: "string" },
+                  critical: { type: "boolean" },
+                },
+                required: ["step_number", "instruction", "critical"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["group_name", "order", "steps"],
+          additionalProperties: false,
+        },
+      },
+      notes: { type: "string" },
+      confidence: { type: "number", description: "0-1 confidence score" },
+      missingFields: {
+        type: "array",
+        items: { type: "string" },
+        description: "Fields the AI couldn't determine from the input",
+      },
+      aiMessage: {
+        type: "string",
+        description: "Brief summary of what was extracted or updated in this turn",
+      },
+    },
+    required: [
+      "name",
+      "plateType",
+      "menuCategory",
+      "tags",
+      "allergens",
+      "components",
+      "assemblyProcedure",
+      "notes",
+      "confidence",
+      "missingFields",
+      "aiMessage",
+    ],
+    additionalProperties: false,
+  },
+};
+
+// =============================================================================
+// DISH GUIDE STRUCTURED OUTPUT SCHEMA (for generate-dish-guide mode)
+// =============================================================================
+
+const DISH_GUIDE_SCHEMA = {
+  name: "dish_guide",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      shortDescription: { type: "string" },
+      detailedDescription: { type: "string" },
+      flavorProfile: { type: "array", items: { type: "string" } },
+      allergyNotes: { type: "string" },
+      upsellNotes: { type: "string" },
+    },
+    required: ["shortDescription", "detailedDescription", "flavorProfile", "allergyNotes", "upsellNotes"],
+    additionalProperties: false,
+  },
 };
 
 // =============================================================================
@@ -426,11 +626,16 @@ const PROMPT_SLUG_MAP: Record<string, { chat: string; extract: string }> = {
 // =============================================================================
 
 function buildExtractResponseSchema(productTable: string) {
-  const draftSchema = productTable === "wines"
-    ? WINE_DRAFT_SCHEMA.schema
-    : productTable === "cocktails"
-      ? COCKTAIL_DRAFT_SCHEMA.schema
-      : PREP_RECIPE_DRAFT_SCHEMA.schema;
+  let draftSchema;
+  if (productTable === "wines") {
+    draftSchema = WINE_DRAFT_SCHEMA.schema;
+  } else if (productTable === "cocktails") {
+    draftSchema = COCKTAIL_DRAFT_SCHEMA.schema;
+  } else if (productTable === "plate_specs") {
+    draftSchema = PLATE_SPEC_DRAFT_SCHEMA.schema;
+  } else {
+    draftSchema = PREP_RECIPE_DRAFT_SCHEMA.schema;
+  }
 
   return {
     name: "extract_response",
@@ -950,6 +1155,13 @@ async function handlePipeline(
   // 10. If has_updates, save updated draft to session
   // -------------------------------------------------------------------------
   if (extractResult.has_updates && extractResult.draft) {
+    // Preserve fields that AI extraction never returns (images, dishGuide, etc.)
+    // because `additionalProperties: false` strips them from the schema output.
+    const preservedImages = (currentDraft as any).images;        // RecipeImage[] | undefined
+    const preservedDishGuide = (currentDraft as any).dishGuide;  // FohPlateSpecDraft | null | undefined
+    const preservedDishGuideStale = (currentDraft as any).dishGuideStale; // boolean | undefined
+    const preservedImage = (currentDraft as any).image;          // string | null (wine/cocktail)
+
     currentDraft = extractResult.draft as unknown as Record<string, unknown>;
 
     // Add slug (not in AI schema, needed by frontend)
@@ -957,21 +1169,33 @@ async function handlePipeline(
       // deno-lint-ignore no-explicit-any
       (currentDraft as any).slug = generateSlug(extractResult.draft.name);
     }
-    // Type-specific defaults
+    // Type-specific defaults + restore preserved fields
     if (productTable === "wines") {
-      // Wine uses single `image` field — ensure it exists
-      if ((currentDraft as Record<string, unknown>).image === undefined) {
-        (currentDraft as Record<string, unknown>).image = null;
-      }
+      // Wine uses single `image` field — preserve user-uploaded image
+      (currentDraft as Record<string, unknown>).image =
+        (currentDraft as Record<string, unknown>).image ?? preservedImage ?? null;
     } else if (productTable === "cocktails") {
-      // Cocktail uses single `image` field — ensure it exists
-      if ((currentDraft as Record<string, unknown>).image === undefined) {
-        (currentDraft as Record<string, unknown>).image = null;
-      }
+      // Cocktail uses single `image` field — preserve user-uploaded image
+      (currentDraft as Record<string, unknown>).image =
+        (currentDraft as Record<string, unknown>).image ?? preservedImage ?? null;
     } else {
-      // Prep recipe uses `images` array
+      // Prep recipe & plate spec use `images` array — preserve user-uploaded images
       // deno-lint-ignore no-explicit-any
-      (currentDraft as any).images = (currentDraft as any).images || [];
+      (currentDraft as any).images =
+        Array.isArray((currentDraft as any).images) && (currentDraft as any).images.length > 0
+          ? (currentDraft as any).images
+          : (preservedImages || []);
+    }
+
+    // Restore plate spec-specific fields (dishGuide, dishGuideStale)
+    if (productTable === "plate_specs") {
+      if (preservedDishGuide !== undefined) {
+        (currentDraft as any).dishGuide = (currentDraft as any).dishGuide ?? preservedDishGuide;
+      }
+      if (preservedDishGuideStale !== undefined) {
+        // If AI updated the BOH draft, mark dishGuide as stale
+        (currentDraft as any).dishGuideStale = preservedDishGuide ? true : false;
+      }
     }
 
     const newVersion = draftVersion + 1;
@@ -1028,6 +1252,11 @@ async function handlePipeline(
     } else {
       if (!d.images) d.images = [];
     }
+    // Plate spec defaults: align wire format with client PlateSpecDraft type
+    if (productTable === "plate_specs") {
+      if (d.dishGuide === undefined) d.dishGuide = null;
+      if (d.dishGuideStale === undefined) d.dishGuideStale = false;
+    }
   }
 
   console.log(`[ingest] Pipeline complete: sessionId=${sessionId}, hasUpdates=${extractResult.has_updates}`);
@@ -1045,6 +1274,499 @@ async function handlePipeline(
 // (Enrich handler removed — web enrichment is now built into the two-call
 //  pipeline in ingest-vision and ingest-file edge functions)
 // =============================================================================
+
+// =============================================================================
+// GENERATE DISH GUIDE HANDLER
+// =============================================================================
+
+/**
+ * Extract all unique prep_recipe_ref slugs from plate spec components.
+ */
+function extractPrepRecipeRefsFromPlateSpec(plateSpec: PlateSpecDraft): string[] {
+  const refs = new Set<string>();
+  for (const group of plateSpec.components || []) {
+    for (const item of group.items || []) {
+      if (item.type === "prep_recipe" && item.prep_recipe_ref) {
+        refs.add(item.prep_recipe_ref);
+      }
+    }
+  }
+  return [...refs];
+}
+
+/**
+ * Fetch full prep recipe rows by slug (batched query, max 10).
+ */
+// deno-lint-ignore no-explicit-any
+async function fetchLinkedPrepRecipes(supabase: any, slugs: string[]): Promise<any[]> {
+  if (!slugs.length) return [];
+
+  const limited = slugs.slice(0, 10);
+  if (slugs.length > 10) {
+    console.warn(`[ingest] Dish guide: ${slugs.length} prep_recipe refs found, using first 10`);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("prep_recipes")
+      .select("slug, name, prep_type, ingredients, procedure, tags, yield_qty, yield_unit, shelf_life_value, shelf_life_unit")
+      .in("slug", limited)
+      .eq("status", "published");
+
+    if (error) {
+      console.error("[ingest] Linked prep recipe fetch error:", error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error("[ingest] Linked prep recipe fetch exception:", err);
+    return [];
+  }
+}
+
+/**
+ * Serialize a linked prep recipe for inclusion in dish guide AI context.
+ */
+// deno-lint-ignore no-explicit-any
+function serializeLinkedRecipe(recipe: any): string {
+  const parts: (string | null)[] = [
+    `Linked Recipe: ${recipe.name} (${recipe.slug})`,
+    recipe.prep_type ? `Type: ${recipe.prep_type}` : null,
+    recipe.yield_qty ? `Yield: ${recipe.yield_qty} ${recipe.yield_unit || ""}` : null,
+  ];
+
+  // Ingredients with allergen tags
+  const allAllergens = new Set<string>();
+  if (Array.isArray(recipe.ingredients)) {
+    // deno-lint-ignore no-explicit-any
+    const items = recipe.ingredients.flatMap((g: any) =>
+      // deno-lint-ignore no-explicit-any
+      g.items?.map((i: any) => {
+        let text = i.name;
+        if (i.quantity != null) {
+          const unit = i.unit ? ` ${i.unit}` : "";
+          text = `${i.quantity}${unit} ${text}`;
+        }
+        if (i.allergens?.length) {
+          text += ` [ALLERGENS: ${i.allergens.join(", ")}]`;
+          for (const a of i.allergens) allAllergens.add(a);
+        }
+        return text;
+      }) || []
+    );
+    if (items.length) parts.push(`Ingredients: ${items.join(", ")}`);
+  }
+
+  if (allAllergens.size) {
+    parts.push(`Contains Allergens: ${[...allAllergens].join(", ")}`);
+  }
+
+  // Procedure
+  if (Array.isArray(recipe.procedure)) {
+    // deno-lint-ignore no-explicit-any
+    const steps = recipe.procedure.flatMap((g: any) =>
+      // deno-lint-ignore no-explicit-any
+      g.steps?.map((s: any) => s.instruction) || []
+    );
+    if (steps.length) parts.push(`Procedure: ${steps.join(" ")}`);
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+/**
+ * Build AI context string from plate spec + linked prep recipes.
+ */
+// deno-lint-ignore no-explicit-any
+function buildDishGuideContext(plateSpec: PlateSpecDraft, linkedRecipes: any[]): string {
+  const parts: string[] = [];
+
+  // Plate spec metadata
+  parts.push(`Plate Spec: ${plateSpec.name}`);
+  parts.push(`Plate Type: ${plateSpec.plateType}`);
+  if (plateSpec.menuCategory) parts.push(`Menu Category: ${plateSpec.menuCategory}`);
+  if (plateSpec.tags?.length) parts.push(`Tags: ${plateSpec.tags.join(", ")}`);
+  if (plateSpec.allergens?.length) parts.push(`Allergens: ${plateSpec.allergens.join(", ")}`);
+
+  // Components
+  if (plateSpec.components?.length) {
+    parts.push("\nComponents:");
+    for (const group of plateSpec.components) {
+      parts.push(`  ${group.group_name}:`);
+      for (const item of group.items || []) {
+        const qty = item.quantity != null ? `${item.quantity}` : "";
+        const unit = item.unit ? ` ${item.unit}` : "";
+        const prefix = qty || unit ? `${qty}${unit} ` : "";
+        const type = item.type === "prep_recipe" ? " [prep recipe]" : "";
+        const ref = item.prep_recipe_ref ? ` (ref: ${item.prep_recipe_ref})` : "";
+        const allergenStr = item.allergens?.length ? ` [ALLERGENS: ${item.allergens.join(", ")}]` : "";
+        parts.push(`    - ${prefix}${item.name}${type}${ref}${allergenStr}`);
+      }
+    }
+  }
+
+  // Assembly procedure
+  if (plateSpec.assemblyProcedure?.length) {
+    parts.push("\nAssembly Procedure:");
+    for (const group of plateSpec.assemblyProcedure) {
+      parts.push(`  ${group.group_name}:`);
+      for (const step of group.steps || []) {
+        const critical = step.critical ? " [CRITICAL]" : "";
+        parts.push(`    ${step.step_number}. ${step.instruction}${critical}`);
+      }
+    }
+  }
+
+  if (plateSpec.notes) parts.push(`\nNotes: ${plateSpec.notes}`);
+
+  // Linked prep recipes
+  if (linkedRecipes.length) {
+    parts.push("\n--- Linked Prep Recipes (referenced by components above) ---");
+    for (const recipe of linkedRecipes) {
+      parts.push(serializeLinkedRecipe(recipe));
+      parts.push(""); // blank line between recipes
+    }
+  }
+
+  return parts.join("\n");
+}
+
+async function handleGenerateDishGuide(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  body: GenerateDishGuideRequest,
+  openaiApiKey: string
+): Promise<Response> {
+  const { sessionId, plateSpec } = body;
+
+  console.log(`[ingest] Generate dish guide: sessionId=${sessionId}, plate="${plateSpec?.name}"`);
+
+  // -------------------------------------------------------------------------
+  // 1. Validate input
+  // -------------------------------------------------------------------------
+  if (!plateSpec || !plateSpec.name) {
+    return errorResponse("bad_request", "plateSpec with name is required", 400);
+  }
+
+  if (!plateSpec.components?.length) {
+    return errorResponse("bad_request", "plateSpec must have at least one component group", 400);
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Resolve linked prep_recipes server-side
+  // -------------------------------------------------------------------------
+  const prepRecipeRefs = extractPrepRecipeRefsFromPlateSpec(plateSpec);
+  console.log(`[ingest] Dish guide: ${prepRecipeRefs.length} prep_recipe ref(s) to resolve`);
+
+  const linkedRecipes = await fetchLinkedPrepRecipes(supabase, prepRecipeRefs);
+  console.log(`[ingest] Dish guide: ${linkedRecipes.length} linked recipe(s) fetched`);
+
+  // -------------------------------------------------------------------------
+  // 3. Load the generate-dish-guide prompt from ai_prompts
+  // -------------------------------------------------------------------------
+  const { data: promptRow, error: promptError } = await supabase
+    .from("ai_prompts")
+    .select("prompt_en")
+    .eq("slug", "generate-dish-guide")
+    .eq("is_active", true)
+    .single();
+
+  // Fallback system prompt if DB prompt not found
+  const defaultSystemPrompt = `You are a menu copywriter and server training specialist for Alamo Prime, an upscale steakhouse.
+
+Given a detailed plate spec (components, assembly procedure, allergens, and linked prep recipes), generate a Front-of-House Dish Guide for server training and guest communication.
+
+Output:
+- shortDescription: A natural, enthusiastic 2-3 sentence sales pitch a server would say to a guest. Include flavor highlights and what makes this dish special. Write it as confident, warm dialogue — the kind of thing a top-performing server at a premium steakhouse would actually say tableside.
+- detailedDescription: 4-6 sentences that tell the story of the dish. Weave in notable preparation details (e.g., "marinated for 24 hours", "slow-roasted over mesquite", "hand-pulled daily") and any nuances that make it unique. The tone should educate the server while also selling the dish — a server who reads this should feel the passion behind the plate and be able to relay that excitement to the guest.
+- flavorProfile: 3-6 flavor descriptors (e.g., "smoky", "rich", "herbaceous", "bright acidity").
+- allergyNotes: Practical allergy guidance for servers. List ALL allergens found in components and linked recipes. Include cross-contamination notes if relevant.
+- upsellNotes: 2-3 selling points and pairing suggestions using GENERAL CATEGORIES ONLY. Never recommend a specific wine, cocktail, or menu item by name — items may change. Instead suggest categories like "a bold red wine", "a full-bodied Malbec-style red", "a refreshing citrus cocktail", "one of our signature sides", "a classic accompaniment like creamed spinach or roasted potatoes". If the dish already includes sides, focus on beverage pairings. If it has no sides, suggest adding one.
+
+Rules:
+- Be accurate — reflect the actual ingredients and preparation from the plate spec
+- Include ALL allergens from both raw ingredients and linked prep recipes
+- Use warm, appetizing language appropriate for an upscale steakhouse
+- Do not invent ingredients or details not present in the plate spec
+- NEVER reference specific menu items by name in upsellNotes — use general categories only`;
+
+  let systemPrompt: string;
+  if (promptError || !promptRow) {
+    console.warn("[ingest] Dish guide prompt not found in DB, using default");
+    systemPrompt = defaultSystemPrompt;
+  } else {
+    systemPrompt = promptRow.prompt_en;
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. Build AI context string
+  // -------------------------------------------------------------------------
+  const contextText = buildDishGuideContext(plateSpec, linkedRecipes);
+
+  console.log(`[ingest] Dish guide context: ${contextText.length} chars`);
+
+  // -------------------------------------------------------------------------
+  // 5. Call OpenAI with structured output
+  // -------------------------------------------------------------------------
+  console.log("[ingest] Dish guide: calling OpenAI (gpt-5-mini-2025-08-07, json_schema)...");
+
+  try {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-5-mini-2025-08-07",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Generate a Front-of-House Dish Guide for the following plate spec:\n\n${contextText}` },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: DISH_GUIDE_SCHEMA,
+        },
+        max_completion_tokens: 2000,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error(`[ingest] Dish guide OpenAI error ${aiResponse.status}:`, errText);
+      return errorResponse("ai_error", `AI error: ${errText.slice(0, 200)}`, 500);
+    }
+
+    const aiData = await aiResponse.json();
+    const raw = aiData.choices?.[0]?.message?.content;
+
+    if (!raw) {
+      console.error("[ingest] Dish guide returned empty content");
+      return errorResponse("ai_error", "Dish guide generation returned empty response", 500);
+    }
+
+    let aiOutput: {
+      shortDescription: string;
+      detailedDescription: string;
+      flavorProfile: string[];
+      allergyNotes: string;
+      upsellNotes: string;
+    };
+
+    try {
+      aiOutput = JSON.parse(raw);
+    } catch (_parseError) {
+      console.error("[ingest] Dish guide returned invalid JSON:", raw);
+      return errorResponse("ai_error", "Dish guide generation returned invalid JSON", 500);
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Compute auto-fill fields server-side
+    // -------------------------------------------------------------------------
+    const menuName = plateSpec.name;
+    const plateType = plateSpec.plateType;
+
+    // Deduplicated allergens: union of all component item allergens + plate spec allergens
+    const allergenSet = new Set<string>();
+    for (const a of plateSpec.allergens || []) allergenSet.add(a);
+    for (const group of plateSpec.components || []) {
+      for (const item of group.items || []) {
+        for (const a of item.allergens || []) allergenSet.add(a);
+      }
+    }
+    // Also include allergens from linked prep recipes
+    for (const recipe of linkedRecipes) {
+      if (Array.isArray(recipe.ingredients)) {
+        // deno-lint-ignore no-explicit-any
+        for (const g of recipe.ingredients as any[]) {
+          // deno-lint-ignore no-explicit-any
+          for (const i of (g.items || []) as any[]) {
+            if (Array.isArray(i.allergens)) {
+              for (const a of i.allergens) allergenSet.add(a);
+            }
+          }
+        }
+      }
+    }
+    const allergens = [...allergenSet];
+
+    // All component item names
+    const ingredientsList: string[] = [];
+    for (const group of plateSpec.components || []) {
+      for (const item of group.items || []) {
+        ingredientsList.push(item.name);
+      }
+    }
+
+    // Key ingredients: first item from each component group (most prominent per station)
+    const keyIngredients: string[] = [];
+    for (const group of plateSpec.components || []) {
+      if (group.items?.length) {
+        keyIngredients.push(group.items[0].name);
+      }
+    }
+
+    // Image: first plate spec image URL if any
+    const image = plateSpec.images?.length ? plateSpec.images[0].url : null;
+
+    // -------------------------------------------------------------------------
+    // 7. Merge auto-fill + AI output into FohPlateSpecDraft
+    // -------------------------------------------------------------------------
+    const dishGuide: FohPlateSpecDraft = {
+      menuName,
+      slug: generateSlug(menuName),
+      plateType,
+      plateSpecId: null, // set at publish time
+      shortDescription: aiOutput.shortDescription,
+      detailedDescription: aiOutput.detailedDescription,
+      ingredients: ingredientsList,
+      keyIngredients,
+      flavorProfile: aiOutput.flavorProfile,
+      allergens,
+      allergyNotes: aiOutput.allergyNotes,
+      upsellNotes: aiOutput.upsellNotes,
+      notes: "",
+      image,
+      isTopSeller: false,
+    };
+
+    console.log(`[ingest] Dish guide generated: "${menuName}", ${allergens.length} allergens, ${keyIngredients.length} key ingredients`);
+
+    // -------------------------------------------------------------------------
+    // 8. Return response
+    // -------------------------------------------------------------------------
+    return new Response(JSON.stringify({ dishGuide }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("[ingest] Dish guide generation exception:", err);
+    return errorResponse("server_error", "Dish guide generation failed unexpectedly", 500);
+  }
+}
+
+// =============================================================================
+// TRANSLATE HANDLER
+// =============================================================================
+
+async function handleTranslate(
+  supabase: any,
+  userId: string,
+  body: TranslateRequest,
+  openaiApiKey: string
+): Promise<Response> {
+  const { productTable, productId, targetLang, fields } = body;
+
+  console.log(`[ingest] Translate: table=${productTable}, id=${productId}, lang=${targetLang}, fields=${fields.length}`);
+
+  if (!productId) {
+    return errorResponse("bad_request", "productId is required for translate mode", 400);
+  }
+  if (!fields || !fields.length) {
+    return errorResponse("bad_request", "fields array is required and must not be empty", 400);
+  }
+  if (fields.length > 50) {
+    return errorResponse("bad_request", "Maximum 50 fields per translation batch", 400);
+  }
+
+  // Build the translation prompt
+  const fieldsForAI = fields.map((f, i) => `[${i}] ${f.fieldPath}: "${f.sourceText}"`).join("\n");
+
+  const systemPrompt = `You are a professional bilingual translator for a high-end steakhouse restaurant.
+Translate the following English restaurant operations text to Latin American Spanish.
+
+Rules:
+- Maintain all culinary terminology accurately (e.g., "sear" → "sellar", "deglaze" → "deglasear")
+- Keep cooking measurements in their original units (°F, oz, cups) — do not convert
+- Preserve the instructional, professional tone
+- Keep proper nouns unchanged (brand names, recipe names)
+- For ingredient names, use Latin American Spanish variants (not Castilian)
+- If a term has no standard Spanish equivalent, keep the English term in quotes
+- Translate each field independently; do not add or remove content
+- Return ONLY the JSON object with translations array`;
+
+  const userContent = `Translate these ${fields.length} fields to ${targetLang}:\n\n${fieldsForAI}`;
+
+  const translationSchema = {
+    name: "translation_response",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        translations: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              index: { type: "number", description: "The field index from the input" },
+              translated_text: { type: "string" },
+            },
+            required: ["index", "translated_text"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["translations"],
+      additionalProperties: false,
+    },
+  };
+
+  try {
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: translationSchema,
+        },
+        max_completion_tokens: 4000,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errText = await aiResponse.text();
+      console.error(`[ingest] Translate OpenAI error ${aiResponse.status}:`, errText);
+      return errorResponse("ai_error", `Translation AI error: ${errText.slice(0, 200)}`, 500);
+    }
+
+    const aiData = await aiResponse.json();
+    const raw = aiData.choices?.[0]?.message?.content;
+
+    if (!raw) {
+      console.error("[ingest] Translate returned empty content");
+      return errorResponse("ai_error", "Translation returned empty response", 500);
+    }
+
+    const parsed = JSON.parse(raw);
+
+    // Map indices back to field paths
+    const translations = (parsed.translations || []).map((t: any) => ({
+      fieldPath: fields[t.index]?.fieldPath || `unknown_${t.index}`,
+      translatedText: t.translated_text,
+    }));
+
+    console.log(`[ingest] Translate complete: ${translations.length} fields translated`);
+
+    return new Response(JSON.stringify({ translations }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("[ingest] Translate exception:", err);
+    return errorResponse("server_error", "Translation failed unexpectedly", 500);
+  }
+}
 
 // =============================================================================
 // MAIN HANDLER
@@ -1116,28 +1838,8 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 3. PARSE AND VALIDATE REQUEST
     // =========================================================================
-    const body = (await req.json()) as IngestRequest;
-
-    // Validate content
-    if (!body.content?.trim()) {
-      return errorResponse("bad_request", "content is required", 400);
-    }
-
-    // Validate productTable
-    if (!body.productTable || !VALID_PRODUCT_TABLES.has(body.productTable)) {
-      return errorResponse(
-        "bad_request",
-        `productTable must be one of: ${[...VALID_PRODUCT_TABLES].join(", ")}`,
-        400
-      );
-    }
-
-    // Validate language
-    if (body.language && !["en", "es"].includes(body.language)) {
-      return errorResponse("bad_request", 'language must be "en" or "es"', 400);
-    }
-
-    console.log(`[ingest] Table: ${body.productTable} | Lang: ${body.language || "en"}`);
+    // deno-lint-ignore no-explicit-any
+    const body = (await req.json()) as any;
 
     // =========================================================================
     // 4. GET OPENAI API KEY
@@ -1151,7 +1853,41 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 5. DISPATCH TO HANDLER
     // =========================================================================
-    return await handlePipeline(supabase, userId, body, openaiApiKey);
+
+    // Generate dish guide mode — separate request shape, no productTable/content required
+    if (body.mode === "generate-dish-guide") {
+      return await handleGenerateDishGuide(supabase, userId, body as GenerateDishGuideRequest, openaiApiKey);
+    }
+
+    // Cast to IngestRequest for pipeline/translate modes
+    const ingestBody = body as IngestRequest;
+
+    // Validate content (not required for translate mode)
+    if (ingestBody.mode !== "translate" && !ingestBody.content?.trim()) {
+      return errorResponse("bad_request", "content is required", 400);
+    }
+
+    // Validate productTable
+    if (!ingestBody.productTable || !VALID_PRODUCT_TABLES.has(ingestBody.productTable)) {
+      return errorResponse(
+        "bad_request",
+        `productTable must be one of: ${[...VALID_PRODUCT_TABLES].join(", ")}`,
+        400
+      );
+    }
+
+    // Validate language
+    if (ingestBody.language && !["en", "es"].includes(ingestBody.language)) {
+      return errorResponse("bad_request", 'language must be "en" or "es"', 400);
+    }
+
+    console.log(`[ingest] Table: ${ingestBody.productTable} | Lang: ${ingestBody.language || "en"}`);
+
+    if (ingestBody.mode === "translate") {
+      return await handleTranslate(supabase, userId, ingestBody as unknown as TranslateRequest, openaiApiKey);
+    }
+
+    return await handlePipeline(supabase, userId, ingestBody, openaiApiKey);
   } catch (error) {
     console.error("[ingest] Unexpected error:", error);
     return errorResponse("server_error", "An unexpected error occurred", 500);

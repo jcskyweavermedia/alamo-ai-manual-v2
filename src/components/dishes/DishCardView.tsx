@@ -10,6 +10,7 @@ import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { CrossNavButton } from '@/components/shared/CrossNavButton';
 
 interface DishCardViewProps {
   dish: Dish;
@@ -18,6 +19,7 @@ interface DishCardViewProps {
   onSwipeNext?: () => void;
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
+  bohSlug?: string | null;
 }
 
 const AI_EMOJI_MAP: Record<string, { emoji: string; bg: string }> = {
@@ -34,7 +36,7 @@ const INFO_CARDS: { key: string; label: string; emoji: string; bg: string; field
   { key: 'upsell', label: 'Upsell Notes', emoji: '\uD83D\uDCB0', bg: 'bg-green-100 dark:bg-green-900/30', field: 'upsellNotes' },
 ];
 
-export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAction, onActionChange }: DishCardViewProps) {
+export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAction, onActionChange, bohSlug }: DishCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -101,6 +103,15 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
             </div>
           )}
 
+          {/* Cross-nav: FOH → BOH */}
+          {bohSlug && (
+            <CrossNavButton
+              label="View BOH Plate Spec"
+              targetPath="/recipes"
+              targetSlug={bohSlug}
+            />
+          )}
+
           {/* Short description */}
           <p className="text-sm leading-relaxed text-foreground">
             {dish.shortDescription}
@@ -113,7 +124,7 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
           onClick={() => setLightboxOpen(true)}
           className="relative group sm:w-[40%] shrink-0 rounded-[20px] overflow-hidden cursor-pointer bg-muted shadow-[3px_8px_14px_-3px_rgba(0,0,0,0.4),2px_5px_8px_-2px_rgba(0,0,0,0.25)]"
         >
-          <div className="aspect-[16/10]">
+          <div className="aspect-[16/10] max-h-44 md:max-h-52">
             <img
               src={dish.image}
               alt={dish.menuName}
@@ -256,7 +267,7 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
           <img
             src={dish.image}
             alt={dish.menuName}
-            className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
+            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
             onClick={e => e.stopPropagation()}
           />
         </div>

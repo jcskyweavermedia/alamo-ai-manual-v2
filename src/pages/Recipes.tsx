@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, AlertCircle, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
@@ -6,6 +7,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useRecipeViewer } from '@/hooks/use-recipe-viewer';
 import type { FilterMode } from '@/hooks/use-recipe-viewer';
+import { useCrossNavLookup } from '@/hooks/use-cross-nav-lookup';
 import { RecipeGrid, RecipeCardView } from '@/components/recipes';
 import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
 import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
@@ -20,6 +22,8 @@ const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
 const Recipes = () => {
   const { language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const slugParam = searchParams.get('slug');
 
   const {
     filteredRecipes,
@@ -42,7 +46,14 @@ const Recipes = () => {
     navigateBack,
     isLoading,
     error,
-  } = useRecipeViewer();
+  } = useRecipeViewer(slugParam);
+
+  const { getFohSlug } = useCrossNavLookup();
+
+  // Clear ?slug= param after mount so browser back works correctly
+  useEffect(() => {
+    if (slugParam) setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
@@ -153,6 +164,7 @@ const Recipes = () => {
             onNext={!isCrossLinked ? goToNext : undefined}
             activeAction={activeAction}
             onActionChange={setActiveAction}
+            fohSlug={selectedRecipe.type === 'plate' ? getFohSlug(selectedRecipe.id) : null}
           />
           {isMobile && (
             <ProductAIDrawer
@@ -168,7 +180,7 @@ const Recipes = () => {
       ) : (
         <>
           <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight">
+            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
               Crafted with
               <br />
               <span className="font-bold">Love & Fire</span> 🔥

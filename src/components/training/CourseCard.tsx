@@ -1,45 +1,32 @@
-import {
-  BookOpen,
-  ChefHat,
-  GraduationCap,
-  ClipboardList,
-  Utensils,
-  Wine,
-  Martini,
-  Beer,
-  Sparkles,
-  Star,
-  Shield,
-  Users,
-  Heart,
-  Flame,
-  Award,
-  type LucideIcon,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ProgressRing } from './ProgressRing';
 import type { CourseWithProgress } from '@/types/training';
 
-// Lookup map for Lucide icons by name
-const ICON_MAP: Record<string, LucideIcon> = {
-  BookOpen,
-  ChefHat,
-  GraduationCap,
-  ClipboardList,
-  Utensils,
-  Wine,
-  Martini,
-  Beer,
-  Sparkles,
-  Star,
-  Shield,
-  Users,
-  Heart,
-  Flame,
-  Award,
+// Emoji map replacing Lucide icon lookups
+const COURSE_EMOJI: Record<string, { emoji: string; bg: string; darkBg: string }> = {
+  Landmark:        { emoji: '🏛️', bg: 'bg-slate-100',  darkBg: 'dark:bg-slate-800' },
+  Beef:            { emoji: '🥩', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
+  UtensilsCrossed: { emoji: '🍽️', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
+  Wine:            { emoji: '🍷', bg: 'bg-rose-100',   darkBg: 'dark:bg-rose-900/30' },
+  Martini:         { emoji: '🍸', bg: 'bg-sky-100',    darkBg: 'dark:bg-sky-900/30' },
+  Beer:            { emoji: '🍺', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
+  CakeSlice:       { emoji: '🍰', bg: 'bg-pink-100',   darkBg: 'dark:bg-pink-900/30' },
+  GraduationCap:   { emoji: '🎓', bg: 'bg-blue-100',   darkBg: 'dark:bg-blue-900/30' },
+  ChefHat:         { emoji: '👨‍🍳', bg: 'bg-orange-100', darkBg: 'dark:bg-orange-900/30' },
+  Users:           { emoji: '👥', bg: 'bg-indigo-100',  darkBg: 'dark:bg-indigo-900/30' },
+  BookOpen:        { emoji: '📖', bg: 'bg-cyan-100',   darkBg: 'dark:bg-cyan-900/30' },
+  ClipboardList:   { emoji: '📋', bg: 'bg-green-100',  darkBg: 'dark:bg-green-900/30' },
+  Utensils:        { emoji: '🍴', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
+  Sparkles:        { emoji: '✨', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
+  Star:            { emoji: '⭐', bg: 'bg-yellow-100', darkBg: 'dark:bg-yellow-900/30' },
+  Shield:          { emoji: '🛡️', bg: 'bg-slate-100',  darkBg: 'dark:bg-slate-800' },
+  Heart:           { emoji: '❤️', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
+  Flame:           { emoji: '🔥', bg: 'bg-orange-100', darkBg: 'dark:bg-orange-900/30' },
+  Award:           { emoji: '🏆', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
 };
+const defaultEmoji = { emoji: '📚', bg: 'bg-slate-100', darkBg: 'dark:bg-slate-800' };
 
 interface CourseCardProps {
   course: CourseWithProgress;
@@ -61,7 +48,7 @@ const STATUS_LABELS = {
 } as const;
 
 export function CourseCard({ course, language, onClick }: CourseCardProps) {
-  const Icon = ICON_MAP[course.icon] ?? GraduationCap;
+  const emojiConfig = COURSE_EMOJI[course.icon ?? ''] ?? defaultEmoji;
   const title = language === 'es' ? course.titleEs : course.titleEn;
 
   const isCompleted = course.progressPercent === 100;
@@ -87,19 +74,18 @@ export function CourseCard({ course, language, onClick }: CourseCardProps) {
     <Card
       className={cn(
         'cursor-pointer hover:shadow-elevated transition-shadow duration-200',
-        isCompleted && 'border-2 border-green-500'
       )}
       onClick={onClick}
     >
       <CardContent className="flex flex-col items-center gap-3 p-4 text-center">
-        {/* Icon */}
+        {/* Emoji tile */}
         <div className={cn(
-          'flex items-center justify-center h-12 w-12 rounded-full',
-          isCompleted
-            ? 'bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400'
-            : 'bg-primary/10 text-primary'
+          'flex items-center justify-center',
+          'h-12 w-12 rounded-[12px]',
+          emojiConfig.bg, emojiConfig.darkBg,
+          isCompleted && 'ring-2 ring-green-500'
         )}>
-          <Icon className="h-6 w-6" />
+          <span className="text-[26px] h-[26px] leading-[26px]">{emojiConfig.emoji}</span>
         </div>
 
         {/* Title */}

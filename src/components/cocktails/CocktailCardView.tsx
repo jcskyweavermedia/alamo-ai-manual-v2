@@ -274,7 +274,7 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
           <img
             src={cocktail.image ?? ''}
             alt={cocktail.name}
-            className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
+            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
             onClick={e => e.stopPropagation()}
           />
         </div>

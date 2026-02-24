@@ -1,9 +1,10 @@
-import { Loader2, AlertCircle, GraduationCap } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
 import { usePrograms } from '@/hooks/use-programs';
 import { useMyRollouts } from '@/hooks/use-my-rollouts';
+import { usePinnedCourses } from '@/hooks/use-pinned-courses';
 import { ProgramCard } from '@/components/training/ProgramCard';
 
 const EMPTY_TEXT = {
@@ -15,6 +16,7 @@ const TrainingHome = () => {
   const { language, setLanguage } = useLanguage();
   const { programs, isLoading, error } = usePrograms();
   const { assignments } = useMyRollouts();
+  const { togglePin, isPinned, sortPinnedFirst } = usePinnedCourses();
   const navigate = useNavigate();
 
   const activeRollout = assignments[0];
@@ -49,20 +51,38 @@ const TrainingHome = () => {
         </div>
       ) : programs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <GraduationCap className="h-10 w-10 text-muted-foreground/40" />
+          <div className="flex items-center justify-center h-14 w-14 rounded-[14px] bg-blue-100 dark:bg-blue-900/30">
+            <span className="text-[32px] h-[32px] leading-[32px]">🎓</span>
+          </div>
           <p className="text-sm text-muted-foreground">{EMPTY_TEXT[language]}</p>
         </div>
       ) : (
+        <>
+        <div className="py-6">
+          <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+            {language === 'es' ? 'Elevamos Nuestra' : 'Fueled by'}
+            <br />
+            <span className="font-bold">{language === 'es' ? 'Hospitalidad' : 'Hospitality'}</span> 🎓
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            {language === 'es'
+              ? 'Programas de capacitacion para crecer en lo que amamos.'
+              : 'Training programs to grow the craft we love.'}
+          </p>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {programs.map((program) => (
+          {sortPinnedFirst(programs).map((program) => (
             <ProgramCard
               key={program.id}
               program={program}
               language={language}
+              pinned={isPinned(program.slug)}
+              onTogglePin={() => togglePin(program.slug)}
               onClick={() => navigate(`/courses/${program.slug}`)}
             />
           ))}
         </div>
+        </>
       )}
     </AppShell>
   );

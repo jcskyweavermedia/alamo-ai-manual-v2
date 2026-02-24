@@ -467,14 +467,14 @@ Deno.serve(async (req) => {
       if (error) console.error('[realtime-search] search_manual_v2 error:', error);
     } else {
       // Keyword-only fallback (no embedding available)
-      console.log('[realtime-search] Running keyword search (search_manual)...');
-      const { data, error } = await supabase.rpc('search_manual', {
+      console.log('[realtime-search] Running keyword search (search_manual_v2 FTS-only)...');
+      const { data, error } = await supabase.rpc('search_manual_v2', {
         search_query: searchQuery,
         search_language: language,
         result_limit: 5,
       });
       results = data;
-      if (error) console.error('[realtime-search] search_manual error:', error);
+      if (error) console.error('[realtime-search] search_manual_v2 FTS-only error:', error);
     }
 
     if (!results?.length) {

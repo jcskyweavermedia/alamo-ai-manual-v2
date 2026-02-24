@@ -1,7 +1,9 @@
+import { useState, useMemo } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -10,17 +12,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Globe } from 'lucide-react';
 import { WineImageEditor } from './WineImageEditor';
+import { TranslationSheet } from './TranslationSheet';
+import { TranslationBadge } from '../TranslationBadge';
 import { useIngestDraft } from '@/contexts/IngestDraftContext';
 import type { WineDraft } from '@/types/ingestion';
 
 export function WineEditor() {
   const { state, dispatch } = useIngestDraft();
   const draft = state.draft as WineDraft;
+  const productId = state.editingProductId;
+  const [translateOpen, setTranslateOpen] = useState(false);
+
+  const draftAsDbFormat = useMemo(() => ({
+    tasting_notes: draft.tastingNotes,
+    producer_notes: draft.producerNotes,
+    notes: draft.notes,
+  }), [draft.tastingNotes, draft.producerNotes, draft.notes]);
 
   return (
     <div className="space-y-4">
-      <Accordion type="multiple" defaultValue={['identity', 'classification', 'notes', 'image', 'options']}>
+      <Accordion type="multiple" defaultValue={['identity', 'classification', 'notes', 'image', 'options', 'translation']}>
         {/* Wine Identity */}
         <AccordionItem value="identity">
           <AccordionTrigger className="text-base font-semibold tracking-tight">Wine Identity</AccordionTrigger>
@@ -207,7 +220,44 @@ export function WineEditor() {
             </div>
           </AccordionContent>
         </AccordionItem>
+
+        {/* Translation */}
+        <AccordionItem value="translation">
+          <AccordionTrigger className="text-base font-semibold tracking-tight">
+            <span className="flex items-center gap-2">
+              Translation
+              <TranslationBadge
+                productTable="wines"
+                productId={productId}
+                productData={draftAsDbFormat}
+              />
+            </span>
+          </AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-3 pt-2">
+              <p className="text-sm text-muted-foreground">
+                Translate tasting notes, producer notes, and service notes to Spanish using AI.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setTranslateOpen(true)}
+                className="w-full"
+              >
+                <Globe className="h-4 w-4 mr-2" />
+                Open Translation Panel
+              </Button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
       </Accordion>
+
+      <TranslationSheet
+        open={translateOpen}
+        onOpenChange={setTranslateOpen}
+        productTable="wines"
+        productId={productId}
+        productData={draftAsDbFormat}
+      />
     </div>
   );
 }

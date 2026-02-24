@@ -8,6 +8,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
 import { useCourses } from '@/hooks/use-courses';
 import { useProgramEnrollment } from '@/hooks/use-program-enrollment';
+
 import { ProgressRing } from '@/components/training/ProgressRing';
 import { CourseCard } from '@/components/training/CourseCard';
 import type { TrainingProgramRaw, TrainingProgram } from '@/types/training';
@@ -48,6 +49,7 @@ const ProgramDetail = () => {
 
   // Auto-enroll in program
   useProgramEnrollment({ programId: program?.id, autoEnroll: true });
+
 
   const isLoading = programLoading || coursesLoading;
   const error = programError || coursesError;
@@ -93,8 +95,8 @@ const ProgramDetail = () => {
               className={cn(
                 'flex items-center justify-center shrink-0',
                 'h-10 w-10 rounded-lg',
-                'bg-primary text-primary-foreground',
-                'hover:bg-primary/90 active:bg-primary/80',
+                'bg-orange-500 text-white',
+                'hover:bg-orange-600 active:bg-orange-700',
                 'shadow-sm transition-colors duration-150',
                 'mt-0.5'
               )}

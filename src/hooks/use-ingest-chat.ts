@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
-import type { PrepRecipeDraft, WineDraft, CocktailDraft } from '@/types/ingestion';
+import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft } from '@/types/ingestion';
 
 // =============================================================================
 // TYPES
@@ -18,7 +18,7 @@ import type { PrepRecipeDraft, WineDraft, CocktailDraft } from '@/types/ingestio
 
 interface ChatResult {
   message: string;
-  draft: PrepRecipeDraft | WineDraft | CocktailDraft | null;
+  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | null;
   sessionId: string;
   confidence?: number;
   missingFields?: string[];
@@ -81,7 +81,7 @@ export function useIngestChat(productTable: string = 'prep_recipes'): UseIngestC
 
         return {
           message: data.message as string,
-          draft: (data.draft as PrepRecipeDraft | WineDraft | CocktailDraft) ?? null,
+          draft: (data.draft as PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft) ?? null,
           sessionId: data.sessionId as string,
           confidence: data.confidence as number | undefined,
           missingFields: data.missingFields as string[] | undefined,

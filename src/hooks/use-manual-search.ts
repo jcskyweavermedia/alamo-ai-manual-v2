@@ -1,7 +1,7 @@
 /**
  * Hook for searching manual content via Supabase full-text search
  * 
- * Uses the search_manual RPC function which leverages PostgreSQL FTS.
+ * Uses the search_manual_v2 RPC function (FTS-only mode, no embedding).
  * Includes performance optimizations and robust error handling.
  */
 
@@ -101,7 +101,7 @@ export function useManualSearch(
       if (!sanitizedQuery || sanitizedQuery.length < 2) return [];
 
       const { data, error } = await supabase
-        .rpc('search_manual', {
+        .rpc('search_manual_v2', {
           search_query: sanitizedQuery,
           search_language: effectiveLanguage,
           result_limit: 20
@@ -120,11 +120,11 @@ export function useManualSearch(
       return (data || []).map((row: any) => ({
         id: row.id,
         slug: row.slug,
-        title: row.title,
+        title: row.name,
         snippet: row.snippet || '',
         category: row.category,
         tags: row.tags || [],
-        rank: row.rank,
+        rank: row.combined_score,
         filePath: row.file_path,
       }));
     },

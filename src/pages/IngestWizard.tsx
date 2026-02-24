@@ -43,7 +43,7 @@ interface ProductTypeCard {
 
 const PRODUCT_TYPE_CARDS: ProductTypeCard[] = [
   { key: 'prep_recipe', label: 'Prep Recipe', icon: ChefHat, emoji: '👨‍🍳', enabled: true },
-  { key: 'plate_spec', label: 'Plate Spec', icon: Package, emoji: '📦', enabled: false },
+  { key: 'plate_spec', label: 'Plate Spec', icon: Package, emoji: '📦', enabled: true },
   { key: 'foh_plate_spec', label: 'Dish Guide', icon: UtensilsCrossed, emoji: '🍽️', enabled: false },
   { key: 'wine', label: 'Wine', icon: Wine, emoji: '🍷', enabled: true },
   { key: 'cocktail', label: 'Cocktail', icon: GlassWater, emoji: '🍸', enabled: true },

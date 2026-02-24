@@ -39,12 +39,12 @@
     --input: 240 6% 90%;
     
     /* -------------------------------------------------------------------------
-       BRAND ACCENT — Apple System Indigo
-       Premium, educational, iOS-native feel
+       BRAND ACCENT — Alamo Green
+       #2aa962 brand identity, professional, approachable
     ------------------------------------------------------------------------- */
-    --primary: 245 58% 65%;                 /* #6155F5 - Apple System Indigo (Light) */
+    --primary: 146 60% 41%;                 /* #2aa962 - Alamo Green (Light) */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 245 58% 57%;           /* Pressed state */
+    --primary-hover: 146 60% 35%;           /* Pressed state */
     
     /* -------------------------------------------------------------------------
        SECONDARY & ACCENT
@@ -53,7 +53,7 @@
     --secondary-foreground: 240 10% 7%;
     
     --accent: 240 5% 96%;
-    --accent-foreground: 245 58% 65%;       /* Accent text uses primary */
+    --accent-foreground: 146 60% 41%;       /* Accent text uses primary */
     
     /* -------------------------------------------------------------------------
        SEMANTIC COLORS — Status (from design-specs.md)
@@ -68,13 +68,13 @@
     --destructive: 0 72% 51%;               /* #DC2626 - Error (light mode) */
     --destructive-foreground: 0 0% 100%;
     
-    --info: 245 58% 65%;                    /* Uses accent */
+    --info: 146 60% 41%;                    /* Uses accent */
     --info-foreground: 0 0% 100%;
     
     /* -------------------------------------------------------------------------
        FOCUS RING
     ------------------------------------------------------------------------- */
-    --ring: 245 58% 65%;
+    --ring: 146 60% 41%;
     
     /* -------------------------------------------------------------------------
        RADIUS (from design-specs.md)
@@ -97,12 +97,12 @@
     ------------------------------------------------------------------------- */
     --sidebar-background: 240 10% 98%;
     --sidebar-foreground: 240 10% 7%;
-    --sidebar-primary: 245 58% 65%;
+    --sidebar-primary: 146 60% 41%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 5% 96%;
-    --sidebar-accent-foreground: 245 58% 65%;
+    --sidebar-accent-foreground: 146 60% 41%;
     --sidebar-border: 240 6% 90%;
-    --sidebar-ring: 245 58% 65%;
+    --sidebar-ring: 146 60% 41%;
   }
 
   /* ===========================================================================
@@ -136,11 +136,11 @@
     --input: 240 5% 18%;
     
     /* -------------------------------------------------------------------------
-       BRAND ACCENT — Apple System Indigo (Dark Mode)
+       BRAND ACCENT — Alamo Green (Dark Mode)
     ------------------------------------------------------------------------- */
-    --primary: 230 100% 71%;                /* #6D7CFF - Apple System Indigo (Dark) */
+    --primary: 146 60% 50%;                 /* #33cc73 - Alamo Green (Dark) */
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 230 100% 63%;
+    --primary-hover: 146 60% 43%;
     
     /* -------------------------------------------------------------------------
        SECONDARY & ACCENT
@@ -149,7 +149,7 @@
     --secondary-foreground: 240 5% 96%;
     
     --accent: 240 5% 15%;
-    --accent-foreground: 230 100% 71%;
+    --accent-foreground: 146 60% 50%;
     
     /* -------------------------------------------------------------------------
        SEMANTIC COLORS — Brighter for dark mode (from design-specs.md)
@@ -163,13 +163,13 @@
     --destructive: 0 84% 60%;               /* #EF4444 - Error (dark mode) */
     --destructive-foreground: 0 0% 100%;
     
-    --info: 230 100% 71%;
+    --info: 146 60% 50%;
     --info-foreground: 0 0% 100%;
     
     /* -------------------------------------------------------------------------
        FOCUS RING
     ------------------------------------------------------------------------- */
-    --ring: 230 100% 71%;
+    --ring: 146 60% 50%;
     
     /* -------------------------------------------------------------------------
        SHADOWS — Rely more on contrast + borders in dark mode
@@ -187,12 +187,12 @@
     ------------------------------------------------------------------------- */
     --sidebar-background: 240 10% 4%;
     --sidebar-foreground: 240 5% 96%;
-    --sidebar-primary: 230 100% 71%;
+    --sidebar-primary: 146 60% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 5% 15%;
-    --sidebar-accent-foreground: 230 100% 71%;
+    --sidebar-accent-foreground: 146 60% 50%;
     --sidebar-border: 240 5% 18%;
-    --sidebar-ring: 230 100% 71%;
+    --sidebar-ring: 146 60% 50%;
   }
 }
 

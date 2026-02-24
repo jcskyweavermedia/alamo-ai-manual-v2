@@ -154,7 +154,7 @@ const BeerLiquor = () => {
       ) : (
         <>
           <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight">
+            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
               Poured with
               <br />
               <span className="font-bold">Character</span> 🍺

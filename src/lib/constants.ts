@@ -16,6 +16,8 @@ export const ROUTES = {
   COURSES_COURSE: '/courses/:programSlug/:courseSlug',
   COURSES_SECTION: '/courses/:programSlug/:courseSlug/:sectionSlug',
   COURSES_QUIZ: '/courses/:programSlug/:courseSlug/:sectionSlug/quiz',
+  FORMS: '/forms',
+  FORMS_DETAIL: '/forms/:slug',
   PROFILE: '/profile',
   ADMIN: '/admin',
   ADMIN_TRAINING: '/admin/training',
@@ -45,6 +47,7 @@ export const STAFF_NAV_ITEMS = [
   { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
   { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
   { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
+  { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/profile', label: 'Profile', icon: 'User' },
 ] as const;
@@ -60,6 +63,7 @@ export const ADMIN_NAV_ITEMS = [
   { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
   { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
   { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
+  { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
   { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
   { path: '/admin', label: 'Admin', icon: 'Settings' },
 ] as const;

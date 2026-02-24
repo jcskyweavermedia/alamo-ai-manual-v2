@@ -4,8 +4,10 @@ import { cn } from '@/lib/utils';
 import { AllergenBadge } from './AllergenBadge';
 import { BatchSizeSelector } from './BatchSizeSelector';
 import { IngredientsColumn } from './IngredientsColumn';
+import { LinkedItemRow } from './LinkedItemRow';
 import { ProcedureColumn } from './ProcedureColumn';
 import { Button } from '@/components/ui/button';
+import { CrossNavButton } from '@/components/shared/CrossNavButton';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Recipe, PrepRecipe, PlateSpec, BatchScaling, TrainingNotes } from '@/types/products';
 import { useAuth } from '@/hooks/use-auth';
@@ -22,6 +24,7 @@ interface RecipeCardViewProps {
   onNext?: () => void;
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
+  fohSlug?: string | null;
 }
 
 export function RecipeCardView({
@@ -35,6 +38,7 @@ export function RecipeCardView({
   onNext,
   activeAction,
   onActionChange,
+  fohSlug,
 }: RecipeCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -172,6 +176,15 @@ export function RecipeCardView({
         )}
       </div>
 
+      {/* Cross-nav: BOH → FOH */}
+      {recipe.type === 'plate' && fohSlug && (
+        <CrossNavButton
+          label="View FOH Plate Spec"
+          targetPath="/dish-guide"
+          targetSlug={fohSlug}
+        />
+      )}
+
       {/* Divider */}
       <div className="border-t border-border" />
 
@@ -206,39 +219,18 @@ export function RecipeCardView({
                     </span>
                   </div>
                   <ul className="space-y-0">
-                    {group.items.map((comp, ci) => {
-                      const isLinked = !!comp.prep_recipe_ref;
-                      const Row = isLinked ? 'button' : 'div';
-
-                      return (
-                        <li key={ci}>
-                          <Row
-                            {...(isLinked ? {
-                              type: 'button' as const,
-                              onClick: () => onTapPrepRecipe?.(comp.prep_recipe_ref!),
-                            } : {})}
-                            className={cn(
-                              'flex items-baseline gap-2 py-1 px-1 text-sm w-full text-left',
-                              isLinked && 'rounded-lg cursor-pointer hover:bg-muted/50 active:bg-muted transition-colors'
-                            )}
-                          >
-                            {(comp.quantity || comp.unit) ? (
-                              <span className="font-mono text-xs text-muted-foreground shrink-0 w-16 text-right tabular-nums">
-                                {comp.quantity} {comp.unit}
-                              </span>
-                            ) : (
-                              <span className="shrink-0 w-16" />
-                            )}
-                            <span className="flex-1 text-foreground">
-                              {comp.name}
-                              {isLinked && (
-                                <span className="inline-block text-[14px] leading-none ml-1.5 -mt-0.5">📄</span>
-                              )}
-                            </span>
-                          </Row>
-                        </li>
-                      );
-                    })}
+                    {group.items.map((comp, ci) => (
+                      <li key={ci}>
+                        <LinkedItemRow
+                          name={comp.name}
+                          quantity={comp.quantity}
+                          unit={comp.unit}
+                          prepRecipeRef={comp.prep_recipe_ref}
+                          allergens={comp.allergens}
+                          onTapPrepRecipe={onTapPrepRecipe}
+                        />
+                      </li>
+                    ))}
                   </ul>
                 </div>
               ))}
@@ -255,13 +247,14 @@ export function RecipeCardView({
                   onClick={() => setExpandedImage(src)}
                   className="relative group w-full rounded-[20px] overflow-hidden cursor-pointer shadow-[6px_14px_24px_-6px_rgba(0,0,0,0.4),3px_8px_14px_-3px_rgba(0,0,0,0.25)]"
                 >
-                  <img
-                    src={src}
-                    alt={`${recipe.name} - ${i + 1}`}
-                    className="w-full rounded-lg object-cover"
-                    style={{ maxHeight: 200 }}
-                    loading="lazy"
-                  />
+                  <div className="aspect-[16/10]">
+                    <img
+                      src={src}
+                      alt={`${recipe.name} - ${i + 1}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
                   <span className={cn(
                     'absolute bottom-2 right-2',
                     'flex items-center justify-center',
@@ -309,7 +302,7 @@ export function RecipeCardView({
           <img
             src={expandedImage}
             alt={recipe.name}
-            className="max-w-[90%] max-h-[85vh] rounded-xl object-contain"
+            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

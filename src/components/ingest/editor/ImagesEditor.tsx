@@ -8,7 +8,11 @@ import { useDirectImageUpload } from '@/hooks/use-direct-image-upload';
 import { useGenerateImage } from '@/hooks/use-generate-image';
 import { useToast } from '@/hooks/use-toast';
 
-export function ImagesEditor() {
+interface ImagesEditorProps {
+  productTable?: string;
+}
+
+export function ImagesEditor({ productTable = 'prep_recipes' }: ImagesEditorProps) {
   const { state, dispatch } = useIngestDraft();
   const { draft } = state;
   const { uploadToStorage, isUploading } = useDirectImageUpload();
@@ -39,15 +43,25 @@ export function ImagesEditor() {
   // Handle AI image generation
   const handleGenerate = async () => {
     if (!draft.name.trim()) {
-      toast({ title: 'Name required', description: 'Add a recipe name before generating an image' });
+      toast({ title: 'Name required', description: 'Add a name before generating an image' });
       return;
     }
 
+    // Build description based on product type
+    const isPlateSpec = productTable === 'plate_specs';
+    const description = isPlateSpec
+      ? [
+          ('plateType' in draft ? (draft as { plateType: string }).plateType : ''),
+          ('menuCategory' in draft ? (draft as { menuCategory: string }).menuCategory : ''),
+          ...('tags' in draft && Array.isArray(draft.tags) ? draft.tags : []),
+        ].filter(Boolean).join(', ')
+      : draft.tags.join(', ');
+
     const result = await generateImage({
-      productTable: 'prep_recipes',
+      productTable,
       name: draft.name,
-      prepType: draft.prepType,
-      description: draft.tags.join(', '),
+      prepType: isPlateSpec ? ('plateType' in draft ? (draft as { plateType: string }).plateType : '') : draft.prepType,
+      description,
       sessionId: state.sessionId || undefined,
     });
 

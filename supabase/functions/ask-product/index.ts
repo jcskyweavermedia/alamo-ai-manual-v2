@@ -95,7 +95,7 @@ const ACTION_PROMPTS: Record<string, Record<string, string>> = {
     samplePitch:
       "Write a polished, confident server pitch for this dish (3-4 sentences). Include the dish name naturally, mention key ingredients, flavor profile, and a compelling reason to order it. Make it sound like a top-performing server at a premium steakhouse.",
     teachMe:
-      "Teach the server about this dish in a structured way:\n1. What it is and why guests love it\n2. Key ingredients and flavor profile\n3. Allergen awareness\n4. Best upsell opportunities\n5. One insider tip",
+      "Teach the server about this dish in a structured way:\n1. What it is and why guests love it\n2. Key ingredients and flavor profile\n3. Allergen awareness\n4. Upsell opportunities — suggest GENERAL CATEGORIES only (e.g., 'a bold red wine', 'a refreshing side', 'a classic steakhouse accompaniment'). Never recommend specific menu items by name.\n5. One insider tip",
     questions:
       "List 4-5 common guest questions about this dish and provide clear, confident answers. Include questions about allergens, preparation, modifications, and pairings.",
   },
@@ -396,7 +396,8 @@ function serializeItemContext(
             const qty = i.quantity != null ? `${i.quantity}` : '';
             const unit = i.unit && i.unit !== 'to taste' ? ` ${i.unit}` : (i.unit === 'to taste' ? ' to taste' : '');
             const prefix = qty || unit ? `${qty}${unit} ` : '';
-            return `${prefix}${i.name}`;
+            const ref = i.prep_recipe_ref ? ` [sub-recipe: ${i.prep_recipe_ref}]` : '';
+            return `${prefix}${i.name}${ref}`;
           }) || []
         );
         if (items.length) parts.push(`Ingredients: ${items.join(", ")}`);
@@ -423,7 +424,8 @@ function serializeItemContext(
             const qty = i.quantity != null ? `${i.quantity}` : '';
             const unit = i.unit ? ` ${i.unit}` : '';
             const prefix = qty || unit ? `${qty}${unit} ` : '';
-            return `${prefix}${i.name}`;
+            const ref = i.prep_recipe_ref ? ` [sub-recipe: ${i.prep_recipe_ref}]` : '';
+            return `${prefix}${i.name}${ref}`;
           }) || []
         );
         if (items.length) parts.push(`Components: ${items.join(", ")}`);
@@ -634,6 +636,177 @@ async function enrichWithMenuItems(
 }
 
 // =============================================================================
+// HELPER: Sub-recipe enrichment (Action + Context modes, recipes domain)
+// =============================================================================
+
+/**
+ * Extract all unique prep_recipe_ref slugs from ingredients and components.
+ */
+function extractPrepRecipeRefs(item: Record<string, unknown>): string[] {
+  const refs = new Set<string>();
+
+  // Prep recipe ingredients: [{ group_name, items: [{ name, prep_recipe_ref, ... }] }]
+  // deno-lint-ignore no-explicit-any
+  const ingredients = item.ingredients as any[] | null;
+  if (Array.isArray(ingredients)) {
+    for (const group of ingredients) {
+      // deno-lint-ignore no-explicit-any
+      for (const it of (group.items || []) as any[]) {
+        if (it.prep_recipe_ref) refs.add(it.prep_recipe_ref);
+      }
+    }
+  }
+
+  // Plate spec components: [{ group_name, items: [{ name, prep_recipe_ref, ... }] }]
+  // deno-lint-ignore no-explicit-any
+  const components = item.components as any[] | null;
+  if (Array.isArray(components)) {
+    for (const group of components) {
+      // deno-lint-ignore no-explicit-any
+      for (const it of (group.items || []) as any[]) {
+        if (it.prep_recipe_ref) refs.add(it.prep_recipe_ref);
+      }
+    }
+  }
+
+  return [...refs];
+}
+
+/**
+ * Fetch full prep recipe rows by slug (single batched query, max 5).
+ */
+// deno-lint-ignore no-explicit-any
+async function fetchSubRecipes(supabase: any, slugs: string[]): Promise<any[]> {
+  if (!slugs.length) return [];
+
+  const limited = slugs.slice(0, 5);
+  if (slugs.length > 5) {
+    console.warn(`[ask-product] Sub-recipe cap: ${slugs.length} refs found, using first 5`);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("prep_recipes")
+      .select("slug, name, prep_type, ingredients, procedure, training_notes, yield_qty, yield_unit, shelf_life_value, shelf_life_unit, tags")
+      .in("slug", limited)
+      .eq("status", "published");
+
+    if (error) {
+      console.error("[ask-product] Sub-recipe fetch error:", error.message);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error("[ask-product] Sub-recipe fetch exception:", err);
+    return [];
+  }
+}
+
+/**
+ * Serialize a sub-recipe for inclusion in AI context.
+ * Includes ingredients with allergen tags, procedure, training notes,
+ * and an aggregated allergen summary line.
+ */
+// deno-lint-ignore no-explicit-any
+function serializeSubRecipe(recipe: any): string {
+  const parts: (string | null)[] = [
+    `Sub-Recipe: ${recipe.name} (${recipe.slug})`,
+    recipe.prep_type ? `Type: ${recipe.prep_type}` : null,
+    recipe.yield_qty ? `Yield: ${recipe.yield_qty} ${recipe.yield_unit || ""}` : null,
+    recipe.shelf_life_value ? `Shelf Life: ${recipe.shelf_life_value} ${recipe.shelf_life_unit || ""}` : null,
+  ];
+
+  // Ingredients with inline allergen tags + aggregated allergen summary
+  const allAllergens = new Set<string>();
+  if (Array.isArray(recipe.ingredients)) {
+    // deno-lint-ignore no-explicit-any
+    const items = recipe.ingredients.flatMap((g: any) =>
+      // deno-lint-ignore no-explicit-any
+      g.items?.map((i: any) => {
+        let text = i.name;
+        if (i.quantity != null) {
+          const unit = i.unit ? ` ${i.unit}` : "";
+          text = `${i.quantity}${unit} ${text}`;
+        }
+        if (i.allergens?.length) {
+          text += ` [ALLERGENS: ${i.allergens.join(", ")}]`;
+          for (const a of i.allergens) allAllergens.add(a);
+        }
+        return text;
+      }) || []
+    );
+    if (items.length) parts.push(`Ingredients: ${items.join(", ")}`);
+  }
+
+  if (allAllergens.size) {
+    parts.push(`Contains Allergens: ${[...allAllergens].join(", ")}`);
+  }
+
+  // Procedure
+  if (Array.isArray(recipe.procedure)) {
+    // deno-lint-ignore no-explicit-any
+    const steps = recipe.procedure.flatMap((g: any) =>
+      // deno-lint-ignore no-explicit-any
+      g.steps?.map((s: any) => s.instruction) || []
+    );
+    if (steps.length) parts.push(`Procedure: ${steps.join(" ")}`);
+  }
+
+  // Training notes
+  if (recipe.training_notes && typeof recipe.training_notes === "object" && Object.keys(recipe.training_notes).length > 0) {
+    parts.push(`Training Notes: ${JSON.stringify(recipe.training_notes)}`);
+  }
+
+  // Warn about nested refs (depth-2 not resolved)
+  if (Array.isArray(recipe.ingredients)) {
+    // deno-lint-ignore no-explicit-any
+    const nestedRefs = recipe.ingredients.flatMap((g: any) =>
+      // deno-lint-ignore no-explicit-any
+      (g.items || []).filter((i: any) => i.prep_recipe_ref).map((i: any) => i.prep_recipe_ref)
+    );
+    if (nestedRefs.length) {
+      console.warn(`[ask-product] Sub-recipe "${recipe.slug}" has nested refs (depth-2 not resolved): ${nestedRefs.join(", ")}`);
+    }
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+/**
+ * Orchestrator: extract refs → fetch sub-recipes → serialize → append to context.
+ * Graceful degradation: returns original context on any error.
+ */
+async function enrichContextWithSubRecipes(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  item: Record<string, unknown>,
+  contextText: string
+): Promise<string> {
+  try {
+    const refs = extractPrepRecipeRefs(item);
+    if (!refs.length) return contextText;
+
+    console.log(`[ask-product] Enriching with ${refs.length} sub-recipe(s): ${refs.join(", ")}`);
+
+    const subRecipes = await fetchSubRecipes(supabase, refs);
+    if (!subRecipes.length) return contextText;
+
+    const subRecipeText = subRecipes.map(serializeSubRecipe).join("\n\n");
+
+    let header = "\n\n--- Linked Sub-Recipes (referenced by ingredients/components above) ---\n";
+    if (refs.length > 5) {
+      header += `Note: This recipe references ${refs.length} sub-recipes; showing the first 5.\n`;
+    }
+
+    return contextText + header + subRecipeText;
+  } catch (err) {
+    console.error("[ask-product] Sub-recipe enrichment failed:", err);
+    return contextText;
+  }
+}
+
+// =============================================================================
 // HELPER: Response builders
 // =============================================================================
 
@@ -828,6 +1001,11 @@ Deno.serve(async (req) => {
       let contextText = serializeItemContext(domain, itemContext);
       let extraCitations: ProductCitation[] = [];
 
+      // Enrich with sub-recipe data (recipes domain only)
+      if (domain === "recipes") {
+        contextText = await enrichContextWithSubRecipes(supabase, itemContext, contextText);
+      }
+
       // Pairing enrichment: fetch real menu items for pairing actions
       if (PAIRING_ACTIONS.has(action)) {
         console.log("[ask-product] Enriching with menu items for pairing action");
@@ -846,6 +1024,7 @@ ${actionInstruction}
 
 Rules:
 - Use ONLY the product data provided below — never invent facts
+- When linked sub-recipes are listed below the main recipe, use their ingredient, allergen, and procedure data to give complete answers. Reference sub-recipes by name when citing their data, but only when relevant to the question.
 - Be warm, professional, and encouraging
 - ${langInstruction}
 - Keep responses focused and actionable`;
@@ -909,7 +1088,12 @@ Rules:
 
       const langInstruction = LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.en;
       const domainLabel = DOMAIN_LABEL[domain];
-      const contextText = serializeItemContext(domain, itemContext);
+      let contextText = serializeItemContext(domain, itemContext);
+
+      // Enrich with sub-recipe data (recipes domain only)
+      if (domain === "recipes") {
+        contextText = await enrichContextWithSubRecipes(supabase, itemContext, contextText);
+      }
 
       const systemPrompt = `You are a knowledgeable assistant for Alamo Prime steakhouse.
 
@@ -919,6 +1103,7 @@ ${contextText}
 ---
 
 Answer the user's question using ONLY the product data above. Be accurate — cite exact quantities, ingredients, and details as shown. If the data above doesn't contain the answer, say so.
+When linked sub-recipes are provided after the main recipe data, use them to answer questions about ingredients, allergens, preparation details, and quality checks. Reference the sub-recipe name when citing data from it, but only when relevant to the question.
 ${langInstruction}
 Be concise: 2-4 sentences + bullets if needed.`;
 
@@ -986,6 +1171,8 @@ Be concise: 2-4 sentences + bullets if needed.`;
 ${domainHint}
 
 You have access to search tools for each product domain. Use them to find relevant products before answering. You may call multiple tools if a question spans domains (e.g., "what wine pairs with the ribeye?" → search wines AND dishes).
+
+Note: Some recipes contain linked sub-recipes (prep recipes used as components). For detailed ingredient or allergen questions about a specific recipe, the user should open the recipe card and ask from there — search results only contain summaries, not full ingredient data.
 
 Rules:
 - Always search before answering — do not guess product details

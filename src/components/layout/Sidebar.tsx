@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, PanelLeft, PanelLeftClose, BarChart3, Plus } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, ClipboardList, PanelLeft, PanelLeftClose, BarChart3, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -18,6 +18,7 @@ const iconMap = {
   Beer,
   ConciergeBell,
   GraduationCap,
+  ClipboardList,
   BarChart3,
   Plus,
 } as const;
@@ -46,6 +47,7 @@ export function Sidebar({
         { path: '/wines', label: 'Wines', icon: 'Wine' },
         { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
         { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
+        { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
         { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
         { path: '/admin/ingest', label: 'Ingest', icon: 'Plus' },
         { path: '/admin/training', label: 'Training Dashboard', icon: 'BarChart3' },
@@ -66,6 +68,7 @@ export function Sidebar({
     '/recipes': 'BOH',
     '/dish-guide': 'FOH',
     '/courses': 'LEARN',
+    '/forms': 'FORMS',
   };
 
   const renderSectionHeader = (label: string) => (

@@ -9,7 +9,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { PrepRecipeDraft, WineDraft, CocktailDraft, ChatMessage } from '@/types/ingestion';
+import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft, ChatMessage } from '@/types/ingestion';
 
 // =============================================================================
 // TYPES
@@ -20,7 +20,7 @@ export interface IngestionSession {
   productTable: string;
   ingestionMethod: string;
   status: string;
-  draftData: PrepRecipeDraft | WineDraft | CocktailDraft;
+  draftData: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft;
   draftVersion: number;
   productId: string | null;
   editingProductId: string | null;
@@ -37,8 +37,12 @@ export interface UseIngestionSessionReturn {
     session: IngestionSession;
     messages: ChatMessage[];
   } | null>;
-  saveDraft: (draft: PrepRecipeDraft | WineDraft | CocktailDraft, version: number) => Promise<boolean>;
+  saveDraft: (draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft, version: number) => Promise<boolean>;
   listSessions: (status?: string) => Promise<IngestionSession[]>;
+  findSessionForProduct: (productId: string, productTable: string) => Promise<IngestionSession | null>;
+  reuseSessionForEdit: (sessionId: string, productId: string, draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft) => Promise<boolean>;
+  discardSession: (sessionId: string) => Promise<boolean>;
+  discardSessions: (sessionIds: string[]) => Promise<boolean>;
 }
 
 // =============================================================================
@@ -52,7 +56,7 @@ function mapRow(row: Record<string, unknown>): IngestionSession {
     productTable: row.product_table as string,
     ingestionMethod: row.ingestion_method as string,
     status: row.status as string,
-    draftData: row.draft_data as PrepRecipeDraft | WineDraft | CocktailDraft,
+    draftData: row.draft_data as PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft,
     draftVersion: row.draft_version as number,
     productId: (row.product_id as string) ?? null,
     editingProductId: (row.editing_product_id as string) ?? null,
@@ -66,11 +70,19 @@ function mapRow(row: Record<string, unknown>): IngestionSession {
 // =============================================================================
 
 export function useIngestionSession(): UseIngestionSessionReturn {
-  const [session, setSession] = useState<IngestionSession | null>(null);
+  const [session, setSessionState] = useState<IngestionSession | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { user } = useAuth();
+
+  // Ref keeps session accessible synchronously (avoids stale closures in saveDraft
+  // when loadSession is called in the same tick before React re-renders).
+  const sessionRef = useRef<IngestionSession | null>(null);
+  const setSession = useCallback((s: IngestionSession | null) => {
+    sessionRef.current = s;
+    setSessionState(s);
+  }, []);
 
   // Auto-save debounce timer
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -194,8 +206,9 @@ export function useIngestionSession(): UseIngestionSessionReturn {
   // saveDraft (optimistic concurrency via draft_version)
   // ---------------------------------------------------------------------------
   const saveDraft = useCallback(
-    async (draft: PrepRecipeDraft | WineDraft | CocktailDraft, version: number): Promise<boolean> => {
-      if (!session) {
+    async (draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft, version: number): Promise<boolean> => {
+      const currentSession = sessionRef.current;
+      if (!currentSession) {
         setError('No active session');
         return false;
       }
@@ -211,7 +224,7 @@ export function useIngestionSession(): UseIngestionSessionReturn {
             draft_version: version + 1,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', session.id)
+          .eq('id', currentSession.id)
           .eq('draft_version', version) // optimistic concurrency check
           .select()
           .single();
@@ -222,7 +235,7 @@ export function useIngestionSession(): UseIngestionSessionReturn {
             toast.error(
               'Draft was modified elsewhere. Reloading latest version.',
             );
-            await loadSession(session.id);
+            await loadSession(currentSession.id);
             return false;
           }
           throw new Error(dbError.message);
@@ -240,7 +253,7 @@ export function useIngestionSession(): UseIngestionSessionReturn {
         setIsLoading(false);
       }
     },
-    [session, loadSession],
+    [loadSession, setSession],
   );
 
   // ---------------------------------------------------------------------------
@@ -284,6 +297,163 @@ export function useIngestionSession(): UseIngestionSessionReturn {
     [user],
   );
 
+  // ---------------------------------------------------------------------------
+  // findSessionForProduct — find an existing session linked to a product
+  // Checks edit sessions first, then published sessions
+  // ---------------------------------------------------------------------------
+  const findSessionForProduct = useCallback(
+    async (productId: string, productTable: string): Promise<IngestionSession | null> => {
+      try {
+        // 1. Check for an in-progress edit session (editing_product_id match)
+        const { data: editSession } = await supabase
+          .from('ingestion_sessions')
+          .select('*')
+          .eq('editing_product_id', productId)
+          .eq('product_table', productTable)
+          .in('status', ['drafting', 'review'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (editSession) {
+          return mapRow(editSession as Record<string, unknown>);
+        }
+
+        // 2. Check for the published session (product_id match)
+        const { data: pubSession } = await supabase
+          .from('ingestion_sessions')
+          .select('*')
+          .eq('product_id', productId)
+          .eq('product_table', productTable)
+          .eq('status', 'published')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (pubSession) {
+          return mapRow(pubSession as Record<string, unknown>);
+        }
+
+        return null;
+      } catch (err) {
+        console.error('findSessionForProduct error:', err);
+        return null;
+      }
+    },
+    [],
+  );
+
+  // ---------------------------------------------------------------------------
+  // reuseSessionForEdit — transition a published session back to drafting
+  // ---------------------------------------------------------------------------
+  const reuseSessionForEdit = useCallback(
+    async (
+      sessionId: string,
+      productId: string,
+      draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft,
+    ): Promise<boolean> => {
+      try {
+        const { data, error: dbError } = await supabase
+          .from('ingestion_sessions')
+          .update({
+            status: 'drafting',
+            editing_product_id: productId,
+            draft_data: draft as unknown,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', sessionId)
+          .select()
+          .single();
+
+        if (dbError) {
+          throw new Error(dbError.message);
+        }
+
+        setSession(mapRow(data as Record<string, unknown>));
+        return true;
+      } catch (err) {
+        console.error('reuseSessionForEdit error:', err);
+        toast.error('Failed to reopen session for editing');
+        return false;
+      }
+    },
+    [],
+  );
+
+  // ---------------------------------------------------------------------------
+  // discardSession — mark a single session as abandoned
+  // ---------------------------------------------------------------------------
+  const discardSession = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (!user) {
+        toast.error('Please sign in to discard a session');
+        return false;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { error: dbError } = await supabase
+          .from('ingestion_sessions')
+          .update({ status: 'abandoned', updated_at: new Date().toISOString() })
+          .eq('id', id);
+
+        if (dbError) {
+          throw new Error(dbError.message);
+        }
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to discard session';
+        setError(message);
+        toast.error(message);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user],
+  );
+
+  // ---------------------------------------------------------------------------
+  // discardSessions — mark multiple sessions as abandoned in a single query
+  // ---------------------------------------------------------------------------
+  const discardSessions = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      if (ids.length === 0) return true;
+
+      if (!user) {
+        toast.error('Please sign in to discard sessions');
+        return false;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { error: dbError } = await supabase
+          .from('ingestion_sessions')
+          .update({ status: 'abandoned', updated_at: new Date().toISOString() })
+          .in('id', ids);
+
+        if (dbError) {
+          throw new Error(dbError.message);
+        }
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to discard sessions';
+        setError(message);
+        toast.error(message);
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user],
+  );
+
   return {
     session,
     isLoading,
@@ -292,5 +462,9 @@ export function useIngestionSession(): UseIngestionSessionReturn {
     loadSession,
     saveDraft,
     listSessions,
+    findSessionForProduct,
+    reuseSessionForEdit,
+    discardSession,
+    discardSessions,
   };
 }

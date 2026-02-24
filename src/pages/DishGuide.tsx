@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
@@ -6,6 +7,7 @@ import { useLanguage } from '@/hooks/use-language';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useDishViewer } from '@/hooks/use-dish-viewer';
 import type { DishFilterMode } from '@/components/dishes/DishGrid';
+import { useCrossNavLookup } from '@/hooks/use-cross-nav-lookup';
 import { DishGrid, DishCardView } from '@/components/dishes';
 import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
 import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
@@ -22,6 +24,8 @@ const FILTER_OPTIONS: { value: DishFilterMode; label: string }[] = [
 const DishGuide = () => {
   const { language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const slugParam = searchParams.get('slug');
 
   const {
     filteredDishes,
@@ -38,7 +42,14 @@ const DishGuide = () => {
     goToNext,
     isLoading,
     error,
-  } = useDishViewer();
+  } = useDishViewer(slugParam);
+
+  const { getBohSlug } = useCrossNavLookup();
+
+  // Clear ?slug= param after mount so browser back works correctly
+  useEffect(() => {
+    if (slugParam) setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI action state (lifted from CardView)
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -143,6 +154,7 @@ const DishGuide = () => {
             onSwipeNext={goToNext}
             activeAction={activeAction}
             onActionChange={setActiveAction}
+            bohSlug={getBohSlug(selectedDish.plateSpecId)}
           />
           {/* Mobile: bottom drawer */}
           {isMobile && (
@@ -159,10 +171,10 @@ const DishGuide = () => {
       ) : (
         <>
           <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight">
-              Every Plate Tells
+            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+              Every Plate
               <br />
-              <span className="font-bold">a Story</span> 🍽️
+              <span className="font-bold">Tells a Story</span> 🍽️
             </p>
             <p className="text-sm text-muted-foreground mt-2">Plating guides, allergens, and service notes for the full menu.</p>
           </div>
