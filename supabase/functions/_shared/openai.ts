@@ -31,26 +31,38 @@ export async function callOpenAI<T = unknown>(options: CallOpenAIOptions): Promi
     throw new OpenAIError("AI service not configured", 500);
   }
 
+  const model = options.model || "gpt-4o-mini";
+
+  // Reasoning models (gpt-5*, o1*, o3*) only support temperature=1 and
+  // use max_completion_tokens instead of max_tokens.
+  const isReasoningModel = /^(gpt-5|o[13])/.test(model);
+
+  // deno-lint-ignore no-explicit-any
+  const body: Record<string, any> = {
+    model,
+    messages: options.messages,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: options.schemaName,
+        strict: true,
+        schema: options.schema,
+      },
+    },
+    max_completion_tokens: options.maxTokens ?? 1000,
+  };
+
+  if (!isReasoningModel) {
+    body.temperature = options.temperature ?? 0.5;
+  }
+
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: options.model || "gpt-4o-mini",
-      messages: options.messages,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: options.schemaName,
-          strict: true,
-          schema: options.schema,
-        },
-      },
-      temperature: options.temperature ?? 0.5,
-      max_tokens: options.maxTokens ?? 1000,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

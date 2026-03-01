@@ -29,11 +29,12 @@ const corsHeaders = {
 // =============================================================================
 
 interface IngestRequest {
-  mode?: "pipeline" | "translate" | "generate-dish-guide";
+  mode?: "pipeline" | "translate" | "generate-dish-guide" | "batch-extract";
   sessionId?: string;
   productTable: string;
   content: string;
   language?: "en" | "es";
+  department?: "kitchen" | "bar";
 }
 
 interface TranslateRequest {
@@ -50,6 +51,7 @@ interface TranslateRequest {
 interface PrepRecipeDraft {
   name: string;
   prepType: string;
+  department?: "kitchen" | "bar";
   tags: string[];
   yieldQty: number;
   yieldUnit: string;
@@ -59,6 +61,7 @@ interface PrepRecipeDraft {
   procedure: ProcedureGroup[];
   batchScaling: BatchScaling;
   trainingNotes: TrainingNotes;
+  isFeatured: boolean;
   confidence: number;
   missingFields: string[];
   aiMessage: string;
@@ -117,22 +120,37 @@ interface WineDraft {
   notes: string;
   image?: string | null;
   isTopSeller: boolean;
+  isFeatured: boolean;
   confidence: number;
   missingFields: string[];
   aiMessage: string;
+}
+
+interface CocktailIngredientItem {
+  name: string;
+  quantity: number;
+  unit: string;
+  prep_recipe_ref: string | null;
+}
+
+interface CocktailIngredientGroup {
+  group_name: string;
+  order: number;
+  items: CocktailIngredientItem[];
 }
 
 interface CocktailDraft {
   name: string;
   style: string;
   glass: string;
-  ingredients: string;
+  ingredients: CocktailIngredientGroup[];
   keyIngredients: string;
   procedure: Array<{ step: number; instruction: string }>;
   tastingNotes: string;
   description: string;
   notes: string;
   isTopSeller: boolean;
+  isFeatured: boolean;
   confidence: number;
   missingFields: string[];
   aiMessage: string;
@@ -194,6 +212,7 @@ interface FohPlateSpecDraft {
   notes: string;
   image: string | null;
   isTopSeller: boolean;
+  isFeatured: boolean;
 }
 
 interface GenerateDishGuideRequest {
@@ -262,6 +281,8 @@ function errorResponse(error: string, message?: string, status = 400): Response 
  */
 function generateSlug(name: string): string {
   return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
@@ -281,6 +302,11 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     properties: {
       name: { type: "string" },
       prepType: { type: "string" },
+      department: {
+        type: "string",
+        enum: ["kitchen", "bar"],
+        description: "kitchen = BOH food prep, bar = syrups, infusions, bitters, shrubs, cordials, tinctures",
+      },
       tags: { type: "array", items: { type: "string" } },
       yieldQty: { type: "number" },
       yieldUnit: { type: "string" },
@@ -358,6 +384,7 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
         required: ["notes", "common_mistakes", "quality_checks"],
         additionalProperties: false,
       },
+      isFeatured: { type: "boolean", description: "Whether this item is a featured item" },
       confidence: { type: "number", description: "0-1 confidence score" },
       missingFields: {
         type: "array",
@@ -372,6 +399,7 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     required: [
       "name",
       "prepType",
+      "department",
       "tags",
       "yieldQty",
       "yieldUnit",
@@ -381,6 +409,7 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
       "procedure",
       "batchScaling",
       "trainingNotes",
+      "isFeatured",
       "confidence",
       "missingFields",
       "aiMessage",
@@ -412,6 +441,7 @@ const WINE_DRAFT_SCHEMA = {
       producerNotes: { type: "string" },
       notes: { type: "string", description: "Service notes, food pairings" },
       isTopSeller: { type: "boolean" },
+      isFeatured: { type: "boolean", description: "Whether this item is a featured item" },
       confidence: { type: "number", description: "0-1 confidence score" },
       missingFields: {
         type: "array",
@@ -426,7 +456,7 @@ const WINE_DRAFT_SCHEMA = {
     required: [
       "name", "producer", "region", "country", "vintage", "varietal",
       "blend", "style", "body", "tastingNotes", "producerNotes", "notes",
-      "isTopSeller", "confidence", "missingFields", "aiMessage",
+      "isTopSeller", "isFeatured", "confidence", "missingFields", "aiMessage",
     ],
     additionalProperties: false,
   },
@@ -445,7 +475,33 @@ const COCKTAIL_DRAFT_SCHEMA = {
       name: { type: "string" },
       style: { type: "string", enum: ["classic", "modern", "tiki", "refresher"] },
       glass: { type: "string", description: "Glass type, e.g., Rocks, Coupe, Highball, Nick & Nora, Collins" },
-      ingredients: { type: "string", description: "Full ingredient list with measurements, one per line" },
+      ingredients: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            group_name: { type: "string", description: "Group label, e.g., 'Ingredients' or 'Garnish'" },
+            order: { type: "number", description: "Display order (1-based)" },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Ingredient name" },
+                  quantity: { type: "number", description: "Amount (0 if not specified)" },
+                  unit: { type: "string", description: "Unit of measurement (oz, dash, ml, etc.)" },
+                  prep_recipe_ref: { type: ["string", "null"], description: "Slug of a house-made bar prep recipe if the user says this ingredient is made in-house (e.g. 'mojito-syrup'). Use kebab-case slug derived from the recipe name. null if not a house-made ingredient." },
+                },
+                required: ["name", "quantity", "unit", "prep_recipe_ref"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["group_name", "order", "items"],
+          additionalProperties: false,
+        },
+        description: "Structured ingredient groups with individual items (same format as prep recipes)",
+      },
       keyIngredients: { type: "string", description: "Primary spirits/mixers summary" },
       procedure: {
         type: "array",
@@ -464,6 +520,7 @@ const COCKTAIL_DRAFT_SCHEMA = {
       description: { type: "string", description: "Cocktail story, history, or context" },
       notes: { type: "string", description: "Service notes, garnish details, technique tips" },
       isTopSeller: { type: "boolean" },
+      isFeatured: { type: "boolean", description: "Whether this item is a featured item" },
       confidence: { type: "number", description: "0-1 confidence score" },
       missingFields: {
         type: "array",
@@ -478,7 +535,7 @@ const COCKTAIL_DRAFT_SCHEMA = {
     required: [
       "name", "style", "glass", "ingredients", "keyIngredients",
       "procedure", "tastingNotes", "description", "notes",
-      "isTopSeller", "confidence", "missingFields", "aiMessage",
+      "isTopSeller", "isFeatured", "confidence", "missingFields", "aiMessage",
     ],
     additionalProperties: false,
   },
@@ -494,6 +551,9 @@ const PROMPT_SLUG_MAP: Record<string, { chat: string; extract: string }> = {
   cocktails: { chat: "ingest-chat-cocktail", extract: "ingest-extract-cocktail" },
   plate_specs: { chat: "ingest-chat-plate-spec", extract: "ingest-extract-plate-spec" },
 };
+
+/** Bar prep uses separate prompts when department === 'bar' */
+const BAR_PREP_PROMPT_SLUGS = { chat: "ingest-chat-bar-prep", extract: "ingest-extract-bar-prep" };
 
 // =============================================================================
 // OPENAI STRUCTURED OUTPUT SCHEMA (PlateSpecDraft)
@@ -572,6 +632,7 @@ const PLATE_SPEC_DRAFT_SCHEMA = {
         },
       },
       notes: { type: "string" },
+      isFeatured: { type: "boolean", description: "Whether this item is a featured item" },
       confidence: { type: "number", description: "0-1 confidence score" },
       missingFields: {
         type: "array",
@@ -592,6 +653,7 @@ const PLATE_SPEC_DRAFT_SCHEMA = {
       "components",
       "assemblyProcedure",
       "notes",
+      "isFeatured",
       "confidence",
       "missingFields",
       "aiMessage",
@@ -665,13 +727,18 @@ const BASE_RESPONSES_TOOLS: any[] = [
   {
     type: "function",
     name: "search_recipes",
-    description: "Search existing prep recipes in the database. Use this when the user mentions an ingredient or sub-recipe that might already exist (e.g., 'chimichurri', 'demi-glace', 'compound butter').",
+    description: "Search existing prep recipes in the database. Use this when the user mentions an ingredient or sub-recipe that might already exist (e.g., 'chimichurri', 'demi-glace', 'compound butter', 'honey-ginger syrup'). Use filter_department to narrow results.",
     parameters: {
       type: "object",
       properties: {
         query: {
           type: "string",
           description: "Search query for recipe name or ingredient",
+        },
+        filter_department: {
+          type: "string",
+          enum: ["kitchen", "bar"],
+          description: "Filter by department. Use 'bar' when searching for syrups, infusions, bitters, shrubs. Use 'kitchen' for sauces, stocks, marinades. Omit to search all.",
         },
       },
       required: ["query"],
@@ -725,7 +792,7 @@ async function handlePipeline(
   body: IngestRequest,
   openaiApiKey: string
 ): Promise<Response> {
-  const { content, productTable, language = "en", sessionId: existingSessionId } = body;
+  const { content, productTable, language = "en", sessionId: existingSessionId, department: reqDepartment } = body;
 
   console.log(
     `[ingest] Pipeline: sessionId=${existingSessionId || "new"}, productTable=${productTable}, language=${language}`
@@ -808,10 +875,16 @@ async function handlePipeline(
   // -------------------------------------------------------------------------
   // 3. Fetch chat prompt (Call 1 system prompt)
   // -------------------------------------------------------------------------
+  // Use request-level department (first message) OR draft-level department (subsequent messages)
+  // deno-lint-ignore no-explicit-any
+  const isBarPrep = productTable === "prep_recipes" &&
+    ((currentDraft as any).department === "bar" || reqDepartment === "bar");
+  const promptSlugs = isBarPrep ? BAR_PREP_PROMPT_SLUGS : PROMPT_SLUG_MAP[productTable];
+
   const { data: chatPromptRow, error: chatPromptError } = await supabase
     .from("ai_prompts")
     .select("prompt_en, prompt_es")
-    .eq("slug", PROMPT_SLUG_MAP[productTable]?.chat || "ingest-chat-prep-recipe")
+    .eq("slug", promptSlugs?.chat || "ingest-chat-prep-recipe")
     .eq("is_active", true)
     .single();
 
@@ -914,12 +987,14 @@ async function handlePipeline(
         try {
           const fnArgs = JSON.parse(fc.arguments);
           const query = fnArgs.query || "";
-          console.log(`[ingest] search_recipes: "${query}"`);
+          const filterDept = fnArgs.filter_department || null;
+          console.log(`[ingest] search_recipes: "${query}" dept=${filterDept}`);
 
           const { data, error: rpcError } = await supabase.rpc("search_recipes", {
             search_query: query,
             query_embedding: null,
             result_limit: 5,
+            filter_department: filterDept,
           });
 
           if (rpcError) {
@@ -1063,7 +1138,7 @@ async function handlePipeline(
   const { data: extractPromptRow, error: extractPromptError } = await supabase
     .from("ai_prompts")
     .select("prompt_en, prompt_es")
-    .eq("slug", PROMPT_SLUG_MAP[productTable]?.extract || "ingest-extract-prep-recipe")
+    .eq("slug", promptSlugs?.extract || "ingest-extract-prep-recipe")
     .eq("is_active", true)
     .single();
 
@@ -1187,6 +1262,16 @@ async function handlePipeline(
           : (preservedImages || []);
     }
 
+    // Cocktail defaults: ensure ingredients array exists
+    if (productTable === "cocktails") {
+      if (!(currentDraft as any).ingredients) (currentDraft as any).ingredients = [];
+    }
+
+    // Prep recipe defaults: ensure department is set (use request-level department as fallback)
+    if (productTable === "prep_recipes") {
+      if (!(currentDraft as any).department) (currentDraft as any).department = reqDepartment || "kitchen";
+    }
+
     // Restore plate spec-specific fields (dishGuide, dishGuideStale)
     if (productTable === "plate_specs") {
       if (preservedDishGuide !== undefined) {
@@ -1251,6 +1336,14 @@ async function handlePipeline(
       if (d.image === undefined) d.image = null;
     } else {
       if (!d.images) d.images = [];
+    }
+    // Cocktail defaults: ensure ingredients array exists
+    if (productTable === "cocktails") {
+      if (!d.ingredients) d.ingredients = [];
+    }
+    // Prep recipe defaults: ensure department is set (use request-level department as fallback)
+    if (productTable === "prep_recipes") {
+      if (!d.department) d.department = reqDepartment || "kitchen";
     }
     // Plate spec defaults: align wire format with client PlateSpecDraft type
     if (productTable === "plate_specs") {
@@ -1630,6 +1723,7 @@ Rules:
       notes: "",
       image,
       isTopSeller: false,
+      isFeatured: false,
     };
 
     console.log(`[ingest] Dish guide generated: "${menuName}", ${allergens.length} allergens, ${keyIngredients.length} key ingredients`);
@@ -1769,6 +1863,321 @@ Rules:
 }
 
 // =============================================================================
+// BATCH EXTRACT — Beer/Liquor bulk ingestion
+// =============================================================================
+
+const BEER_LIQUOR_BATCH_SCHEMA = {
+  name: "beer_liquor_batch",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            category: { type: "string", enum: ["Beer", "Liquor"] },
+            subcategory: {
+              type: "string",
+              description:
+                "Beer: IPA, Lager, Stout, Pilsner, Wheat, Ale, Bock, Porter, Sour, etc. Liquor: Bourbon, Scotch, Vodka, Gin, Rum, Tequila, Mezcal, Whiskey, Brandy, Cognac, etc.",
+            },
+            producer: { type: "string", description: "Brewery or distillery" },
+            country: { type: "string" },
+            description: {
+              type: "string",
+              description: "1-3 sentence product description",
+            },
+            style: {
+              type: "string",
+              description: "Specific style/flavor profile",
+            },
+            notes: {
+              type: "string",
+              description: "Tasting notes, service temp, pairings",
+            },
+            isFeatured: { type: "boolean" },
+            confidence: {
+              type: "number",
+              description: "0-1 confidence score based on completeness of extracted info",
+            },
+          },
+          required: [
+            "name",
+            "category",
+            "subcategory",
+            "producer",
+            "country",
+            "description",
+            "style",
+            "notes",
+            "isFeatured",
+            "confidence",
+          ],
+          additionalProperties: false,
+        },
+      },
+      aiMessage: { type: "string" },
+    },
+    required: ["items", "aiMessage"],
+    additionalProperties: false,
+  },
+};
+
+const BATCH_CHUNK_SIZE = 25;
+
+/**
+ * Split text into chunks of roughly `chunkSize` non-empty lines each.
+ */
+function chunkText(text: string, chunkSize: number): string[] {
+  const lines = text.split("\n").filter((l) => l.trim() !== "");
+  if (lines.length <= chunkSize) return [lines.join("\n")];
+
+  const chunks: string[] = [];
+  for (let i = 0; i < lines.length; i += chunkSize) {
+    chunks.push(lines.slice(i, i + chunkSize).join("\n"));
+  }
+  return chunks;
+}
+
+interface BatchExtractRequest {
+  mode: "batch-extract";
+  content: string;
+  sessionId?: string;
+}
+
+async function handleBatchExtract(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  body: BatchExtractRequest,
+  openaiApiKey: string
+): Promise<Response> {
+  const { content, sessionId: existingSessionId } = body;
+
+  console.log(
+    `[ingest] Batch extract: sessionId=${existingSessionId || "new"}, contentLen=${content.length}`
+  );
+
+  // -------------------------------------------------------------------------
+  // 1. Load or create session
+  // -------------------------------------------------------------------------
+  let sessionId: string;
+
+  if (existingSessionId) {
+    const { data: session, error: sessionError } = await supabase
+      .from("ingestion_sessions")
+      .select("id, status, created_by")
+      .eq("id", existingSessionId)
+      .single();
+
+    if (sessionError || !session) {
+      return errorResponse("not_found", "Ingestion session not found", 404);
+    }
+    if (session.created_by !== userId) {
+      return errorResponse("Forbidden", "You do not own this session", 403);
+    }
+    sessionId = session.id;
+  } else {
+    const { data: session, error: sessionError } = await supabase
+      .from("ingestion_sessions")
+      .insert({
+        product_table: "beer_liquor_list",
+        ingestion_method: "batch",
+        status: "drafting",
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+
+    if (sessionError) {
+      console.error("[ingest] Failed to create batch session:", sessionError.message);
+      return errorResponse("server_error", "Failed to create ingestion session", 500);
+    }
+    sessionId = session.id;
+    console.log(`[ingest] Created batch session: ${sessionId}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. Fetch existing beer/liquor names for duplicate detection
+  // -------------------------------------------------------------------------
+  const { data: existingItems } = await supabase
+    .from("beer_liquor_list")
+    .select("id, name")
+    .eq("status", "published");
+
+  const existingMap = new Map<string, { id: string; name: string }>();
+  if (existingItems) {
+    for (const item of existingItems) {
+      existingMap.set(item.name.toLowerCase().trim(), { id: item.id, name: item.name });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. Chunk input and call AI for each chunk
+  // -------------------------------------------------------------------------
+  const chunks = chunkText(content, BATCH_CHUNK_SIZE);
+  console.log(`[ingest] Batch: ${chunks.length} chunk(s) to process`);
+
+  // deno-lint-ignore no-explicit-any
+  const allItems: any[] = [];
+  let lastAiMessage = "";
+  const failedChunks: number[] = [];
+
+  // Retry helper for transient OpenAI errors
+  async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (attempt === retries) throw err;
+        console.warn(`[ingest] Retry ${attempt + 1} after ${delayMs}ms...`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    throw new Error("Unreachable");
+  }
+
+  // Process all chunks in parallel with retry + partial failure handling
+  const chunkResults = await Promise.allSettled(
+    chunks.map(async (chunk, i) => {
+      console.log(`[ingest] Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+
+      return callWithRetry(async () => {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-5-mini-2025-08-07",
+            max_completion_tokens: 16000,
+            temperature: 0.2,
+            messages: [
+              {
+                role: "system",
+                content: `You are a beverage industry expert helping a steakhouse restaurant catalog their beer and liquor inventory.
+
+Extract EVERY item from the provided list. For each item:
+- Determine if it is Beer or Liquor
+- Use your knowledge to fill in missing fields (country, subcategory, producer, style, etc.)
+- Generate a professional 1-3 sentence description if not provided
+- Generate tasting notes and service recommendations if not provided
+- Set isFeatured to false by default
+- Set confidence based on how much info was available vs inferred (1.0 = all provided, 0.5 = mostly inferred)
+
+Common subcategories:
+- Beer: IPA, Lager, Stout, Pilsner, Wheat, Ale, Bock, Porter, Sour, Pale Ale, Amber, Blonde, Hefeweizen
+- Liquor: Bourbon, Scotch, Vodka, Gin, Rum, Tequila, Mezcal, Whiskey, Rye, Brandy, Cognac, Aperitif, Digestif, Amaro
+
+Do NOT skip any items. Extract everything, even if information is minimal.`,
+              },
+              {
+                role: "user",
+                content: `Extract all beer and liquor items from this list:\n\n${chunk}`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: BEER_LIQUOR_BATCH_SCHEMA,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`OpenAI API error (${response.status}): ${errText}`);
+        }
+
+        const aiResult = await response.json();
+        const rawContent = aiResult.choices?.[0]?.message?.content;
+
+        if (!rawContent) {
+          throw new Error("No content in AI response");
+        }
+
+        const parsed = JSON.parse(rawContent);
+        return { items: parsed.items || [], aiMessage: parsed.aiMessage || "" };
+      });
+    })
+  );
+
+  // Collect successful chunks + log failed ones
+  for (const [i, result] of chunkResults.entries()) {
+    if (result.status === "fulfilled") {
+      allItems.push(...result.value.items);
+      if (result.value.aiMessage) lastAiMessage = result.value.aiMessage;
+    } else {
+      console.error(`[ingest] Chunk ${i + 1} failed:`, result.reason);
+      failedChunks.push(i + 1);
+    }
+  }
+
+  // If ALL chunks failed, return error
+  if (allItems.length === 0 && failedChunks.length > 0) {
+    return errorResponse(
+      "ai_error",
+      `All ${failedChunks.length} chunk(s) failed during extraction. Please try again.`,
+      502
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. Flag duplicates
+  // -------------------------------------------------------------------------
+  let duplicateCount = 0;
+  const enrichedItems = allItems.map((item) => {
+    const key = item.name.toLowerCase().trim();
+    const existing = existingMap.get(key);
+    if (existing) {
+      duplicateCount++;
+      return { ...item, duplicateOf: existing };
+    }
+    return { ...item, duplicateOf: null };
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. Save to session draft_data
+  // -------------------------------------------------------------------------
+  const { error: updateErr } = await supabase
+    .from("ingestion_sessions")
+    .update({
+      draft_data: { items: enrichedItems },
+      status: "drafting",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId);
+
+  if (updateErr) {
+    console.error("[ingest] Failed to save batch draft:", updateErr.message);
+  }
+
+  console.log(
+    `[ingest] Batch extract complete: ${enrichedItems.length} items, ${duplicateCount} duplicates`
+  );
+
+  return new Response(
+    JSON.stringify({
+      sessionId,
+      items: enrichedItems,
+      totalExtracted: enrichedItems.length,
+      duplicates: duplicateCount,
+      message: failedChunks.length > 0
+        ? `Extracted ${enrichedItems.length} items. Chunks ${failedChunks.join(", ")} of ${chunks.length} failed — try re-extracting the remaining items.`
+        : lastAiMessage,
+      failedChunks,
+    }),
+    {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  );
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -1853,6 +2262,14 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 5. DISPATCH TO HANDLER
     // =========================================================================
+
+    // Batch extract mode — beer/liquor bulk ingestion, separate handler
+    if (body.mode === "batch-extract") {
+      if (!body.content?.trim()) {
+        return errorResponse("bad_request", "content is required for batch extraction", 400);
+      }
+      return await handleBatchExtract(supabase, userId, body as BatchExtractRequest, openaiApiKey);
+    }
 
     // Generate dish guide mode — separate request shape, no productTable/content required
     if (body.mode === "generate-dish-guide") {

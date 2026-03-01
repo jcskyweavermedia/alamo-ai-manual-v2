@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageTitle, MetaText } from "@/components/ui/typography";
+import { MetaText } from "@/components/ui/typography";
 import { AIAnswerCard } from "@/components/ui/ai-answer-card";
 import { UsageMeter } from "@/components/ui/usage-meter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { useUsageLimits } from "@/hooks/use-usage-limits";
 import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeWebRTC } from "@/hooks/use-realtime-webrtc";
 import { VoiceTranscript } from "@/components/manual/VoiceTranscript";
+import { FormNavigationCard } from "@/components/chat/FormNavigationCard";
+import type { FormSuggestion, FormPrefillState } from "@/types/forms";
 
 const Ask = () => {
   const { language, setLanguage } = useLanguage();
@@ -27,6 +29,11 @@ const Ask = () => {
     citations: Citation[];
     isLoading: boolean;
     isExpanding: boolean;
+  } | null>(null);
+
+  const [formSuggestions, setFormSuggestions] = useState<{
+    suggestions: FormSuggestion[];
+    prefillContext: string;
   } | null>(null);
 
   const { ask, isLoading } = useAskAI();
@@ -83,6 +90,16 @@ const Ask = () => {
         isLoading: false,
         isExpanding: false,
       });
+
+      // Check if the AI detected form intent and returned suggestions
+      if (result.formSuggestions?.length) {
+        setFormSuggestions({
+          suggestions: result.formSuggestions,
+          prefillContext: result.prefillContext || askedQuestion,
+        });
+      } else {
+        setFormSuggestions(null);
+      }
     } else {
       // Error occurred - clear the loading state
       setCurrentAnswer(null);
@@ -112,6 +129,18 @@ const Ask = () => {
       setCurrentAnswer(prev => prev ? { ...prev, isExpanding: false } : null);
     }
   };
+
+  // Navigate to a form with pre-fill context from chat
+  const handleFormSelect = useCallback((slug: string, prefillContext: string) => {
+    navigate(`/forms/${slug}`, {
+      state: { prefillContext, fromChat: true } as FormPrefillState,
+    });
+  }, [navigate]);
+
+  // Dismiss form suggestions
+  const handleFormDismiss = useCallback(() => {
+    setFormSuggestions(null);
+  }, []);
 
   // Map citations to AISource format for the card
   const mapCitationsToSources = (citations: Citation[]) => 
@@ -175,18 +204,31 @@ const Ask = () => {
             className="h-full"
           />
         ) : currentAnswer ? (
-          <AIAnswerCard
-            question={currentAnswer.question}
-            answer={currentAnswer.answer}
-            isLoading={currentAnswer.isLoading}
-            isExpanding={currentAnswer.isExpanding}
-            sources={!currentAnswer.isLoading ? mapCitationsToSources(currentAnswer.citations) : undefined}
-            onSourceClick={(source) => {
-              const citation = currentAnswer.citations.find(c => c.id === source.id);
-              if (citation) handleSourceClick(citation);
-            }}
-            onExpand={handleExpandAnswer}
-          />
+          <>
+            <AIAnswerCard
+              question={currentAnswer.question}
+              answer={currentAnswer.answer}
+              isLoading={currentAnswer.isLoading}
+              isExpanding={currentAnswer.isExpanding}
+              sources={!currentAnswer.isLoading ? mapCitationsToSources(currentAnswer.citations) : undefined}
+              onSourceClick={(source) => {
+                const citation = currentAnswer.citations.find(c => c.id === source.id);
+                if (citation) handleSourceClick(citation);
+              }}
+              onExpand={handleExpandAnswer}
+            />
+            {formSuggestions && (
+              <div className="mt-4">
+                <FormNavigationCard
+                  suggestions={formSuggestions.suggestions}
+                  prefillContext={formSuggestions.prefillContext}
+                  language={language}
+                  onSelectForm={handleFormSelect}
+                  onDismiss={handleFormDismiss}
+                />
+              </div>
+            )}
+          </>
         ) : null}
       </div>
     </div>
@@ -200,9 +242,17 @@ const Ask = () => {
       aiPanel={aiPanel}
     >
       <div className="space-y-xl">
-        <div className="space-y-sm">
-          <PageTitle>{labels.title}</PageTitle>
-          <MetaText>{labels.subtitle}</MetaText>
+        <div className="py-6">
+          <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+            {language === 'es' ? 'Conocimiento,' : 'Knowledge,'}
+            <br />
+            <span className="font-bold">{language === 'es' ? 'Al Instante' : 'On Demand'}</span> ⚡
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            {language === 'es'
+              ? 'Respuestas instantáneas de todo tu manual de operaciones.'
+              : 'Instant answers from your entire operations manual.'}
+          </p>
         </div>
 
         {/* Usage meter (mobile only) */}
@@ -291,18 +341,31 @@ const Ask = () => {
         {!isVoiceActive && (
           <div className="lg:hidden">
             {currentAnswer && (
-              <AIAnswerCard
-                question={currentAnswer.question}
-                answer={currentAnswer.answer}
-                isLoading={currentAnswer.isLoading}
-                isExpanding={currentAnswer.isExpanding}
-                sources={!currentAnswer.isLoading ? mapCitationsToSources(currentAnswer.citations) : undefined}
-                onSourceClick={(source) => {
-                  const citation = currentAnswer.citations.find(c => c.id === source.id);
-                  if (citation) handleSourceClick(citation);
-                }}
-                onExpand={handleExpandAnswer}
-              />
+              <>
+                <AIAnswerCard
+                  question={currentAnswer.question}
+                  answer={currentAnswer.answer}
+                  isLoading={currentAnswer.isLoading}
+                  isExpanding={currentAnswer.isExpanding}
+                  sources={!currentAnswer.isLoading ? mapCitationsToSources(currentAnswer.citations) : undefined}
+                  onSourceClick={(source) => {
+                    const citation = currentAnswer.citations.find(c => c.id === source.id);
+                    if (citation) handleSourceClick(citation);
+                  }}
+                  onExpand={handleExpandAnswer}
+                />
+                {formSuggestions && (
+                  <div className="mt-4">
+                    <FormNavigationCard
+                      suggestions={formSuggestions.suggestions}
+                      prefillContext={formSuggestions.prefillContext}
+                      language={language}
+                      onSelectForm={handleFormSelect}
+                      onDismiss={handleFormDismiss}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

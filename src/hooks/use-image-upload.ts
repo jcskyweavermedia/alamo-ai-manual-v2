@@ -60,7 +60,7 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // HOOK
 // =============================================================================
 
-export function useImageUpload(productTable: string = 'prep_recipes'): UseImageUploadReturn {
+export function useImageUpload(productTable: string = 'prep_recipes', department?: string): UseImageUploadReturn {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreviewState] = useState<string | null>(null);
@@ -156,6 +156,10 @@ export function useImageUpload(productTable: string = 'prep_recipes'): UseImageU
           formData.append('sessionId', sessionId);
         }
 
+        if (department) {
+          formData.append('department', department);
+        }
+
         // Call edge function via raw fetch (supabase.functions.invoke
         // does not support multipart/form-data)
         const response = await fetch(
@@ -206,7 +210,7 @@ export function useImageUpload(productTable: string = 'prep_recipes'): UseImageU
         setIsUploading(false);
       }
     },
-    [user, language, productTable],
+    [user, language, productTable, department],
   );
 
   return {

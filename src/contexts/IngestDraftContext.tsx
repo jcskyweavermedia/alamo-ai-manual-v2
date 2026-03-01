@@ -60,6 +60,7 @@ export type IngestAction =
   | { type: 'SET_PLATE_ALLERGENS'; payload: string[] }
   | { type: 'SET_PLATE_TAGS'; payload: string[] }
   | { type: 'SET_PLATE_NOTES'; payload: string }
+  | { type: 'SET_PLATE_FEATURED'; payload: boolean }
   // Component groups (plate spec — dedicated actions)
   | { type: 'ADD_COMPONENT_GROUP'; payload: PlateComponentGroup }
   | { type: 'UPDATE_COMPONENT_GROUP'; payload: { index: number; group: PlateComponentGroup } }
@@ -75,6 +76,7 @@ export type IngestAction =
   | { type: 'UPDATE_DISH_GUIDE_FIELD'; payload: { field: keyof FohPlateSpecDraft; value: FohPlateSpecDraft[keyof FohPlateSpecDraft] } }
   | { type: 'CLEAR_DISH_GUIDE' }
   // Prep recipe metadata
+  | { type: 'SET_PREP_FEATURED'; payload: boolean }
   | { type: 'SET_PREP_TYPE'; payload: string }
   | { type: 'SET_TAGS'; payload: string[] }
   | { type: 'SET_YIELD'; payload: { qty: number; unit: string } }
@@ -127,10 +129,10 @@ export type IngestAction =
   | { type: 'SET_WINE_NOTES'; payload: string }
   | { type: 'SET_WINE_IMAGE'; payload: string | null }
   | { type: 'SET_WINE_TOP_SELLER'; payload: boolean }
+  | { type: 'SET_WINE_FEATURED'; payload: boolean }
   // Cocktail metadata
   | { type: 'SET_COCKTAIL_STYLE'; payload: CocktailStyle }
   | { type: 'SET_COCKTAIL_GLASS'; payload: string }
-  | { type: 'SET_COCKTAIL_INGREDIENTS'; payload: string }
   | { type: 'SET_COCKTAIL_KEY_INGREDIENTS'; payload: string }
   | { type: 'SET_COCKTAIL_PROCEDURE'; payload: CocktailProcedureStep[] }
   | { type: 'SET_COCKTAIL_TASTING_NOTES'; payload: string }
@@ -138,6 +140,7 @@ export type IngestAction =
   | { type: 'SET_COCKTAIL_NOTES'; payload: string }
   | { type: 'SET_COCKTAIL_IMAGE'; payload: string | null }
   | { type: 'SET_COCKTAIL_TOP_SELLER'; payload: boolean }
+  | { type: 'SET_COCKTAIL_FEATURED'; payload: boolean }
   // Session
   | { type: 'SET_SESSION_ID'; payload: string }
   | { type: 'SET_EDITING_PRODUCT_ID'; payload: string | null }
@@ -179,6 +182,20 @@ function updateCocktailDraft(state: IngestState, draftUpdate: Partial<CocktailDr
   return { ...state, draft: { ...(state.draft as CocktailDraft), ...draftUpdate }, isDirty: true };
 }
 
+/** Generic helper: get ingredients from either PrepRecipeDraft or CocktailDraft */
+function getDraftIngredients(state: IngestState): RecipeIngredientGroup[] {
+  if (isCocktailDraft(state.draft)) return (state.draft as CocktailDraft).ingredients;
+  return (state.draft as PrepRecipeDraft).ingredients;
+}
+
+/** Generic helper: update ingredients on either PrepRecipeDraft or CocktailDraft */
+function updateIngredients(state: IngestState, ingredients: RecipeIngredientGroup[]): IngestState {
+  if (isCocktailDraft(state.draft)) {
+    return updateCocktailDraft(state, { ingredients });
+  }
+  return updatePrepDraft(state, { ingredients });
+}
+
 function updatePlateSpecDraft(
   state: IngestState,
   updater: (d: PlateSpecDraft) => Partial<PlateSpecDraft>
@@ -193,8 +210,22 @@ function updatePlateSpecDraft(
 
 function ingestReducer(state: IngestState, action: IngestAction): IngestState {
   switch (action.type) {
-    case 'SET_ACTIVE_TYPE':
-      return { ...state, activeType: action.payload };
+    case 'SET_ACTIVE_TYPE': {
+      const newDraft = action.payload === 'bar_prep'
+        ? createEmptyPrepRecipeDraft('bar')
+        : action.payload === 'prep_recipe'
+          ? createEmptyPrepRecipeDraft('kitchen')
+          : action.payload === 'plate_spec'
+            ? createEmptyPlateSpecDraft()
+            : action.payload === 'cocktail'
+              ? createEmptyCocktailDraft()
+              : action.payload === 'wine'
+                ? createEmptyWineDraft()
+                : action.payload === 'beer_liquor'
+                  ? createEmptyPrepRecipeDraft('kitchen')  // placeholder — BeerLiquorBatchIngest manages its own state
+                  : state.draft;
+      return { ...state, activeType: action.payload, draft: newDraft, isDirty: false, messages: [], sessionId: null, editingProductId: null, isSaving: false, draftVersion: 1 };
+    }
     case 'SET_MOBILE_MODE':
       return { ...state, mobileMode: action.payload };
     case 'ADD_MESSAGE':
@@ -238,13 +269,17 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       return { ...state, draft: mergedPayload, isDirty: true };
     }
     case 'RESET_DRAFT': {
-      const emptyDraft = state.activeType === 'plate_spec'
-        ? createEmptyPlateSpecDraft()
-        : state.activeType === 'cocktail'
-          ? createEmptyCocktailDraft()
-          : state.activeType === 'wine'
-            ? createEmptyWineDraft()
-            : createEmptyPrepRecipeDraft();
+      const emptyDraft = state.activeType === 'bar_prep'
+        ? createEmptyPrepRecipeDraft('bar')
+        : state.activeType === 'prep_recipe'
+          ? createEmptyPrepRecipeDraft('kitchen')
+          : state.activeType === 'plate_spec'
+            ? createEmptyPlateSpecDraft()
+            : state.activeType === 'cocktail'
+              ? createEmptyCocktailDraft()
+              : state.activeType === 'wine'
+                ? createEmptyWineDraft()
+                : createEmptyPrepRecipeDraft('kitchen');  // beer_liquor uses placeholder
       return { ...state, draft: emptyDraft, isDirty: false, messages: [], sessionId: null, editingProductId: null, isSaving: false, draftVersion: 1 };
     }
     case 'SET_DIRTY':
@@ -264,6 +299,8 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       }
       return updateWineDraft(state, { name: action.payload, slug });
     }
+    case 'SET_PREP_FEATURED':
+      return updatePrepDraft(state, { isFeatured: action.payload });
     case 'SET_PREP_TYPE':
       return updatePrepDraft(state, { prepType: action.payload });
     case 'SET_TAGS':
@@ -273,78 +310,72 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
     case 'SET_SHELF_LIFE':
       return updatePrepDraft(state, { shelfLifeValue: action.payload.value, shelfLifeUnit: action.payload.unit });
 
-    // === INGREDIENT GROUPS ===
+    // === INGREDIENT GROUPS (shared: prep recipes + cocktails) ===
     case 'ADD_INGREDIENT_GROUP': {
-      const d = state.draft as PrepRecipeDraft;
+      const ings = getDraftIngredients(state);
       const newGroup: RecipeIngredientGroup = {
-        group_name: action.payload || `Group ${d.ingredients.length + 1}`,
-        order: d.ingredients.length + 1,
+        group_name: action.payload || `Group ${ings.length + 1}`,
+        order: ings.length + 1,
         items: [],
         _key: crypto.randomUUID(),
       };
-      return updatePrepDraft(state, { ingredients: [...d.ingredients, newGroup] });
+      return updateIngredients(state, [...ings, newGroup]);
     }
     case 'REMOVE_INGREDIENT_GROUP': {
-      const d = state.draft as PrepRecipeDraft;
-      return updatePrepDraft(state, {
-        ingredients: reorderIngGroups(d.ingredients.filter((_, i) => i !== action.payload)),
-      });
+      const ings = getDraftIngredients(state);
+      return updateIngredients(state, reorderIngGroups(ings.filter((_, i) => i !== action.payload)));
     }
     case 'RENAME_INGREDIENT_GROUP': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       groups[action.payload.index] = { ...groups[action.payload.index], group_name: action.payload.name };
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
     case 'MOVE_GROUP_UP': {
-      const d = state.draft as PrepRecipeDraft;
-      return updatePrepDraft(state, {
-        ingredients: reorderIngGroups(swapArray(d.ingredients, action.payload, action.payload - 1)),
-      });
+      const ings = getDraftIngredients(state);
+      return updateIngredients(state, reorderIngGroups(swapArray(ings, action.payload, action.payload - 1)));
     }
     case 'MOVE_GROUP_DOWN': {
-      const d = state.draft as PrepRecipeDraft;
-      return updatePrepDraft(state, {
-        ingredients: reorderIngGroups(swapArray(d.ingredients, action.payload, action.payload + 1)),
-      });
+      const ings = getDraftIngredients(state);
+      return updateIngredients(state, reorderIngGroups(swapArray(ings, action.payload, action.payload + 1)));
     }
 
-    // === INDIVIDUAL INGREDIENTS ===
+    // === INDIVIDUAL INGREDIENTS (shared: prep recipes + cocktails) ===
     case 'ADD_INGREDIENT': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       const group = { ...groups[action.payload.groupIndex] };
       group.items = [...group.items, { name: '', quantity: 0, unit: '', allergens: [], _key: crypto.randomUUID() }];
       groups[action.payload.groupIndex] = group;
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
     case 'UPDATE_INGREDIENT': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       const group = { ...groups[action.payload.groupIndex] };
       const items = [...group.items];
       items[action.payload.itemIndex] = action.payload.item;
       group.items = items;
       groups[action.payload.groupIndex] = group;
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
     case 'REMOVE_INGREDIENT': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       const group = { ...groups[action.payload.groupIndex] };
       group.items = group.items.filter((_, i) => i !== action.payload.itemIndex);
       groups[action.payload.groupIndex] = group;
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
     case 'MOVE_INGREDIENT_UP': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       const group = { ...groups[action.payload.groupIndex] };
       group.items = swapArray(group.items, action.payload.itemIndex, action.payload.itemIndex - 1);
       groups[action.payload.groupIndex] = group;
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
     case 'MOVE_INGREDIENT_DOWN': {
-      const groups = [...(state.draft as PrepRecipeDraft).ingredients];
+      const groups = [...getDraftIngredients(state)];
       const group = { ...groups[action.payload.groupIndex] };
       group.items = swapArray(group.items, action.payload.itemIndex, action.payload.itemIndex + 1);
       groups[action.payload.groupIndex] = group;
-      return updatePrepDraft(state, { ingredients: groups });
+      return updateIngredients(state, groups);
     }
 
     // === PROCEDURE GROUPS ===
@@ -519,14 +550,14 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       return updateWineDraft(state, { image: action.payload });
     case 'SET_WINE_TOP_SELLER':
       return updateWineDraft(state, { isTopSeller: action.payload });
+    case 'SET_WINE_FEATURED':
+      return updateWineDraft(state, { isFeatured: action.payload });
 
     // === COCKTAIL METADATA ===
     case 'SET_COCKTAIL_STYLE':
       return updateCocktailDraft(state, { style: action.payload });
     case 'SET_COCKTAIL_GLASS':
       return updateCocktailDraft(state, { glass: action.payload });
-    case 'SET_COCKTAIL_INGREDIENTS':
-      return updateCocktailDraft(state, { ingredients: action.payload });
     case 'SET_COCKTAIL_KEY_INGREDIENTS':
       return updateCocktailDraft(state, { keyIngredients: action.payload });
     case 'SET_COCKTAIL_PROCEDURE':
@@ -541,6 +572,8 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       return updateCocktailDraft(state, { image: action.payload });
     case 'SET_COCKTAIL_TOP_SELLER':
       return updateCocktailDraft(state, { isTopSeller: action.payload });
+    case 'SET_COCKTAIL_FEATURED':
+      return updateCocktailDraft(state, { isFeatured: action.payload });
 
     // === PLATE SPEC METADATA ===
     case 'SET_PLATE_TYPE':
@@ -553,6 +586,8 @@ function ingestReducer(state: IngestState, action: IngestAction): IngestState {
       return updatePlateSpecDraft(state, () => ({ tags: action.payload }));
     case 'SET_PLATE_NOTES':
       return updatePlateSpecDraft(state, () => ({ notes: action.payload }));
+    case 'SET_PLATE_FEATURED':
+      return updatePlateSpecDraft(state, () => ({ isFeatured: action.payload }));
 
     // === COMPONENT GROUPS (plate spec) ===
     case 'ADD_COMPONENT_GROUP':

@@ -7,16 +7,18 @@ interface IngredientsColumnProps {
   batchMultiplier: number;
   onTapPrepRecipe?: (slug: string) => void;
   className?: string;
+  /** Hide the top-level "Ingredients" heading (useful when the parent already provides one) */
+  hideTitle?: boolean;
 }
 
-export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, className }: IngredientsColumnProps) {
+export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, className, hideTitle }: IngredientsColumnProps) {
   return (
     <div className={cn('space-y-md', className)}>
-      <h2 className="text-section-title text-foreground">Ingredients</h2>
+      {!hideTitle && <h2 className="text-section-title text-foreground">Ingredients</h2>}
 
       {groups.map((group, gi) => (
         <div key={gi}>
-          {/* Numbered group header matching procedure step numbers */}
+          {/* Group header: numbered circle + group name */}
           <div className="flex items-center gap-2 mb-xs">
             <span
               className={cn(
@@ -28,6 +30,9 @@ export function IngredientsColumn({ groups, batchMultiplier, onTapPrepRecipe, cl
             >
               {gi + 1}
             </span>
+            {group.group_name && (
+              <span className="text-xs font-semibold text-muted-foreground">{group.group_name}</span>
+            )}
           </div>
           <ul className="space-y-0">
             {group.items.map((item, ii) => (

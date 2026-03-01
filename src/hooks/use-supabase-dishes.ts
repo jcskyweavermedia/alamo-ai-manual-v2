@@ -8,7 +8,7 @@ export function useSupabaseDishes() {
     queryFn: async (): Promise<Dish[]> => {
       const { data, error } = await supabase
         .from('foh_plate_specs')
-        .select('id, slug, menu_name, plate_type, short_description, detailed_description, ingredients, key_ingredients, flavor_profile, allergens, allergy_notes, upsell_notes, notes, image, is_top_seller, plate_spec_id')
+        .select('id, slug, menu_name, plate_type, short_description, detailed_description, ingredients, key_ingredients, flavor_profile, allergens, allergy_notes, upsell_notes, notes, image, is_top_seller, is_featured, created_at, plate_spec_id')
         .eq('status', 'published')
         .order('menu_name');
 
@@ -30,7 +30,9 @@ export function useSupabaseDishes() {
         notes: row.notes ?? '',
         image: row.image,
         isTopSeller: row.is_top_seller,
+        isFeatured: row.is_featured,
         plateSpecId: row.plate_spec_id,
+        createdAt: row.created_at,
       }));
     },
     staleTime: 5 * 60 * 1000,

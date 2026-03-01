@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { MetadataFields } from './MetadataFields';
 
 import { IngredientsEditor } from './IngredientsEditor';
@@ -36,6 +38,20 @@ export function PrepRecipeEditor() {
 
   return (
     <div className="space-y-4">
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors",
+        draft.isFeatured
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+          : "bg-muted/30"
+      )}>
+        <span className="text-sm font-medium">Featured</span>
+        <Switch
+          id="prep-featured"
+          checked={draft.isFeatured}
+          onCheckedChange={(checked) => dispatch({ type: 'SET_PREP_FEATURED', payload: checked })}
+        />
+      </div>
+
       <Accordion type="multiple" defaultValue={['info', 'ingredients', 'procedure', 'images', 'batch', 'training', 'translation']}>
         {/* Recipe Info */}
         <AccordionItem value="info">

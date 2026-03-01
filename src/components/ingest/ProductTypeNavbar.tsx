@@ -15,7 +15,8 @@ export function ProductTypeNavbar({
   dirtyTypes,
 }: ProductTypeNavbarProps) {
   return (
-    <div className="flex gap-1 rounded-lg bg-muted p-1 overflow-x-auto scrollbar-none">
+    <div className="flex justify-center">
+    <div className="inline-flex gap-1 rounded-lg bg-muted p-1 overflow-x-auto scrollbar-none">
       {PRODUCT_TYPES.map((pt) => {
         const isActive = activeType === pt.key;
         const hasDraft = dirtyTypes?.has(pt.key);
@@ -54,6 +55,7 @@ export function ProductTypeNavbar({
 
         return pill;
       })}
+    </div>
     </div>
   );
 }

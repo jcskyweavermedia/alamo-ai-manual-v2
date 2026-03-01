@@ -193,8 +193,14 @@ function buildCocktailText(row: Record<string, unknown>): string {
   if (row.key_ingredients)
     parts.push(`Key Ingredients: ${row.key_ingredients}`);
 
-  // ingredients: text (plain string like "2 oz Bourbon, 0.5 oz Demerara syrup...")
-  if (row.ingredients) parts.push(`Ingredients: ${row.ingredients}`);
+  // ingredients: JSONB RecipeIngredientGroup[]
+  const groups = (row.ingredients as any[]) || [];
+  const ingredientNames = groups
+    .flatMap((g: any) => (g.items || []).map((i: any) =>
+      [i.quantity, i.unit, i.name].filter(Boolean).join(' ').trim()
+    ))
+    .filter(Boolean);
+  if (ingredientNames.length) parts.push(`Ingredients: ${ingredientNames.join(', ')}`);
 
   // procedure: JSONB [{ step, instruction }]
   const procedure = row.procedure as

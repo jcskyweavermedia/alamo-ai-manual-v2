@@ -6,6 +6,7 @@ import type { RecipeIngredientGroup, RecipeIngredient } from '@/types/products';
 interface IngredientsEditorProps {
   groups: RecipeIngredientGroup[];
   currentRecipeSlug?: string;
+  department?: 'kitchen' | 'bar';
   onAddGroup: (name?: string) => void;
   onRemoveGroup: (index: number) => void;
   onRenameGroup: (index: number, name: string) => void;
@@ -21,6 +22,7 @@ interface IngredientsEditorProps {
 export function IngredientsEditor({
   groups,
   currentRecipeSlug,
+  department,
   onAddGroup,
   onRemoveGroup,
   onRenameGroup,
@@ -48,6 +50,7 @@ export function IngredientsEditor({
           isFirst={gi === 0}
           isLast={gi === groups.length - 1}
           currentRecipeSlug={currentRecipeSlug}
+          department={department}
           onRename={(name) => onRenameGroup(gi, name)}
           onRemoveGroup={() => onRemoveGroup(gi)}
           onMoveGroupUp={() => onMoveGroupUp(gi)}

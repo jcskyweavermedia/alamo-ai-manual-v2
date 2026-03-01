@@ -106,6 +106,20 @@ export function DishGuideEditor() {
 
   return (
     <div className="space-y-4">
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors",
+        dg.isFeatured
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+          : "bg-muted/30"
+      )}>
+        <span className="text-sm font-medium">Featured</span>
+        <Switch
+          id="dg-featured"
+          checked={dg.isFeatured}
+          onCheckedChange={(checked) => updateField('isFeatured', checked)}
+        />
+      </div>
+
       <Accordion type="multiple" defaultValue={['identity', 'descriptions', 'details', 'options']}>
         {/* Identity */}
         <AccordionItem value="identity">

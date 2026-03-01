@@ -8,7 +8,7 @@ export function useSupabaseWines() {
     queryFn: async (): Promise<Wine[]> => {
       const { data, error } = await supabase
         .from('wines')
-        .select('id, slug, name, producer, region, country, vintage, varietal, blend, style, body, tasting_notes, producer_notes, notes, image, is_top_seller')
+        .select('id, slug, name, producer, region, country, vintage, varietal, blend, style, body, tasting_notes, producer_notes, notes, image, is_top_seller, is_featured, created_at')
         .eq('status', 'published')
         .order('name');
 
@@ -31,6 +31,8 @@ export function useSupabaseWines() {
         notes: row.notes ?? '',
         image: row.image,
         isTopSeller: row.is_top_seller,
+        isFeatured: row.is_featured,
+        createdAt: row.created_at,
       }));
     },
     staleTime: 5 * 60 * 1000,

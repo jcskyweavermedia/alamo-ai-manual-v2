@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Expand, X } from 'lucide-react';
+import { Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { WineStyleBadge } from './WineStyleBadge';
@@ -7,6 +7,7 @@ import { BodyIndicator } from './BodyIndicator';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Wine } from '@/types/products';
 import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
+import { AI_ACTION_ICONS } from '@/data/ai-action-icons';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -18,14 +19,6 @@ interface WineCardViewProps {
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
 }
-
-const AI_EMOJI_MAP: Record<string, string> = {
-  mic: '\uD83C\uDF99\uFE0F',
-  play: '\u25B6\uFE0F',
-  'graduation-cap': '\uD83C\uDF93',
-  'utensils-crossed': '\uD83C\uDF74',
-  'help-circle': '\u2753',
-};
 
 export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onActionChange }: WineCardViewProps) {
   const { isAdmin } = useAuth();
@@ -46,21 +39,6 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
       <div className="space-y-1 mb-3 md:mb-2 shrink-0">
         {/* Style label + title row */}
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className={cn(
-              'flex items-center justify-center shrink-0',
-              'h-10 w-10 rounded-lg',
-              'bg-orange-500 text-white',
-              'hover:bg-orange-600 active:bg-orange-700',
-              'shadow-sm transition-colors duration-150',
-              'mt-0.5'
-            )}
-            title="All Wines"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div className="flex-1 min-w-0">
             <WineStyleBadge style={wine.style} variant="text" />
             <h1 className="text-page-title text-foreground truncate">
@@ -80,16 +58,26 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
           )}
         </div>
 
-        {/* Top seller badge */}
-        {wine.isTopSeller && (
-          <div className="pl-[52px] flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
-            <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
-            <span>Top Seller</span>
+        {/* Top seller / Featured badges */}
+        {(wine.isTopSeller || wine.isFeatured) && (
+          <div className="flex items-center gap-3">
+            {wine.isTopSeller && (
+              <div className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
+                <span>Top Seller</span>
+              </div>
+            )}
+            {wine.isFeatured && (
+              <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
+                <span>Featured</span>
+              </div>
+            )}
           </div>
         )}
 
         {/* Sub-meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{wine.producer}</span>
           <span className="text-border">·</span>
           <span>{wine.region}, {wine.country}</span>
@@ -98,7 +86,7 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
         </div>
 
         {/* Grape + body row */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-[52px]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-sm text-foreground">{wine.varietal}</span>
           <span className="text-border">·</span>
           <BodyIndicator body={wine.body} />
@@ -108,10 +96,10 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
       {/* Divider */}
       <div className="border-t border-border mb-4 md:mb-3 shrink-0" />
 
-      {/* AI Action Buttons — white, emoji tile, no chevron */}
+      {/* AI Action Buttons */}
       <div className="flex items-center justify-center gap-2 mb-5 md:mb-4 flex-wrap">
         {PRODUCT_AI_ACTIONS.wines.map(({ key, label, icon }) => {
-          const emoji = AI_EMOJI_MAP[icon];
+          const Icon = AI_ACTION_ICONS[icon];
           const isActive = activeAction === key;
           return (
             <button
@@ -129,14 +117,8 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
                   : 'bg-card text-foreground shadow-sm hover:shadow-md'
               )}
             >
-              {emoji && (
-                <span className={cn(
-                  'flex items-center justify-center shrink-0',
-                  'w-8 h-8 rounded-[10px]',
-                  isActive ? 'bg-white/30' : 'bg-slate-100 dark:bg-slate-800'
-                )}>
-                  <span className="text-[18px] h-[18px] leading-[18px]">{emoji}</span>
-                </span>
+              {Icon && (
+                <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-white' : 'text-orange-500')} />
               )}
               <span>{label}</span>
             </button>

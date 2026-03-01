@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useSupabaseBeerLiquor } from '@/hooks/use-supabase-beer-liquor';
-import type { BeerLiquorItem, BeerLiquorCategory } from '@/types/products';
+import type { BeerLiquorItem, BeerLiquorCategory, ProductSortMode } from '@/types/products';
 import {
   groupBySubcategory,
   type BeerLiquorSubcategory,
@@ -14,6 +14,7 @@ export function useBeerLiquorViewer() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<BeerLiquorFilterMode>('all');
+  const [sortMode, setSortMode] = useState<ProductSortMode>('name');
 
   const filteredItems = useMemo(() => {
     let items = allItems;
@@ -33,8 +34,21 @@ export function useBeerLiquorViewer() {
       );
     }
 
-    return items;
-  }, [allItems, filterMode, searchQuery]);
+    const sorted = [...items];
+    switch (sortMode) {
+      case 'recent':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'featured':
+        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        break;
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return sorted;
+  }, [allItems, filterMode, searchQuery, sortMode]);
 
   const groupedItems = useMemo<Record<BeerLiquorSubcategory, BeerLiquorItem[]>>(
     () => groupBySubcategory(filteredItems as any),
@@ -82,6 +96,8 @@ export function useBeerLiquorViewer() {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedItem,
     selectItem,
     clearSelection,

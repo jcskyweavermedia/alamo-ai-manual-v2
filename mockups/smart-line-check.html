@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Line Check — Alamo Prime</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas: 'hsl(var(--canvas))',
+            surface: 'hsl(var(--surface))',
+            'surface-foreground': 'hsl(var(--surface-foreground))',
+            border: 'hsl(var(--border-color))',
+            muted: 'hsl(var(--muted))',
+            'muted-fg': 'hsl(var(--muted-fg))',
+            'tertiary-fg': 'hsl(var(--tertiary-fg))',
+            brand: 'hsl(var(--brand))',
+            ink: 'hsl(var(--ink))',
+          },
+          borderRadius: { 'card': '16px', 'pill': '9999px' },
+          fontFamily: {
+            sans: ['-apple-system','BlinkMacSystemFont','SF Pro Text','SF Pro Display','Inter','Segoe UI','Roboto','Helvetica','Arial','sans-serif'],
+            mono: ['ui-monospace','SF Mono','SFMono-Regular','Menlo','Monaco','Consolas','monospace'],
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+            'elevated': '0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04)',
+            'floating': '0 10px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06)',
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --canvas: 240 10% 98%;
+      --surface: 0 0% 100%;
+      --surface-foreground: 240 10% 7%;
+      --border-color: 240 6% 90%;
+      --muted: 240 5% 96%;
+      --muted-fg: 240 4% 38%;
+      --tertiary-fg: 240 4% 55%;
+      --brand: 25 95% 53%;
+      --ink: 240 10% 7%;
+    }
+    .dark {
+      --canvas: 240 10% 4%;
+      --surface: 240 10% 8%;
+      --surface-foreground: 240 5% 96%;
+      --border-color: 240 5% 18%;
+      --muted: 240 5% 15%;
+      --muted-fg: 240 5% 72%;
+      --tertiary-fg: 240 5% 57%;
+      --brand: 25 95% 53%;
+      --ink: 240 5% 96%;
+    }
+
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: hsl(var(--canvas));
+      color: hsl(var(--ink));
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02","cv03","cv04","cv11";
+      overflow-x: hidden;
+    }
+
+    .card {
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 16px;
+      padding: 24px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.08); }
+    .dark .card:hover { box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3); }
+
+    .time-pill-bar {
+      display: inline-flex;
+      background: hsl(var(--muted));
+      border-radius: 9999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .time-pill {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .time-pill.active {
+      background: hsl(var(--surface));
+      color: hsl(var(--ink));
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+    }
+    .time-pill:not(.active) { color: hsl(var(--muted-fg)); }
+    .time-pill:not(.active):hover { color: hsl(var(--ink)); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--border-color)); border-radius: 3px; }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      width: 240px;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      flex-shrink: 0;
+      background: hsl(var(--surface));
+      border-right: 1px solid hsl(var(--border-color));
+      display: flex;
+      flex-direction: column;
+      transition: width 0.23s ease;
+      overflow: hidden;
+      z-index: 60;
+    }
+    .sidebar.collapsed { width: 64px; }
+    .sidebar .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: hsl(var(--muted-fg));
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .sidebar .nav-item:hover { color: hsl(var(--ink)); }
+    .sidebar .nav-item.active { color: #2aa962; font-weight: 500; }
+    .sidebar .nav-item .nav-icon {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; flex-shrink: 0;
+    }
+    .sidebar .nav-item.active .nav-icon { background: #2aa962; color: white; }
+    .sidebar .nav-item:not(.active) .nav-icon { color: inherit; }
+    .sidebar .section-label {
+      display: flex; align-items: center; gap: 8px;
+      padding: 20px 12px 4px;
+    }
+    .sidebar .section-label span {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: hsl(var(--muted-fg) / 0.6); white-space: nowrap;
+    }
+    .sidebar .section-label .divider { flex: 1; border-top: 1px solid hsl(var(--border-color) / 0.4); }
+    .sidebar.collapsed .nav-label { display: none; }
+    .sidebar.collapsed .section-label .divider { display: none; }
+    .sidebar.collapsed .section-label span { font-size: 8px; letter-spacing: 0.08em; text-align: center; width: 100%; }
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 0; }
+    .sidebar.collapsed .section-label { padding: 20px 4px 4px; justify-content: center; }
+    @media (max-width: 767px) { .sidebar { display: none; } }
+
+    /* ===== Line Check Items ===== */
+    .line-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid hsl(var(--border-color));
+      transition: background 0.15s;
+    }
+    .line-item:last-child { border-bottom: none; }
+    .line-item:hover { background: hsl(var(--muted) / 0.5); margin: 0 -16px; padding-left: 16px; padding-right: 16px; border-radius: 8px; }
+
+    /* Check buttons */
+    .check-btn {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      border: 2px solid hsl(var(--border-color));
+      background: transparent;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .check-btn:hover { border-color: hsl(var(--muted-fg)); }
+    .check-btn.pass { background: #22c55e; border-color: #22c55e; color: white; }
+    .check-btn.fail { background: #ef4444; border-color: #ef4444; color: white; }
+
+    /* Action mini buttons */
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid hsl(var(--border-color));
+      background: transparent;
+      color: hsl(var(--muted-fg));
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .action-btn:hover {
+      border-color: #F97316;
+      color: #F97316;
+      background: rgba(249,115,22,0.05);
+    }
+    .action-btn.recording {
+      border-color: #ef4444;
+      color: #ef4444;
+      background: rgba(239,68,68,0.06);
+      animation: pulse-ring 1.5s infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
+      50% { box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+    }
+
+    /* Note pill */
+    .note-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 500;
+      background: rgba(249,115,22,0.08);
+      color: #c2410c;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Station progress bar */
+    .station-progress {
+      height: 6px;
+      border-radius: 3px;
+      background: hsl(var(--muted));
+      overflow: hidden;
+    }
+    .station-progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease-out;
+    }
+
+    /* AI panel slide */
+    .ai-panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 400px;
+      max-width: 100vw;
+      background: hsl(var(--surface));
+      border-left: 1px solid hsl(var(--border-color));
+      z-index: 200;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      box-shadow: -8px 0 24px rgb(0 0 0 / 0.1);
+      display: flex;
+      flex-direction: column;
+    }
+    .ai-panel.open { transform: translateX(0); }
+    .ai-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 199;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .ai-overlay.open { opacity: 1; pointer-events: auto; }
+
+    /* Chat inside AI panel */
+    .ai-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .ai-bubble {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .ai-bubble.user {
+      background: #F97316; color: white;
+      margin-left: auto; border-bottom-right-radius: 4px;
+    }
+    .ai-bubble.assistant {
+      background: hsl(var(--muted)); color: hsl(var(--ink));
+      margin-right: auto; border-bottom-left-radius: 4px;
+    }
+    .ai-input-bar {
+      display: flex; gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid hsl(var(--border-color));
+    }
+    .ai-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid hsl(var(--border-color));
+      background: hsl(var(--surface));
+      color: hsl(var(--ink));
+      font-size: 13px;
+      outline: none;
+    }
+    .ai-input:focus { border-color: #F97316; }
+    .ai-input::placeholder { color: hsl(var(--tertiary-fg)); }
+    .ai-send {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: #F97316; color: white;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none; flex-shrink: 0;
+    }
+    .ai-send:hover { opacity: 0.9; }
+
+    /* Voice recording modal */
+    .voice-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .voice-modal.open { opacity: 1; pointer-events: auto; }
+    .voice-modal-inner {
+      background: hsl(var(--surface));
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgb(0 0 0 / 0.2);
+    }
+    .voice-ring {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: #ef4444;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+      animation: pulse-ring 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="flex" style="height: 100vh; overflow: hidden;">
+
+  <!-- ================================================================== -->
+  <!-- SIDEBAR                                                             -->
+  <!-- ================================================================== -->
+  <aside class="sidebar" id="app-sidebar">
+    <div class="flex items-center h-14 px-4 overflow-hidden" style="border-bottom: 1px solid hsl(var(--border-color));">
+      <img src="/images/tastly-isotope.svg" alt="Tastly" class="w-7 h-7 shrink-0" onerror="this.style.display='none'">
+      <span class="nav-label font-bold text-lg ml-2.5 whitespace-nowrap" style="color: hsl(var(--ink));">Tastly AI</span>
+    </div>
+    <div class="px-2 pt-3 pb-1 mb-2">
+      <div class="nav-item" onclick="toggleSidebar()">
+        <span class="nav-icon"><i data-lucide="panel-left-close" class="w-5 h-5" id="collapse-icon"></i></span>
+        <span class="nav-label">Collapse</span>
+      </div>
+    </div>
+    <nav class="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto" style="scrollbar-width: none;">
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="book-open" class="w-5 h-5"></i></span><span class="nav-label">Manual</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="search" class="w-5 h-5"></i></span><span class="nav-label">Search</span></a>
+      <div class="section-label"><span>BOH</span><div class="divider"></div></div>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="chef-hat" class="w-5 h-5"></i></span><span class="nav-label">Recipes</span></a>
+      <div class="section-label"><span>FOH</span><div class="divider"></div></div>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="utensils-crossed" class="w-5 h-5"></i></span><span class="nav-label">Dish Guide</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="wine" class="w-5 h-5"></i></span><span class="nav-label">Wines</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="martini" class="w-5 h-5"></i></span><span class="nav-label">Cocktails</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="beer" class="w-5 h-5"></i></span><span class="nav-label">Beer & Liquor</span></a>
+      <div class="section-label"><span>FORMS</span><div class="divider"></div></div>
+      <a class="nav-item active" href="#"><span class="nav-icon"><i data-lucide="clipboard-check" class="w-5 h-5"></i></span><span class="nav-label">Line Check</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="clipboard-list" class="w-5 h-5"></i></span><span class="nav-label">Forms</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="sparkles" class="w-5 h-5"></i></span><span class="nav-label">Ask AI</span></a>
+    </nav>
+    <div class="mx-4" style="border-top: 1px solid hsl(var(--border-color));"></div>
+    <nav class="py-4 px-2 space-y-0.5">
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></span><span class="nav-label">Training</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="star" class="w-5 h-5"></i></span><span class="nav-label">Reviews</span></a>
+      <a class="nav-item" href="#"><span class="nav-icon"><i data-lucide="settings" class="w-5 h-5"></i></span><span class="nav-label">Admin</span></a>
+    </nav>
+  </aside>
+
+  <!-- ================================================================== -->
+  <!-- RIGHT COLUMN                                                        -->
+  <!-- ================================================================== -->
+  <div class="flex-1 flex flex-col min-w-0 min-h-0" style="overflow-y: auto;">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50" style="background: hsl(var(--canvas)); border-bottom: 1px solid hsl(var(--border-color));">
+    <div class="px-4 md:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-14">
+        <div class="flex items-center gap-3">
+          <button class="md:hidden w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));"><i data-lucide="menu" class="w-5 h-5"></i></button>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Voice Dictate Line -->
+          <button class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all" style="border: 1px solid hsl(var(--border-color)); color: hsl(var(--muted-fg));" onclick="openVoiceModal()" id="voice-global-btn">
+            <i data-lucide="mic" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Dictate Line</span>
+          </button>
+          <!-- Adjust with AI -->
+          <button class="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90" style="background: #F97316; color: white;" onclick="openAIPanel()">
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Adjust with AI</span>
+          </button>
+          <!-- Dark Mode -->
+          <button id="dark-toggle" class="w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));" onclick="toggleDark()">
+            <i data-lucide="sun" class="w-[18px] h-[18px]" id="icon-sun"></i>
+            <i data-lucide="moon" class="w-[18px] h-[18px] hidden" id="icon-moon"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================== -->
+  <!-- MAIN CONTENT                                                        -->
+  <!-- ================================================================== -->
+  <main class="px-4 md:px-6 lg:px-8 py-6 pb-24">
+
+    <!-- Page Title + Summary -->
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <h1 class="text-2xl md:text-3xl font-bold tracking-tight" style="color: hsl(var(--ink));">Smart Line Check</h1>
+          <span class="text-[10px] font-bold px-2.5 py-1 rounded-pill text-white" style="background: #F97316;">DINNER</span>
+        </div>
+        <p class="text-sm" style="color: hsl(var(--muted-fg));">Saturday, March 1, 2026 &middot; Started by <strong>David Chen</strong> at 3:45 PM</p>
+      </div>
+      <!-- Summary stats -->
+      <div class="flex items-center gap-4">
+        <div class="text-center">
+          <span class="text-2xl font-bold font-mono" style="color: #22c55e; font-variant-numeric: tabular-nums;" id="pass-count">0</span>
+          <p class="text-[10px] font-medium" style="color: hsl(var(--muted-fg));">Pass</p>
+        </div>
+        <div class="text-center">
+          <span class="text-2xl font-bold font-mono" style="color: #ef4444; font-variant-numeric: tabular-nums;" id="fail-count">0</span>
+          <p class="text-[10px] font-medium" style="color: hsl(var(--muted-fg));">Fail</p>
+        </div>
+        <div class="text-center">
+          <span class="text-2xl font-bold font-mono" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;" id="unchecked-count">0</span>
+          <p class="text-[10px] font-medium" style="color: hsl(var(--muted-fg));">Remaining</p>
+        </div>
+        <div class="ml-2">
+          <div class="station-progress" style="width: 80px;">
+            <div class="station-progress-fill" id="total-progress-bar" style="width: 0%; background: #22c55e;"></div>
+          </div>
+          <p class="text-[10px] font-mono text-center mt-0.5" style="color: hsl(var(--muted-fg));" id="total-progress-pct">0%</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Station cards -->
+    <div class="space-y-5" id="stations-container">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Submit bar -->
+    <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <button class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90" style="background: hsl(var(--ink)); color: hsl(var(--canvas));">
+        <i data-lucide="check-circle" class="w-4 h-4"></i>
+        Submit Line Check
+      </button>
+      <button class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium" style="border: 1px solid hsl(var(--border-color)); color: hsl(var(--muted-fg));">
+        <i data-lucide="save" class="w-4 h-4"></i>
+        Save Draft
+      </button>
+      <span class="text-xs self-center" style="color: hsl(var(--tertiary-fg));">Auto-saved 2 min ago</span>
+    </div>
+
+  </main>
+
+  </div><!-- end right column -->
+  </div><!-- end app shell -->
+
+  <!-- ================================================================== -->
+  <!-- AI PANEL (slide-in from right)                                      -->
+  <!-- ================================================================== -->
+  <div class="ai-overlay" id="ai-overlay" onclick="closeAIPanel()"></div>
+  <div class="ai-panel" id="ai-panel">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-3" style="border-bottom: 1px solid hsl(var(--border-color));">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background: #F97316;">
+          <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+        </div>
+        <span class="text-sm font-bold" style="color: hsl(var(--ink));">Line Check AI</span>
+      </div>
+      <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));" onclick="closeAIPanel()">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Messages -->
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-bubble assistant">
+        <span>I can help you adjust this line check. Try:</span>
+        <ul class="mt-2 space-y-1 text-xs" style="color: hsl(var(--muted-fg));">
+          <li>"Add wagyu burger to grill station"</li>
+          <li>"Remove Caesar from cold station"</li>
+          <li>"Change temp spec for ribeye to 38°F"</li>
+          <li>"What items are failing right now?"</li>
+          <li>"Suggest items I might be missing"</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Suggested chips -->
+    <div class="flex flex-wrap gap-1.5 px-4 pb-2" id="ai-chips">
+      <button class="action-btn" style="font-size: 11px;" onclick="aiSend('What items are failing?')">
+        <i data-lucide="alert-circle" class="w-3 h-3"></i> Show failures
+      </button>
+      <button class="action-btn" style="font-size: 11px;" onclick="aiSend('Suggest missing items')">
+        <i data-lucide="lightbulb" class="w-3 h-3"></i> Suggest items
+      </button>
+      <button class="action-btn" style="font-size: 11px;" onclick="aiSend('Auto-fill remaining with pass')">
+        <i data-lucide="check-check" class="w-3 h-3"></i> Auto-pass remaining
+      </button>
+    </div>
+
+    <!-- Input -->
+    <div class="ai-input-bar">
+      <input type="text" class="ai-input" id="ai-input" placeholder="Adjust the line check..." onkeydown="if(event.key==='Enter')aiSendFromInput()">
+      <button class="ai-send" onclick="aiSendFromInput()"><i data-lucide="send" class="w-4 h-4"></i></button>
+    </div>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- VOICE MODAL                                                         -->
+  <!-- ================================================================== -->
+  <div class="voice-modal" id="voice-modal">
+    <div class="voice-modal-inner">
+      <div class="voice-ring">
+        <i data-lucide="mic" class="w-8 h-8 text-white"></i>
+      </div>
+      <p class="text-lg font-bold mb-1" style="color: hsl(var(--ink));">Listening...</p>
+      <p class="text-sm mb-6" style="color: hsl(var(--muted-fg));">Dictate your notes for the entire line.<br>e.g. "Ribeye looks good, lobster tails need re-stocking, fries are low"</p>
+      <div class="p-3 rounded-xl mb-6 text-left text-sm" style="background: hsl(var(--muted)); color: hsl(var(--ink)); min-height: 60px;" id="voice-transcript">
+        <span style="color: hsl(var(--tertiary-fg));">Transcript will appear here...</span>
+      </div>
+      <div class="flex gap-3 justify-center">
+        <button class="px-5 py-2.5 rounded-xl text-sm font-semibold" style="border: 1px solid hsl(var(--border-color)); color: hsl(var(--muted-fg));" onclick="closeVoiceModal()">Cancel</button>
+        <button class="px-5 py-2.5 rounded-xl text-sm font-semibold" style="background: #F97316; color: white;" onclick="applyVoiceTranscript()">
+          <span class="flex items-center gap-2"><i data-lucide="sparkles" class="w-4 h-4"></i> Apply with AI</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- JAVASCRIPT                                                          -->
+  <!-- ================================================================== -->
+  <script>
+    // ===== Station & Item Data =====
+    const STATIONS = [
+      {
+        name: 'Grill Station',
+        icon: 'flame',
+        color: '#ea580c',
+        items: [
+          { name: 'Bone-In Ribeye (32oz)', desc: 'Internal temp ≤ 38°F, marbled, properly aged 28-day', status: null },
+          { name: 'NY Strip (16oz)', desc: 'Trimmed, portioned, temped at ≤ 38°F', status: null },
+          { name: 'Filet Mignon (8oz)', desc: 'Center-cut, tied, ≤ 38°F', status: null },
+          { name: 'Wagyu Slider Patties', desc: '4oz each, formed, 6 par minimum', status: null },
+          { name: 'Tomahawk Ribeye (40oz)', desc: 'Frenched, tempered 30 min before service, ≤ 38°F', status: null },
+          { name: 'Lamb Chops (Double-Cut)', desc: '2 per order, trimmed, ≤ 38°F', status: null },
+          { name: 'Grilled Salmon Fillet', desc: 'Skin-on, 8oz portions, ≤ 38°F, check for bones', status: null },
+          { name: 'Chimichurri (grill side)', desc: 'Fresh batch, bright green, not oxidized, labeled today', status: null },
+          { name: 'Compound Butter', desc: 'Herb butter logs sliced, 8 pats minimum, ≤ 40°F', status: null },
+          { name: 'Grill Grates', desc: 'Cleaned, oiled, pre-heated to 650°F+', status: null },
+        ]
+      },
+      {
+        name: 'Sauté Station',
+        icon: 'cooking-pot',
+        color: '#d97706',
+        items: [
+          { name: 'Truffle Mac & Cheese', desc: '6 ramekins prepped, cheese sauce hot ≥ 165°F', status: null },
+          { name: 'Lobster Tail (6oz)', desc: 'Butterflied, 4 par minimum, ≤ 38°F', status: null },
+          { name: 'Shrimp Scampi', desc: 'Peeled, deveined, 6ct per order, ≤ 38°F', status: null },
+          { name: 'Béarnaise Sauce', desc: 'Fresh batch, smooth, holding ≤ 140°F, no break', status: null },
+          { name: 'Red Wine Demi-Glace', desc: 'Reduced, glossy, ≥ 165°F, 1qt minimum', status: null },
+          { name: 'Peppercorn Cream Sauce', desc: 'Batch prepped, cracked pepper visible, ≥ 165°F', status: null },
+          { name: 'Sautéed Mushrooms', desc: 'Sliced, 2 pints prepped, golden not soggy', status: null },
+          { name: 'Creamed Spinach', desc: '4 portions prepped, ≥ 165°F holding temp', status: null },
+          { name: 'Garlic Butter Shrimp', desc: 'For steak add-on, 3ct per order, par 12', status: null },
+        ]
+      },
+      {
+        name: 'Cold Station / Garde Manger',
+        icon: 'snowflake',
+        color: '#2563eb',
+        items: [
+          { name: 'Caesar Salad Mix', desc: 'Romaine chopped, croutons separate, ≤ 40°F', status: null },
+          { name: 'Wedge Salad', desc: 'Iceberg quartered, bacon bits prepped, blue cheese crumbled', status: null },
+          { name: 'Burrata & Heirloom Tomato', desc: 'Burrata ≤ 38°F, tomatoes sliced, basil picked', status: null },
+          { name: 'Shrimp Cocktail', desc: '5ct jumbo, poached, chilled ≤ 38°F, cocktail sauce portioned', status: null },
+          { name: 'Tuna Tartare', desc: 'Sushi-grade, diced, ≤ 36°F, avocado prepped, wonton chips', status: null },
+          { name: 'Oysters on Ice', desc: '12 par, shucked to order, mignonette & lemon prepped', status: null },
+          { name: 'Crème Brûlée', desc: '8 ramekins set, chilled ≤ 38°F, sugar for torching', status: null },
+          { name: 'Key Lime Pie', desc: '6 slices plated-ready, whipped cream in piping bag', status: null },
+          { name: 'Cheesecake', desc: 'NY-style, 8 slices, berry compote in squeeze bottle', status: null },
+          { name: 'Dressings & Vinaigrettes', desc: 'Caesar, ranch, balsamic — all labeled, dated, ≤ 40°F', status: null },
+        ]
+      },
+      {
+        name: 'Fry Station',
+        icon: 'zap',
+        color: '#ca8a04',
+        items: [
+          { name: 'Truffle Fries', desc: 'Blanched, par-fried, 2 hotel pans minimum, truffle oil staged', status: null },
+          { name: 'Onion Rings', desc: 'Beer-battered, 3 dozen par, ≤ 38°F pre-fry', status: null },
+          { name: 'Crispy Brussels Sprouts', desc: 'Halved, par-blanched, 2 pans prepped, chili glaze ready', status: null },
+          { name: 'Fried Calamari', desc: 'Rings & tentacles, breaded, 12 portions par', status: null },
+          { name: 'Sweet Potato Fries', desc: 'Cut, soaked, drained, 1 pan minimum', status: null },
+          { name: 'Fryer Oil', desc: 'Clean, ≤ 350°F resting, no dark sediment, filtered today', status: null },
+        ]
+      },
+      {
+        name: 'Expo / Pass',
+        icon: 'bell',
+        color: '#7c3aed',
+        items: [
+          { name: 'Plate Inventory', desc: 'Dinner plates (40+), steak plates (20+), bowls (15+) — heated', status: null },
+          { name: 'Garnish Tray', desc: 'Microgreens, edible flowers, flake salt, cracked pepper — all fresh', status: null },
+          { name: 'Sauce Squeeze Bottles', desc: 'Demi, chimichurri, balsamic reduction — filled, wiped, capped', status: null },
+          { name: 'Bread Service Setup', desc: 'Sourdough sliced, whipped butter portioned, 20 setups', status: null },
+          { name: 'Steak Knives', desc: 'Polished, 30+ staged, no water spots', status: null },
+          { name: 'Heat Lamps', desc: 'All working, positioned correctly, bulbs checked', status: null },
+          { name: 'Ticket Rail & Printer', desc: 'Paper loaded, printer tested, rail clips clean', status: null },
+          { name: 'Sanitizer Buckets', desc: 'Fresh solution, towels stocked, 200ppm concentration verified', status: null },
+        ]
+      },
+      {
+        name: 'Prep & Mise en Place',
+        icon: 'package',
+        color: '#059669',
+        items: [
+          { name: 'Diced Onions', desc: '2qt brunoise, 2qt medium dice, labeled, ≤ 40°F', status: null },
+          { name: 'Minced Garlic', desc: '1qt fresh, not oxidized, covered, labeled today', status: null },
+          { name: 'Chopped Herbs', desc: 'Parsley, chives, thyme — picked, chopped, damp towel cover', status: null },
+          { name: 'Potato Purée', desc: '1 full hotel pan, smooth, ≥ 165°F, butter incorporated', status: null },
+          { name: 'Stock (Beef & Chicken)', desc: '2qt each minimum, strained, dated, ≤ 40°F or ≥ 165°F', status: null },
+          { name: 'Lemon Wedges & Zest', desc: '30 wedges, zest in deli cup, covered', status: null },
+          { name: 'Portioned Proteins (Tomorrow)', desc: 'Next-day proteins pulled, portioned, labeled, thawing ≤ 38°F', status: null },
+        ]
+      },
+    ];
+
+    // Track notes per item
+    const itemNotes = {};
+
+    // ===== Render Functions =====
+    function renderStations() {
+      const container = document.getElementById('stations-container');
+      container.innerHTML = STATIONS.map((station, si) => {
+        const itemCount = station.items.length;
+        const passCount = station.items.filter(i => i.status === 'pass').length;
+        const failCount = station.items.filter(i => i.status === 'fail').length;
+        const checkedCount = passCount + failCount;
+        const pct = itemCount > 0 ? Math.round((checkedCount / itemCount) * 100) : 0;
+        const barColor = failCount > 0 ? '#f59e0b' : '#22c55e';
+
+        return `
+          <div class="card" id="station-${si}">
+            <!-- Station Header -->
+            <div class="flex items-center justify-between mb-1 cursor-pointer" onclick="toggleStation(${si})">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: ${station.color}15;">
+                  <i data-lucide="${station.icon}" class="w-5 h-5" style="color: ${station.color};"></i>
+                </div>
+                <div>
+                  <p class="text-base font-bold" style="color: hsl(var(--ink));">${station.name}</p>
+                  <p class="text-xs" style="color: hsl(var(--muted-fg));">${itemCount} items &middot; ${passCount} pass${failCount > 0 ? ` &middot; <span style="color:#ef4444;">${failCount} fail</span>` : ''}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="hidden sm:block text-right">
+                  <div class="station-progress" style="width: 60px;">
+                    <div class="station-progress-fill" style="width: ${pct}%; background: ${barColor};"></div>
+                  </div>
+                  <p class="text-[10px] font-mono mt-0.5" style="color: hsl(var(--muted-fg));">${pct}%</p>
+                </div>
+                <i data-lucide="chevron-down" class="w-5 h-5 transition-transform" style="color: hsl(var(--muted-fg));" id="chevron-${si}"></i>
+              </div>
+            </div>
+
+            <!-- Items (collapsible) -->
+            <div class="mt-3" id="items-${si}">
+              ${station.items.map((item, ii) => renderItem(si, ii, item)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateCounts();
+      setTimeout(() => lucide.createIcons(), 50);
+    }
+
+    function renderItem(si, ii, item) {
+      const key = `${si}-${ii}`;
+      const note = itemNotes[key];
+      const isPass = item.status === 'pass';
+      const isFail = item.status === 'fail';
+
+      return `
+        <div class="line-item" id="item-${si}-${ii}">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start gap-2 mb-1">
+              <span class="text-sm font-semibold" style="color: hsl(var(--ink));">${item.name}</span>
+            </div>
+            <p class="text-xs leading-relaxed mb-2" style="color: hsl(var(--muted-fg));">${item.desc}</p>
+            <!-- Action buttons row -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button class="action-btn" onclick="askAIAbout(${si}, ${ii})">
+                <i data-lucide="sparkles" class="w-3 h-3"></i> Ask AI
+              </button>
+              <button class="action-btn" onclick="addSmartNote(${si}, ${ii})">
+                <i data-lucide="pencil" class="w-3 h-3"></i> Note
+              </button>
+              <button class="action-btn" onclick="voiceNoteItem(${si}, ${ii})" id="voice-btn-${si}-${ii}">
+                <i data-lucide="mic" class="w-3 h-3"></i> Voice
+              </button>
+              ${note ? `<span class="note-pill" title="${note}"><i data-lucide="message-square" class="w-3 h-3 flex-shrink-0"></i> ${note}</span>` : ''}
+            </div>
+          </div>
+          <!-- Pass / Fail buttons -->
+          <div class="flex items-center gap-2 pt-1">
+            <button class="check-btn ${isPass ? 'pass' : ''}" onclick="setStatus(${si}, ${ii}, 'pass')" title="Pass">
+              <i data-lucide="check" class="w-5 h-5"></i>
+            </button>
+            <button class="check-btn ${isFail ? 'fail' : ''}" onclick="setStatus(${si}, ${ii}, 'fail')" title="Fail">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ===== Interactions =====
+    function setStatus(si, ii, status) {
+      const item = STATIONS[si].items[ii];
+      item.status = item.status === status ? null : status; // toggle
+      renderStations();
+    }
+
+    function toggleStation(si) {
+      const items = document.getElementById(`items-${si}`);
+      const chevron = document.getElementById(`chevron-${si}`);
+      if (items.style.display === 'none') {
+        items.style.display = '';
+        chevron.style.transform = '';
+      } else {
+        items.style.display = 'none';
+        chevron.style.transform = 'rotate(-90deg)';
+      }
+    }
+
+    function updateCounts() {
+      let pass = 0, fail = 0, total = 0;
+      STATIONS.forEach(s => {
+        s.items.forEach(i => {
+          total++;
+          if (i.status === 'pass') pass++;
+          if (i.status === 'fail') fail++;
+        });
+      });
+      document.getElementById('pass-count').textContent = pass;
+      document.getElementById('fail-count').textContent = fail;
+      document.getElementById('unchecked-count').textContent = total - pass - fail;
+      const pct = total > 0 ? Math.round(((pass + fail) / total) * 100) : 0;
+      document.getElementById('total-progress-bar').style.width = pct + '%';
+      document.getElementById('total-progress-bar').style.background = fail > 0 ? '#f59e0b' : '#22c55e';
+      document.getElementById('total-progress-pct').textContent = pct + '%';
+    }
+
+    // ===== Smart Note =====
+    function addSmartNote(si, ii) {
+      const key = `${si}-${ii}`;
+      const existing = itemNotes[key] || '';
+      const note = prompt(`Note for "${STATIONS[si].items[ii].name}":`, existing);
+      if (note !== null) {
+        if (note.trim()) {
+          itemNotes[key] = note.trim();
+        } else {
+          delete itemNotes[key];
+        }
+        renderStations();
+      }
+    }
+
+    // ===== Ask AI About Item =====
+    function askAIAbout(si, ii) {
+      const item = STATIONS[si].items[ii];
+      openAIPanel();
+      setTimeout(() => {
+        const msgs = document.getElementById('ai-messages');
+        // User question
+        const q = document.createElement('div');
+        q.className = 'ai-bubble user';
+        q.textContent = `Tell me about "${item.name}" — what should I look for?`;
+        msgs.appendChild(q);
+
+        // AI response
+        setTimeout(() => {
+          const a = document.createElement('div');
+          a.className = 'ai-bubble assistant';
+          a.innerHTML = getAIItemResponse(si, ii);
+          msgs.appendChild(a);
+          msgs.scrollTop = msgs.scrollHeight;
+        }, 600);
+      }, 400);
+    }
+
+    function getAIItemResponse(si, ii) {
+      const item = STATIONS[si].items[ii];
+      const responses = {
+        'Bone-In Ribeye (32oz)': `<strong>Key checkpoints for Ribeye:</strong><br><br>• <strong>Temp:</strong> Must be ≤ 38°F. Use probe in thickest part.<br>• <strong>Marbling:</strong> Should see visible white fat threads throughout — USDA Prime grade.<br>• <strong>Aging:</strong> Verify 28-day dry-age tag. Smell for off odors.<br>• <strong>Par:</strong> Need 8 minimum for Saturday dinner. Count what's staged.<br>• <strong>Portioning:</strong> Each should weigh 30-34oz (allows for trim loss).`,
+        'Truffle Mac & Cheese': `<strong>Truffle Mac quality check:</strong><br><br>• <strong>Temp:</strong> Cheese sauce must hold ≥ 165°F — this is a TCS item.<br>• <strong>Texture:</strong> Should be creamy, not grainy or broken. If broken, re-emulsify with cream.<br>• <strong>Truffle oil:</strong> Added at service, not during holding — heat kills aroma.<br>• <strong>Par:</strong> 6 ramekins prepped. Saturday typically sells 15-20 covers of this.`,
+        'Fryer Oil': `<strong>Fryer oil quality check:</strong><br><br>• <strong>Color:</strong> Should be golden amber, not dark brown.<br>• <strong>Smell:</strong> Neutral. Any rancid or fishy smell = change immediately.<br>• <strong>Temp:</strong> Resting at ≤ 350°F between use. Service temp 360-375°F.<br>• <strong>Last filtered:</strong> Must be filtered daily. Check log sheet.<br>• <strong>TPM test:</strong> If you have test strips, should be below 24%.`,
+      };
+      return responses[item.name] || `<strong>${item.name}</strong><br><br>Check the spec: <em>${item.desc}</em><br><br>Key things to verify:<br>• Temperature compliance (probe thermometer)<br>• Visual quality and freshness<br>• Par level sufficient for Saturday dinner service<br>• Proper labeling and dating<br>• Cross-contamination prevention`;
+    }
+
+    // ===== Voice =====
+    function voiceNoteItem(si, ii) {
+      const btn = document.getElementById(`voice-btn-${si}-${ii}`);
+      if (btn.classList.contains('recording')) {
+        btn.classList.remove('recording');
+        // Simulate transcript
+        const notes = [
+          'Looks good, properly temped',
+          'Running low, need to pull more from walk-in',
+          'Slightly discolored, needs to be replaced',
+          'Perfect, fresh batch made this morning',
+          'Need to re-date, label is smudged',
+        ];
+        const note = notes[Math.floor(Math.random() * notes.length)];
+        const key = `${si}-${ii}`;
+        itemNotes[key] = note;
+        renderStations();
+      } else {
+        btn.classList.add('recording');
+        btn.innerHTML = '<i data-lucide="mic-off" class="w-3 h-3"></i> Stop';
+        lucide.createIcons();
+      }
+    }
+
+    function openVoiceModal() {
+      document.getElementById('voice-modal').classList.add('open');
+      // Simulate live transcript
+      const transcript = document.getElementById('voice-transcript');
+      transcript.innerHTML = '<span style="color: hsl(var(--tertiary-fg));">Listening...</span>';
+      setTimeout(() => {
+        transcript.innerHTML = '"Ribeye looks great, all temped under 38...';
+      }, 1200);
+      setTimeout(() => {
+        transcript.innerHTML = '"Ribeye looks great, all temped under 38. Truffle mac needs a new batch, sauce is breaking...';
+      }, 2500);
+      setTimeout(() => {
+        transcript.innerHTML = '"Ribeye looks great, all temped under 38. Truffle mac needs a new batch, sauce is breaking. Fryer oil is dark, needs to be changed before service. Caesar is good, lobster tails running low — pull 6 more from walk-in."';
+      }, 4000);
+      setTimeout(() => lucide.createIcons(), 50);
+    }
+
+    function closeVoiceModal() {
+      document.getElementById('voice-modal').classList.remove('open');
+    }
+
+    function applyVoiceTranscript() {
+      // Simulate AI applying the transcript
+      STATIONS[0].items[0].status = 'pass'; // Ribeye pass
+      itemNotes['0-0'] = 'All temped under 38°F';
+      STATIONS[1].items[0].status = 'fail'; // Truffle mac fail
+      itemNotes['1-0'] = 'Sauce is breaking, needs new batch';
+      STATIONS[3].items[5].status = 'fail'; // Fryer oil fail
+      itemNotes['3-5'] = 'Oil is dark, change before service';
+      STATIONS[2].items[0].status = 'pass'; // Caesar pass
+      STATIONS[1].items[1].status = 'pass'; // Lobster pass
+      itemNotes['1-1'] = 'Running low — pull 6 more from walk-in';
+
+      closeVoiceModal();
+      renderStations();
+    }
+
+    // ===== AI Panel =====
+    function openAIPanel() {
+      document.getElementById('ai-panel').classList.add('open');
+      document.getElementById('ai-overlay').classList.add('open');
+      setTimeout(() => {
+        document.getElementById('ai-input').focus();
+        lucide.createIcons();
+      }, 300);
+    }
+
+    function closeAIPanel() {
+      document.getElementById('ai-panel').classList.remove('open');
+      document.getElementById('ai-overlay').classList.remove('open');
+    }
+
+    function aiSendFromInput() {
+      const input = document.getElementById('ai-input');
+      const text = input.value.trim();
+      if (!text) return;
+      aiSend(text);
+      input.value = '';
+    }
+
+    function aiSend(text) {
+      openAIPanel();
+      const msgs = document.getElementById('ai-messages');
+
+      const q = document.createElement('div');
+      q.className = 'ai-bubble user';
+      q.textContent = text;
+      msgs.appendChild(q);
+      msgs.scrollTop = msgs.scrollHeight;
+
+      // Hide chips after first use
+      document.getElementById('ai-chips').style.display = 'none';
+
+      setTimeout(() => {
+        const a = document.createElement('div');
+        a.className = 'ai-bubble assistant';
+        a.innerHTML = getAIChatResponse(text);
+        msgs.appendChild(a);
+        msgs.scrollTop = msgs.scrollHeight;
+        setTimeout(() => lucide.createIcons(), 50);
+      }, 700);
+    }
+
+    function getAIChatResponse(text) {
+      const t = text.toLowerCase();
+      if (t.includes('failing') || t.includes('failure') || t.includes('fail')) {
+        const failures = [];
+        STATIONS.forEach((s, si) => {
+          s.items.forEach((item, ii) => {
+            if (item.status === 'fail') {
+              const note = itemNotes[`${si}-${ii}`] || '';
+              failures.push(`• <strong>${item.name}</strong> (${s.name})${note ? ' — ' + note : ''}`);
+            }
+          });
+        });
+        return failures.length > 0
+          ? `Found <strong>${failures.length} failing item(s):</strong><br><br>${failures.join('<br>')}<br><br>Would you like me to flag these for the KM?`
+          : 'No items are currently marked as failing. Keep going — you\'re doing great!';
+      }
+      if (t.includes('suggest') || t.includes('missing')) {
+        return `Based on a typical Saturday dinner line check for a steakhouse, you might be missing:<br><br>• <strong>Au Jus / Pan Drippings</strong> — common steak accompaniment<br>• <strong>Horseradish Cream</strong> — for prime rib or ribeye service<br>• <strong>Espresso Martini Prep</strong> — bar mise for your #3 seller<br>• <strong>Ice Bath for Raw Bar</strong> — if running oyster specials<br>• <strong>Allergen Cards</strong> — updated for tonight's specials<br><br>Want me to add any of these?`;
+      }
+      if (t.includes('auto-pass') || t.includes('auto-fill')) {
+        let count = 0;
+        STATIONS.forEach(s => {
+          s.items.forEach(item => {
+            if (item.status === null) { item.status = 'pass'; count++; }
+          });
+        });
+        renderStations();
+        return `Done! Marked <strong>${count} remaining items</strong> as pass. Review the full list and flip any that need attention.`;
+      }
+      if (t.includes('add') && t.includes('station')) {
+        return `I can add that! Just tell me:<br><br>1. <strong>Item name</strong><br>2. <strong>Which station</strong> (Grill, Sauté, Cold, Fry, Expo, Prep)<br>3. <strong>Spec / description</strong><br><br>Example: "Add Horseradish Cream to Grill Station — fresh batch, 1 pint, ≤ 40°F"`;
+      }
+      if (t.includes('remove') || t.includes('delete')) {
+        return `To remove an item, tell me the exact name and station. For example:<br><br>"Remove Sweet Potato Fries from Fry Station"<br><br>I'll take it off the current check. It won't delete it from your template — just this session.`;
+      }
+      if (t.includes('temp') || t.includes('temperature')) {
+        return `Updated! I can change temperature specs for any item. Just tell me the item and new target temp.<br><br>Remember: TCS foods must be held at ≤ 41°F (cold) or ≥ 135°F (hot) per FDA Food Code. Your house standard of 38°F gives a 3°F safety buffer.`;
+      }
+      return `I understand! Here are some things I can help with:<br><br>• Add or remove items from any station<br>• Change specs (temps, par levels, descriptions)<br>• Show which items are failing<br>• Suggest missing items for this service type<br>• Auto-pass remaining items<br>• Summarize the check for handoff<br><br>What would you like to do?`;
+    }
+
+    // ===== Sidebar =====
+    function toggleSidebar() {
+      const sidebar = document.getElementById('app-sidebar');
+      sidebar.classList.toggle('collapsed');
+      const icon = document.getElementById('collapse-icon');
+      icon.setAttribute('data-lucide', sidebar.classList.contains('collapsed') ? 'panel-left' : 'panel-left-close');
+      lucide.createIcons();
+    }
+
+    // ===== Dark Mode =====
+    function toggleDark() {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('icon-sun').classList.toggle('hidden', isDark);
+      document.getElementById('icon-moon').classList.toggle('hidden', !isDark);
+    }
+
+    // ===== Init =====
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      renderStations();
+    });
+  </script>
+</body>
+</html>

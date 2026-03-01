@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, ClipboardList, PanelLeft, PanelLeftClose, BarChart3, Plus } from 'lucide-react';
+import { BookOpen, Search, Sparkles, User, Settings, ChefHat, Utensils, Wine, Martini, Beer, ConciergeBell, GraduationCap, ClipboardList, PanelLeft, PanelLeftClose, BarChart3, Plus, Pipette, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { STAFF_NAV_ITEMS } from '@/lib/constants';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -21,6 +21,8 @@ const iconMap = {
   ClipboardList,
   BarChart3,
   Plus,
+  Pipette,
+  Star,
 } as const;
 
 interface SidebarProps {
@@ -51,16 +53,17 @@ export function Sidebar({
         { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
         { path: '/admin/ingest', label: 'Ingest', icon: 'Plus' },
         { path: '/admin/training', label: 'Training Dashboard', icon: 'BarChart3' },
+        { path: '/admin/reviews', label: 'Review Insights', icon: 'Star' },
         { path: '/admin', label: 'Admin', icon: 'Settings' },
       ]
     : STAFF_NAV_ITEMS;
 
   // Group items: main navigation vs profile/admin
   const mainItems = navItems.filter(item =>
-    !['/profile', '/admin', '/admin/training', '/admin/ingest'].includes(item.path)
+    !['/profile', '/admin', '/admin/training', '/admin/ingest', '/admin/reviews'].includes(item.path)
   );
   const secondaryItems = navItems.filter(item =>
-    ['/profile', '/admin', '/admin/training', '/admin/ingest'].includes(item.path)
+    ['/profile', '/admin', '/admin/training', '/admin/ingest', '/admin/reviews'].includes(item.path)
   );
 
   // Section headers injected before specific paths
@@ -157,30 +160,25 @@ export function Sidebar({
       {/* Logo/Brand */}
       <div className={cn(
         "flex items-center h-14 px-4 border-b border-border overflow-hidden",
-        collapsed ? "justify-center" : "justify-start"
+        collapsed ? "justify-center" : "justify-start gap-2.5"
       )}>
-        {/* Full name - fades out when collapsing */}
+        <img
+          src="/images/tastly-isotope.svg"
+          alt="Tastly"
+          className="w-7 h-7 shrink-0"
+        />
+
+        {/* Brand name - fades out when collapsing */}
         <span
           className={cn(
-            "text-lg font-semibold text-foreground whitespace-nowrap transition-all duration-300",
+            "font-bold text-foreground whitespace-nowrap transition-all duration-300",
+            "font-['Inter',sans-serif] text-lg",
             collapsed
               ? "opacity-0 w-0 scale-95"
               : "opacity-100 w-auto scale-100"
           )}
         >
-          Alamo Prime
-        </span>
-
-        {/* Abbreviation - fades in when collapsed */}
-        <span
-          className={cn(
-            "text-lg font-bold text-[#2aa962] absolute transition-all duration-300",
-            collapsed
-              ? "opacity-100 scale-100"
-              : "opacity-0 scale-95"
-          )}
-        >
-          AP
+          Tastly AI
         </span>
       </div>
 

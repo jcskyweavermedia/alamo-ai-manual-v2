@@ -82,7 +82,7 @@ export function Header({
     <header
       className={cn(
         "z-40 flex-shrink-0",
-        "flex items-center justify-between gap-3",
+        "relative flex items-center justify-between gap-3",
         "h-14 px-4 md:px-6",
         "bg-background",
         "",
@@ -106,11 +106,14 @@ export function Header({
         {leftContent}
       </div>
 
-      {/* Center section: toolbar or manual search */}
+      {/* Center section: toolbar (absolute center) or manual search (flex center) */}
+      {toolbar && (
+        <div className="absolute left-1/2 -translate-x-1/2 z-10">
+          {toolbar}
+        </div>
+      )}
       <div className="flex-1 flex items-center justify-center min-w-0">
-        {toolbar ? (
-          toolbar
-        ) : showSearch ? (
+        {!toolbar && showSearch ? (
           <div className="flex-1 max-w-md relative">
             <SearchInput
               ref={inputRef}

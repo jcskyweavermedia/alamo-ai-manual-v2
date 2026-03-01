@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useSupabaseRecipes } from '@/hooks/use-supabase-recipes';
-import type { Recipe } from '@/types/products';
+import type { Recipe, ProductSortMode } from '@/types/products';
 
 export type FilterMode = 'all' | 'prep' | 'plate';
 
@@ -18,6 +18,7 @@ export function useRecipeViewer(initialSlug?: string | null) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(initialSlug ?? null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [sortMode, setSortMode] = useState<ProductSortMode>('name');
   const [batchMultiplier, setBatchMultiplier] = useState(1);
   const [navStack, setNavStack] = useState<string[]>([]);
 
@@ -39,8 +40,21 @@ export function useRecipeViewer(initialSlug?: string | null) {
       );
     }
 
-    return recipes;
-  }, [allRecipes, filterMode, searchQuery]);
+    const sorted = [...recipes];
+    switch (sortMode) {
+      case 'recent':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'featured':
+        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        break;
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return sorted;
+  }, [allRecipes, filterMode, searchQuery, sortMode]);
 
   const getRecipeBySlug = useCallback(
     (slug: string) => allRecipes.find(r => r.slug === slug),
@@ -123,6 +137,8 @@ export function useRecipeViewer(initialSlug?: string | null) {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedSlug,
     selectedRecipe,
     selectRecipe,

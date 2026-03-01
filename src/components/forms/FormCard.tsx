@@ -1,26 +1,7 @@
 import { Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveIcon } from '@/lib/form-builder/icon-utils';
 import type { FormTemplate } from '@/types/forms';
-
-// =============================================================================
-// ICON EMOJI MAP — maps Lucide icon name to an emoji + background color
-// Matches the pattern from manual-outline.tsx and CourseCard.tsx
-// =============================================================================
-
-const ICON_EMOJI_MAP: Record<string, { emoji: string; bg: string; darkBg: string }> = {
-  ClipboardList:   { emoji: '📋', bg: 'bg-blue-100',   darkBg: 'dark:bg-blue-900/30' },
-  AlertTriangle:   { emoji: '⚠️',  bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
-  FileWarning:     { emoji: '⚠️',  bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
-  ShieldAlert:     { emoji: '🛡️', bg: 'bg-orange-100', darkBg: 'dark:bg-orange-900/30' },
-  UserX:           { emoji: '👤', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
-  FileText:        { emoji: '📄', bg: 'bg-slate-100',  darkBg: 'dark:bg-slate-800' },
-  Stethoscope:     { emoji: '🩺', bg: 'bg-green-100',  darkBg: 'dark:bg-green-900/30' },
-  Wrench:          { emoji: '🔧', bg: 'bg-gray-100',   darkBg: 'dark:bg-gray-800' },
-  CheckSquare:     { emoji: '✅',       bg: 'bg-emerald-100', darkBg: 'dark:bg-emerald-900/30' },
-  Calendar:        { emoji: '📅', bg: 'bg-purple-100', darkBg: 'dark:bg-purple-900/30' },
-};
-
-const DEFAULT_ICON = { emoji: '📋', bg: 'bg-blue-100', darkBg: 'dark:bg-blue-900/30' };
 
 interface FormCardProps {
   template: FormTemplate;
@@ -48,7 +29,7 @@ export function FormCard({
       ? template.descriptionEs
       : template.descriptionEn;
 
-  const iconConfig = ICON_EMOJI_MAP[template.icon] ?? DEFAULT_ICON;
+  const iconConfig = resolveIcon(template.icon, template.iconColor);
 
   return (
     <button

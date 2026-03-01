@@ -13,8 +13,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Globe } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { CocktailImageEditor } from './CocktailImageEditor';
 import { CocktailProcedureEditor } from './CocktailProcedureEditor';
+import { IngredientsEditor } from './IngredientsEditor';
 import { TranslationSheet } from './TranslationSheet';
 import { TranslationBadge } from '../TranslationBadge';
 import { useIngestDraft } from '@/contexts/IngestDraftContext';
@@ -35,6 +37,20 @@ export function CocktailEditor() {
 
   return (
     <div className="space-y-4">
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors",
+        draft.isFeatured
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+          : "bg-muted/30"
+      )}>
+        <span className="text-sm font-medium">Featured</span>
+        <Switch
+          id="cocktail-featured"
+          checked={draft.isFeatured}
+          onCheckedChange={(checked) => dispatch({ type: 'SET_COCKTAIL_FEATURED', payload: checked })}
+        />
+      </div>
+
       <Accordion type="multiple" defaultValue={['info', 'ingredients', 'method', 'tasting', 'image', 'options', 'translation']}>
         {/* Cocktail Info */}
         <AccordionItem value="info">
@@ -82,21 +98,25 @@ export function CocktailEditor() {
           </AccordionContent>
         </AccordionItem>
 
-        {/* Ingredients */}
+        {/* Ingredients — structured JSONB editor (same as prep recipes) */}
         <AccordionItem value="ingredients">
           <AccordionTrigger className="text-base font-semibold tracking-tight">Ingredients</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="cocktail-ingredients">Ingredients</Label>
-                <Textarea
-                  id="cocktail-ingredients"
-                  value={draft.ingredients}
-                  onChange={(e) => dispatch({ type: 'SET_COCKTAIL_INGREDIENTS', payload: e.target.value })}
-                  placeholder={"List all ingredients with measurements, one per line\ne.g., 2 oz Bourbon\n0.5 oz Demerara syrup\n2 dashes Angostura bitters"}
-                  rows={5}
-                />
-              </div>
+              <IngredientsEditor
+                groups={draft.ingredients}
+                department="bar"
+                onAddGroup={(name) => dispatch({ type: 'ADD_INGREDIENT_GROUP', payload: name })}
+                onRemoveGroup={(i) => dispatch({ type: 'REMOVE_INGREDIENT_GROUP', payload: i })}
+                onRenameGroup={(i, name) => dispatch({ type: 'RENAME_INGREDIENT_GROUP', payload: { index: i, name } })}
+                onMoveGroupUp={(i) => dispatch({ type: 'MOVE_GROUP_UP', payload: i })}
+                onMoveGroupDown={(i) => dispatch({ type: 'MOVE_GROUP_DOWN', payload: i })}
+                onAddIngredient={(gi) => dispatch({ type: 'ADD_INGREDIENT', payload: { groupIndex: gi } })}
+                onUpdateIngredient={(gi, ii, item) => dispatch({ type: 'UPDATE_INGREDIENT', payload: { groupIndex: gi, itemIndex: ii, item } })}
+                onRemoveIngredient={(gi, ii) => dispatch({ type: 'REMOVE_INGREDIENT', payload: { groupIndex: gi, itemIndex: ii } })}
+                onMoveIngredientUp={(gi, ii) => dispatch({ type: 'MOVE_INGREDIENT_UP', payload: { groupIndex: gi, itemIndex: ii } })}
+                onMoveIngredientDown={(gi, ii) => dispatch({ type: 'MOVE_INGREDIENT_DOWN', payload: { groupIndex: gi, itemIndex: ii } })}
+              />
               <div className="space-y-1.5">
                 <Label htmlFor="cocktail-key-ingredients">Key Ingredients</Label>
                 <Input
@@ -177,13 +197,15 @@ export function CocktailEditor() {
         <AccordionItem value="options">
           <AccordionTrigger className="text-base font-semibold tracking-tight">Options</AccordionTrigger>
           <AccordionContent>
-            <div className="flex items-center gap-3 pt-2">
-              <Switch
-                id="cocktail-top-seller"
-                checked={draft.isTopSeller}
-                onCheckedChange={(checked) => dispatch({ type: 'SET_COCKTAIL_TOP_SELLER', payload: checked })}
-              />
-              <Label htmlFor="cocktail-top-seller">Top Seller</Label>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="cocktail-top-seller"
+                  checked={draft.isTopSeller}
+                  onCheckedChange={(checked) => dispatch({ type: 'SET_COCKTAIL_TOP_SELLER', payload: checked })}
+                />
+                <Label htmlFor="cocktail-top-seller">Top Seller</Label>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

@@ -348,7 +348,15 @@ function serializeItemContext(
         .filter(Boolean)
         .join("\n");
 
-    case "cocktails":
+    case "cocktails": {
+      // ingredients is now JSONB RecipeIngredientGroup[]
+      const ingGroups = (item.ingredients as any[]) || [];
+      const ingredientList = ingGroups
+        .flatMap((g: any) => (g.items || []).map((i: any) =>
+          [i.quantity, i.unit, i.name].filter(Boolean).join(' ').trim()
+        ))
+        .filter(Boolean)
+        .join(', ');
       return [
         `Cocktail: ${item.name}`,
         `Style: ${item.style}`,
@@ -356,7 +364,7 @@ function serializeItemContext(
         item.key_ingredients
           ? `Key Ingredients: ${item.key_ingredients}`
           : null,
-        item.ingredients ? `Full Ingredients: ${item.ingredients}` : null,
+        ingredientList ? `Full Ingredients: ${ingredientList}` : null,
         item.tasting_notes ? `Tasting Notes: ${item.tasting_notes}` : null,
         item.description ? `Description: ${item.description}` : null,
         item.notes ? `Notes: ${item.notes}` : null,
@@ -364,6 +372,7 @@ function serializeItemContext(
       ]
         .filter(Boolean)
         .join("\n");
+    }
 
     case "recipes": {
       const parts: (string | null)[] = [

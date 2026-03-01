@@ -1,0 +1,41 @@
+{
+  "name": "opentable-salt-sear",
+  "description": "Daily OpenTable review scraping for Salt & Sear Chophouse",
+  "actorId": "scraped/opentable-review-scraper",
+  "input": {
+    "startUrls": [
+      { "url": "https://www.opentable.com/r/salt-sear-chophouse-austin" }
+    ],
+    "maxItems": 50,
+    "proxyConfiguration": {
+      "useApifyProxy": true
+    }
+  },
+  "webhook": {
+    "eventTypes": ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+    "requestUrl": "https://nxeorbwqsovybfttemrw.supabase.co/functions/v1/ingest-reviews",
+    "headers": {
+      "X-Apify-Webhook-Secret": "<APIFY_WEBHOOK_SECRET>"
+    },
+    "payloadTemplate": {
+      "event": "{{eventType}}",
+      "runId": "{{resource.id}}",
+      "datasetId": "{{resource.defaultDatasetId}}",
+      "actorId": "{{eventData.actorId}}",
+      "actorTaskId": "{{eventData.actorTaskId}}",
+      "status": "{{resource.status}}",
+      "computeUnits": "{{resource.stats.computeUnits}}",
+      "finishedAt": "{{resource.finishedAt}}",
+      "meta": {
+        "restaurant_id": "33333333-3333-3333-3333-333333333333",
+        "platform": "opentable",
+        "group_id": "<GROUP_ID>"
+      }
+    }
+  },
+  "schedule": {
+    "cronExpression": "15 8 * * *",
+    "timezone": "UTC",
+    "description": "Daily at 08:15 UTC (2:15 AM CT)"
+  }
+}

@@ -21,13 +21,14 @@ import type {
 
 export type ProductType =
   | 'prep_recipe'
+  | 'bar_prep'
   | 'plate_spec'
   | 'foh_plate_spec'
   | 'wine'
   | 'cocktail'
   | 'beer_liquor';
 
-export type IngestionMethod = 'chat' | 'file_upload' | 'image_upload' | 'edit';
+export type IngestionMethod = 'chat' | 'file_upload' | 'image_upload' | 'edit' | 'batch';
 
 export type MobileMode = 'chat' | 'preview' | 'edit';
 
@@ -43,11 +44,12 @@ export interface ProductTypeMeta {
 
 export const PRODUCT_TYPES: ProductTypeMeta[] = [
   { key: 'prep_recipe', label: 'Prep Recipe', enabled: true },
+  { key: 'bar_prep', label: 'Bar Prep', enabled: true },
   { key: 'plate_spec', label: 'Plate Spec', enabled: true },
   { key: 'foh_plate_spec', label: 'Dish Guide', enabled: false },
   { key: 'wine', label: 'Wine', enabled: true },
   { key: 'cocktail', label: 'Cocktail', enabled: true },
-  { key: 'beer_liquor', label: 'Beer/Liquor', enabled: false },
+  { key: 'beer_liquor', label: 'Beer/Liquor', enabled: true },
 ];
 
 // =============================================================================
@@ -70,6 +72,7 @@ export interface ChatMessage {
 export interface PrepRecipeDraft {
   name: string;
   slug: string;
+  department: 'kitchen' | 'bar';
   prepType: string;
   tags: string[];
   yieldQty: number;
@@ -80,6 +83,7 @@ export interface PrepRecipeDraft {
   procedure: RecipeProcedureGroup[];
   batchScaling: BatchScaling | Record<string, never>;
   trainingNotes: TrainingNotes | Record<string, never>;
+  isFeatured: boolean;
   images: RecipeImage[];
 }
 
@@ -103,6 +107,7 @@ export interface WineDraft {
   notes: string;           // service/pairing notes
   image: string | null;
   isTopSeller: boolean;
+  isFeatured: boolean;
 }
 
 // =============================================================================
@@ -114,7 +119,7 @@ export interface CocktailDraft {
   slug: string;
   style: CocktailStyle;
   glass: string;
-  ingredients: string;
+  ingredients: RecipeIngredientGroup[];
   keyIngredients: string;
   procedure: CocktailProcedureStep[];
   tastingNotes: string;
@@ -122,6 +127,7 @@ export interface CocktailDraft {
   notes: string;
   image: string | null;
   isTopSeller: boolean;
+  isFeatured: boolean;
 }
 
 // =============================================================================
@@ -144,6 +150,7 @@ export interface FohPlateSpecDraft {
   notes: string;
   image: string | null;
   isTopSeller: boolean;
+  isFeatured: boolean;
 }
 
 // =============================================================================
@@ -160,9 +167,33 @@ export interface PlateSpecDraft {
   components: PlateComponentGroup[];          // from products.ts
   assemblyProcedure: RecipeProcedureGroup[];  // from products.ts
   notes: string;
+  isFeatured: boolean;
   images: RecipeImage[];
   dishGuide: FohPlateSpecDraft | null;        // nested dish guide -- NOT a separate state field
   dishGuideStale: boolean;                    // true when plate spec changed after dish guide generation
+}
+
+// =============================================================================
+// BEER / LIQUOR DRAFT (batch ingest)
+// =============================================================================
+
+export interface BeerLiquorDraft {
+  _tempId: string;              // client-side tracking ID
+  name: string;
+  slug: string;
+  category: 'Beer' | 'Liquor';
+  subcategory: string;
+  producer: string;
+  country: string;
+  description: string;
+  style: string;
+  notes: string;
+  image: string | null;
+  isFeatured: boolean;
+  confidence: number;           // 0-1 from AI
+  duplicateOf: { id: string; name: string } | null;
+  rowStatus: 'pending' | 'published' | 'error' | 'duplicate_skipped';
+  errorMessage?: string;
 }
 
 // =============================================================================
@@ -193,7 +224,7 @@ export function isPrepRecipeDraft(draft: PrepRecipeDraft | WineDraft | CocktailD
 
 /** Type guard: is the draft a CocktailDraft? */
 export function isCocktailDraft(draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft): draft is CocktailDraft {
-  return 'glass' in draft && 'keyIngredients' in draft;
+  return 'glass' in draft && 'keyIngredients' in draft && typeof (draft as Record<string, unknown>).keyIngredients === 'string';
 }
 
 // =============================================================================
@@ -229,7 +260,7 @@ export function createEmptyFohPlateSpecDraft(): FohPlateSpecDraft {
     shortDescription: '', detailedDescription: '',
     ingredients: [], keyIngredients: [], flavorProfile: [],
     allergens: [], allergyNotes: '', upsellNotes: '',
-    notes: '', image: null, isTopSeller: false,
+    notes: '', image: null, isTopSeller: false, isFeatured: false,
   };
 }
 
@@ -238,17 +269,18 @@ export function createEmptyPlateSpecDraft(): PlateSpecDraft {
     name: '', slug: '', plateType: '', menuCategory: '',
     tags: [], allergens: [],
     components: [], assemblyProcedure: [],
-    notes: '', images: [],
+    notes: '', isFeatured: false, images: [],
     dishGuide: null,   // no dish guide until generated
     dishGuideStale: false,
   };
 }
 
-export function createEmptyPrepRecipeDraft(): PrepRecipeDraft {
+export function createEmptyPrepRecipeDraft(department: 'kitchen' | 'bar' = 'kitchen'): PrepRecipeDraft {
   return {
     name: '',
     slug: '',
-    prepType: 'sauce',
+    department,
+    prepType: department === 'bar' ? 'syrup' : 'sauce',
     tags: [],
     yieldQty: 0,
     yieldUnit: 'qt',
@@ -256,6 +288,7 @@ export function createEmptyPrepRecipeDraft(): PrepRecipeDraft {
     shelfLifeUnit: 'days',
     ingredients: [],
     procedure: [],
+    isFeatured: false,
     batchScaling: {},
     trainingNotes: {},
     images: [],
@@ -279,6 +312,7 @@ export function createEmptyWineDraft(): WineDraft {
     notes: '',
     image: null,
     isTopSeller: false,
+    isFeatured: false,
   };
 }
 
@@ -288,7 +322,7 @@ export function createEmptyCocktailDraft(): CocktailDraft {
     slug: '',
     style: 'classic',
     glass: '',
-    ingredients: '',
+    ingredients: [],
     keyIngredients: '',
     procedure: [],
     tastingNotes: '',
@@ -296,11 +330,23 @@ export function createEmptyCocktailDraft(): CocktailDraft {
     notes: '',
     image: null,
     isTopSeller: false,
+    isFeatured: false,
+  };
+}
+
+export function createEmptyBeerLiquorDraft(): BeerLiquorDraft {
+  return {
+    _tempId: crypto.randomUUID(),
+    name: '', slug: '', category: 'Beer', subcategory: '',
+    producer: '', country: '', description: '', style: '', notes: '',
+    image: null, isFeatured: false, confidence: 0, duplicateOf: null, rowStatus: 'pending',
   };
 }
 
 export function generateSlug(name: string): string {
   return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')

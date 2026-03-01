@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useSupabaseWines } from '@/hooks/use-supabase-wines';
-import type { Wine, WineStyle } from '@/types/products';
+import type { Wine, WineStyle, ProductSortMode } from '@/types/products';
 
 export type WineFilterMode = 'all' | WineStyle;
 
@@ -10,6 +10,7 @@ export function useWineViewer() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<WineFilterMode>('all');
+  const [sortMode, setSortMode] = useState<ProductSortMode>('name');
 
   const filteredWines = useMemo(() => {
     let wines = allWines;
@@ -29,8 +30,21 @@ export function useWineViewer() {
       );
     }
 
-    return wines;
-  }, [allWines, filterMode, searchQuery]);
+    const sorted = [...wines];
+    switch (sortMode) {
+      case 'recent':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'featured':
+        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        break;
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return sorted;
+  }, [allWines, filterMode, searchQuery, sortMode]);
 
   const selectedWine = useMemo<Wine | undefined>(
     () => selectedSlug ? allWines.find(w => w.slug === selectedSlug) : undefined,
@@ -71,6 +85,8 @@ export function useWineViewer() {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedWine,
     selectWine,
     clearSelection,

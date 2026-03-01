@@ -10,6 +10,8 @@ export interface SOSCourse {
   position: SOSPosition | null;
   isAvailable: boolean;
   level: '101' | '201';
+  chapters: number;
+  estimatedMinutes: number;
 }
 
 export const SOS_COURSES: SOSCourse[] = [
@@ -23,6 +25,8 @@ export const SOS_COURSES: SOSCourse[] = [
     position: 'server',
     isAvailable: true,
     level: '101',
+    chapters: 4,
+    estimatedMinutes: 15,
   },
   {
     slug: 'bartender-101',
@@ -34,6 +38,8 @@ export const SOS_COURSES: SOSCourse[] = [
     position: 'bartender',
     isAvailable: false,
     level: '101',
+    chapters: 4,
+    estimatedMinutes: 12,
   },
   {
     slug: 'busser-101',
@@ -45,6 +51,8 @@ export const SOS_COURSES: SOSCourse[] = [
     position: 'busser',
     isAvailable: false,
     level: '101',
+    chapters: 3,
+    estimatedMinutes: 10,
   },
   {
     slug: 'barback-101',
@@ -56,6 +64,8 @@ export const SOS_COURSES: SOSCourse[] = [
     position: 'barback',
     isAvailable: false,
     level: '101',
+    chapters: 3,
+    estimatedMinutes: 10,
   },
   {
     slug: 'wine-201',
@@ -67,6 +77,8 @@ export const SOS_COURSES: SOSCourse[] = [
     position: null,
     isAvailable: false,
     level: '201',
+    chapters: 6,
+    estimatedMinutes: 20,
   },
   {
     slug: 'food-201',
@@ -78,5 +90,7 @@ export const SOS_COURSES: SOSCourse[] = [
     position: null,
     isAvailable: false,
     level: '201',
+    chapters: 6,
+    estimatedMinutes: 20,
   },
 ];

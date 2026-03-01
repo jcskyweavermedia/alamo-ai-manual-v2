@@ -97,6 +97,14 @@ export function WineGrid({
                       </span>
                     </>
                   )}
+                  {wine.isFeatured && (
+                    <>
+                      <span className="text-black/10 dark:text-white/10">·</span>
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+                        Featured
+                      </span>
+                    </>
+                  )}
                 </div>
               </button>
             );

@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ArrowLeft, Expand, X } from 'lucide-react';
+import { Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CocktailStyleBadge } from './CocktailStyleBadge';
+import { IngredientsColumn } from '@/components/recipes/IngredientsColumn';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Cocktail } from '@/types/products';
 import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
+import { AI_ACTION_ICONS } from '@/data/ai-action-icons';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,17 +18,10 @@ interface CocktailCardViewProps {
   onNext?: () => void;
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
+  onTapPrepRecipe?: (slug: string) => void;
 }
 
-const AI_EMOJI_MAP: Record<string, string> = {
-  mic: '\uD83C\uDF99\uFE0F',
-  play: '\u25B6\uFE0F',
-  'graduation-cap': '\uD83C\uDF93',
-  'utensils-crossed': '\uD83C\uDF74',
-  'help-circle': '\u2753',
-};
-
-export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeAction, onActionChange }: CocktailCardViewProps) {
+export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeAction, onActionChange, onTapPrepRecipe }: CocktailCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -37,27 +32,14 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
     enabled: !lightboxOpen && activeAction === null,
   });
 
+  const hasIngredients = cocktail.ingredients.some(g => g.items.length > 0);
+
   return (
     <div ref={swipeRef} className="md:h-[calc(100vh-theme(spacing.14)-theme(spacing.8))] md:flex md:flex-col">
       {/* Header */}
       <div className="space-y-1 mb-3 md:mb-2 shrink-0">
         {/* Style label + title row */}
         <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={onBack}
-            className={cn(
-              'flex items-center justify-center shrink-0',
-              'h-10 w-10 rounded-lg',
-              'bg-orange-500 text-white',
-              'hover:bg-orange-600 active:bg-orange-700',
-              'shadow-sm transition-colors duration-150',
-              'mt-0.5'
-            )}
-            title="All Cocktails"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div className="flex-1 min-w-0">
             <CocktailStyleBadge style={cocktail.style} variant="text" />
             <h1 className="text-page-title text-foreground truncate">
@@ -77,16 +59,26 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
           )}
         </div>
 
-        {/* Top seller badge */}
-        {cocktail.isTopSeller && (
-          <div className="pl-[52px] flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
-            <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
-            <span>Top Seller</span>
+        {/* Top seller / Featured badges */}
+        {(cocktail.isTopSeller || cocktail.isFeatured) && (
+          <div className="flex items-center gap-3">
+            {cocktail.isTopSeller && (
+              <div className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
+                <span>Top Seller</span>
+              </div>
+            )}
+            {cocktail.isFeatured && (
+              <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
+                <span>Featured</span>
+              </div>
+            )}
           </div>
         )}
 
         {/* Sub-meta row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-[52px] text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{cocktail.keyIngredients}</span>
           <span className="text-border">&middot;</span>
           <span>{cocktail.glass} glass</span>
@@ -96,10 +88,10 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
       {/* Divider */}
       <div className="border-t border-border mb-4 md:mb-3 shrink-0" />
 
-      {/* AI Action Buttons — white, emoji tile, no chevron */}
+      {/* AI Action Buttons */}
       <div className="flex items-center justify-center gap-2 mb-5 md:mb-4 flex-wrap">
         {PRODUCT_AI_ACTIONS.cocktails.map(({ key, label, icon }) => {
-          const emoji = AI_EMOJI_MAP[icon];
+          const Icon = AI_ACTION_ICONS[icon];
           const isActive = activeAction === key;
           return (
             <button
@@ -117,14 +109,8 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
                   : 'bg-card text-foreground shadow-sm hover:shadow-md'
               )}
             >
-              {emoji && (
-                <span className={cn(
-                  'flex items-center justify-center shrink-0',
-                  'w-8 h-8 rounded-[10px]',
-                  isActive ? 'bg-white/30' : 'bg-slate-100 dark:bg-slate-800'
-                )}>
-                  <span className="text-[18px] h-[18px] leading-[18px]">{emoji}</span>
-                </span>
+              {Icon && (
+                <Icon className={cn('w-4 h-4 shrink-0', isActive ? 'text-white' : 'text-orange-500')} />
               )}
               <span>{label}</span>
             </button>
@@ -162,8 +148,8 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
             </span>
           </button>
 
-          {/* Ingredients — below image */}
-          {cocktail.ingredients && (
+          {/* Ingredients — below image, using shared IngredientsColumn */}
+          {hasIngredients && (
             <div className="relative rounded-xl bg-card shadow-sm p-4 pt-5 pr-16">
               <span className={cn(
                 'absolute top-3 right-3',
@@ -173,14 +159,15 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
               )}>
                 <span className="text-[22px] h-[22px] leading-[22px]">🥃</span>
               </span>
-              <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Ingredients
-              </h2>
-              <p className="text-sm leading-relaxed text-foreground">
-                {cocktail.ingredients}
-              </p>
+              <IngredientsColumn
+                groups={cocktail.ingredients}
+                batchMultiplier={1}
+                onTapPrepRecipe={onTapPrepRecipe}
+                hideTitle
+              />
             </div>
           )}
+
         </div>
 
         {/* Right column — info cards */}

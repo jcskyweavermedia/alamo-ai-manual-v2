@@ -10,6 +10,7 @@ import { SOSActionButtons } from '@/components/steps-of-service/SOSActionButtons
 import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
 import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
 import { getActionConfig } from '@/data/ai-action-config';
+import { usePinnedCourses } from '@/hooks/use-pinned-courses';
 
 const POSITION_LABELS: Record<string, string> = {
   server: 'Server',
@@ -22,6 +23,7 @@ const StepsOfService = () => {
   const { language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const { togglePin, isPinned, sortPinnedFirst } = usePinnedCourses();
 
   const {
     chapterGroups,
@@ -66,7 +68,6 @@ const StepsOfService = () => {
       language={language}
       onLanguageChange={setLanguage}
       showSearch={false}
-      rawContent={true}
       headerToolbar={headerToolbar}
       aiPanel={aiPanel}
     >
@@ -104,10 +105,27 @@ const StepsOfService = () => {
           )}
         </>
       ) : (
-        <SOSPositionSelector
-          onSelectPosition={selectPosition}
-          language={language}
-        />
+        <>
+          <div className="py-6">
+            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+              {language === 'es' ? 'Hospitalidad,' : 'Hospitality,'}
+              <br />
+              <span className="font-bold">{language === 'es' ? 'Perfeccionada' : 'Perfected'}</span> ✨
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {language === 'es'
+                ? 'Manuales de servicio paso a paso para cada rol en sala.'
+                : 'Step-by-step service manuals for every front-of-house role.'}
+            </p>
+          </div>
+          <SOSPositionSelector
+            onSelectPosition={selectPosition}
+            language={language}
+            isPinned={isPinned}
+            onTogglePin={togglePin}
+            sortPinnedFirst={sortPinnedFirst}
+          />
+        </>
       )}
     </AppShell>
   );

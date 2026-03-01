@@ -6,7 +6,6 @@ import { AppShell } from '@/components/layout/AppShell';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
 import { ProductTypeNavbar } from '@/components/ingest/ProductTypeNavbar';
 import { MobileModeTabs } from '@/components/ingest/MobileModeTabs';
@@ -23,6 +22,7 @@ import { CocktailIngestPreview } from '@/components/ingest/CocktailIngestPreview
 import { PlateSpecDualPreview } from '@/components/ingest/PlateSpecDualPreview';
 import { useGenerateDishGuide } from '@/hooks/use-generate-dish-guide';
 import { IngestDraftProvider, useIngestDraft } from '@/contexts/IngestDraftContext';
+import { BeerLiquorBatchIngest } from '@/components/ingest/BeerLiquorBatchIngest';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Save, Send, Trash2, Loader2, AlertTriangle, Sparkles, Globe } from 'lucide-react';
@@ -45,7 +45,7 @@ import { useTranslationPreferences } from '@/hooks/use-translation-preferences';
 import { useProductTranslations, isTranslationStale } from '@/hooks/use-product-translations';
 import { extractTranslatableTexts, getFieldValue } from '@/lib/translatable-fields';
 import { generateSlug, isPrepRecipeDraft, isWineDraft, isCocktailDraft, isPlateSpecDraft, createEmptyPlateSpecDraft } from '@/types/ingestion';
-import { validateSubRecipeRefs } from '@/utils/validate-sub-recipe-refs';
+import { validateSubRecipeRefs, validatePlateSpecComponentRefs } from '@/utils/validate-sub-recipe-refs';
 import type {
   ProductType,
   MobileMode,
@@ -57,7 +57,7 @@ import type {
   FohPlateSpecDraft,
   QueuedAttachment,
 } from '@/types/ingestion';
-import type { CocktailProcedureStep, PlateSpec } from '@/types/products';
+import type { CocktailProcedureStep, PlateSpec, RecipeIngredientGroup } from '@/types/products';
 
 // =============================================================================
 // Constants
@@ -66,25 +66,31 @@ import type { CocktailProcedureStep, PlateSpec } from '@/types/products';
 /** Map activeType to Supabase table name */
 const ACTIVE_TYPE_TABLE: Record<string, string> = {
   prep_recipe: 'prep_recipes',
+  bar_prep: 'prep_recipes',
   plate_spec: 'plate_specs',
   wine: 'wines',
   cocktail: 'cocktails',
+  beer_liquor: 'beer_liquor_list',
 };
 
 /** Map activeType to cache query key */
 const ACTIVE_TYPE_CACHE_KEY: Record<string, string> = {
   prep_recipe: 'recipes',
+  bar_prep: 'bar-recipes',
   plate_spec: 'plate_specs',
   wine: 'wines',
   cocktail: 'cocktails',
+  beer_liquor: 'beer-liquor',
 };
 
 /** Map activeType to product label */
 const ACTIVE_TYPE_LABEL: Record<string, string> = {
   prep_recipe: 'Recipe',
+  bar_prep: 'Bar Prep',
   plate_spec: 'Plate Spec',
   wine: 'Wine',
   cocktail: 'Cocktail',
+  beer_liquor: 'Beer & Liquor',
 };
 
 /** Map table name back to activeType */
@@ -93,6 +99,7 @@ const TABLE_TO_ACTIVE_TYPE: Record<string, ProductType> = {
   plate_specs: 'plate_spec',
   wines: 'wine',
   cocktails: 'cocktail',
+  beer_liquor_list: 'beer_liquor',
 };
 
 /** Map table name to navigate path after publish */
@@ -101,6 +108,7 @@ const TABLE_NAVIGATE: Record<string, string> = {
   plate_specs: '/recipes',
   wines: '/wines',
   cocktails: '/cocktails',
+  beer_liquor_list: '/beer-liquor',
 };
 
 // =============================================================================
@@ -124,6 +132,7 @@ function buildDraftFromProduct(
       components: row.components ?? [],
       assemblyProcedure: row.assemblyProcedure ?? [],
       notes: row.notes ?? '',
+      isFeatured: data.is_featured ?? false,
       images: row.images ?? [],
       dishGuide: null,         // loaded separately from foh_plate_specs
       dishGuideStale: false,
@@ -133,6 +142,7 @@ function buildDraftFromProduct(
     return {
       name: data.name || '',
       slug: data.slug || '',
+      department: data.department || 'kitchen',
       prepType: data.prep_type || '',
       tags: data.tags || [],
       yieldQty: data.yield_qty || 0,
@@ -142,6 +152,7 @@ function buildDraftFromProduct(
       ingredients: data.ingredients || [],
       procedure: data.procedure || [],
       batchScaling: data.batch_scaling || {},
+      isFeatured: data.is_featured ?? false,
       trainingNotes: data.training_notes || {},
       images: data.images || [],
     } as PrepRecipeDraft;
@@ -162,6 +173,7 @@ function buildDraftFromProduct(
       notes: data.notes || '',
       image: data.image || null,
       isTopSeller: data.is_top_seller ?? false,
+      isFeatured: data.is_featured ?? false,
     } as WineDraft;
   } else if (table === 'cocktails') {
     return {
@@ -169,7 +181,7 @@ function buildDraftFromProduct(
       slug: data.slug || '',
       style: data.style || 'classic',
       glass: data.glass || '',
-      ingredients: data.ingredients || '',
+      ingredients: (data.ingredients as RecipeIngredientGroup[]) || [],
       keyIngredients: data.key_ingredients || '',
       procedure: (data.procedure as CocktailProcedureStep[]) || [],
       tastingNotes: data.tasting_notes || '',
@@ -177,6 +189,7 @@ function buildDraftFromProduct(
       notes: data.notes || '',
       image: data.image || null,
       isTopSeller: data.is_top_seller ?? false,
+      isFeatured: data.is_featured ?? false,
     } as CocktailDraft;
   }
   return null;
@@ -189,7 +202,17 @@ function buildDraftFromProduct(
 function IngestPageInner() {
   const { language, setLanguage } = useLanguage();
   const { isAdmin, user } = useAuth();
-  const isMobile = useIsMobile();
+  // Chat panel is hidden below lg (1024px) via AppShell's `hidden lg:flex`.
+  // Show mobile layout + floating tabs whenever the chat panel isn't visible.
+  const [isBelowLg, setIsBelowLg] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => setIsBelowLg(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -199,11 +222,16 @@ function IngestPageInner() {
   const isWineType = state.activeType === 'wine';
   const isCocktailType = state.activeType === 'cocktail';
   const isPlateSpecType = state.activeType === 'plate_spec';
+  const isBarPrepType = state.activeType === 'bar_prep';
+  const isPrepType = state.activeType === 'prep_recipe' || isBarPrepType;
+  const isBeerLiquorType = state.activeType === 'beer_liquor';
+  const [beerLiquorDirty, setBeerLiquorDirty] = useState(false);
   const productTable = ACTIVE_TYPE_TABLE[state.activeType] || 'prep_recipes';
   const productLabel = ACTIVE_TYPE_LABEL[state.activeType] || 'Recipe';
   const cacheKey = ACTIVE_TYPE_CACHE_KEY[state.activeType] || 'recipes';
+  const department = isBarPrepType ? 'bar' : undefined;
 
-  const { sendMessage, isProcessing, error: chatError } = useIngestChat(productTable);
+  const { sendMessage, isProcessing, error: chatError } = useIngestChat(productTable, department);
   const { session, createSession, loadSession, saveDraft, findSessionForProduct, reuseSessionForEdit, discardSession } = useIngestionSession();
 
   const { sessionId, table, productId } = useParams<{ sessionId?: string; table?: string; productId?: string }>();
@@ -386,6 +414,53 @@ function IngestPageInner() {
   }, [state.sessionId, state.draft, isPlateSpecType, isWineType, isCocktailType, handleSaveDraft]);
 
   // ---------------------------------------------------------------------------
+  // Auto-save draft every 5 seconds when dirty
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!state.sessionId || !state.isDirty || isPublishing) return;
+    const timer = setInterval(() => {
+      if (!isPublishing) handleSaveDraft();
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, [state.sessionId, state.isDirty, isPublishing, handleSaveDraft]);
+
+  // ---------------------------------------------------------------------------
+  // Warn user before leaving with unsaved changes
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!state.isDirty && !beerLiquorDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [state.isDirty, beerLiquorDirty]);
+
+  // ---------------------------------------------------------------------------
+  // Keyboard shortcuts: Ctrl/Cmd+S → save draft, Escape → back to chat (mobile)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+S / Cmd+S → save draft
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (state.isDirty && state.sessionId && !isPublishing) {
+          handleSaveDraft();
+        }
+      }
+      // Escape → return to chat mode on mobile, close any open dialog
+      if (e.key === 'Escape') {
+        if (state.mobileMode !== 'chat') {
+          dispatch({ type: 'SET_MOBILE_MODE', payload: 'chat' });
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [state.isDirty, state.sessionId, state.mobileMode, isPublishing, handleSaveDraft, dispatch]);
+
+  // ---------------------------------------------------------------------------
   // Publish
   // ---------------------------------------------------------------------------
   const handlePublish = useCallback(async (skipImageWarning = false, skipStaleWarning = false) => {
@@ -425,6 +500,31 @@ function IngestPageInner() {
       if (!wd.image && !skipImageWarning) {
         setShowNoImageWarning(true);
         return;
+      }
+
+      // Staleness gate: check if existing translations are stale (edit mode only)
+      if (productId && !skipStaleWarning) {
+        const dbData = {
+          tasting_notes: wd.tastingNotes,
+          producer_notes: wd.producerNotes,
+          notes: wd.notes,
+        };
+        const { data: existingTranslations } = await supabase
+          .from('product_translations')
+          .select('field_path, source_text')
+          .eq('product_table', 'wines')
+          .eq('product_id', productId);
+
+        if (existingTranslations && existingTranslations.length > 0) {
+          const hasStale = existingTranslations.some((t) => {
+            const currentText = getFieldValue(dbData, t.field_path);
+            return currentText !== null && t.source_text !== currentText;
+          });
+          if (hasStale) {
+            setShowStaleWarning(true);
+            return;
+          }
+        }
       }
 
       setIsPublishing(true);
@@ -469,6 +569,7 @@ function IngestPageInner() {
           notes: wd.notes,
           image: wd.image,
           is_top_seller: wd.isTopSeller,
+          is_featured: wd.isFeatured,
           status: 'published' as const,
           version: 1,
           ai_ingestion_meta: {
@@ -535,6 +636,35 @@ function IngestPageInner() {
           body: { table: 'wines', rowId: newRowId },
         }).catch(() => {});
 
+        // Fire-and-forget: auto-translate on first publish (new wine, no existing translations)
+        if (!productId) {
+          const wineDbData = {
+            tasting_notes: wd.tastingNotes,
+            producer_notes: wd.producerNotes,
+            notes: wd.notes,
+          };
+          const texts = extractTranslatableTexts('wines', wineDbData);
+          if (texts.length > 0) {
+            translateFields(
+              'wines',
+              newRowId,
+              texts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+            ).then((results) => {
+              if (results.length > 0) {
+                const merged = results.map((r) => {
+                  const source = texts.find((t) => t.fieldPath === r.fieldPath);
+                  return {
+                    fieldPath: r.fieldPath,
+                    sourceText: source?.sourceText ?? '',
+                    translatedText: r.translatedText,
+                  };
+                });
+                saveTranslations('wines', newRowId, merged).catch(() => {});
+              }
+            }).catch(() => {});
+          }
+        }
+
         queryClient.invalidateQueries({ queryKey: ['wines'] });
         dispatch({ type: 'RESET_DRAFT' });
 
@@ -568,7 +698,7 @@ function IngestPageInner() {
         toast({ title: 'Missing field', description: 'Glass type is required' });
         return;
       }
-      if (!cd.ingredients.trim()) {
+      if (!cd.ingredients.length || !cd.ingredients.some(g => g.items.length > 0)) {
         toast({ title: 'Missing field', description: 'Ingredients are required' });
         return;
       }
@@ -585,6 +715,32 @@ function IngestPageInner() {
       if (!cd.image && !skipImageWarning) {
         setShowNoImageWarning(true);
         return;
+      }
+
+      // Staleness gate: check if existing translations are stale (edit mode only)
+      if (productId && !skipStaleWarning) {
+        const dbData = {
+          procedure: cd.procedure,
+          tasting_notes: cd.tastingNotes,
+          description: cd.description,
+          notes: cd.notes,
+        };
+        const { data: existingTranslations } = await supabase
+          .from('product_translations')
+          .select('field_path, source_text')
+          .eq('product_table', 'cocktails')
+          .eq('product_id', productId);
+
+        if (existingTranslations && existingTranslations.length > 0) {
+          const hasStale = existingTranslations.some((t) => {
+            const currentText = getFieldValue(dbData, t.field_path);
+            return currentText !== null && t.source_text !== currentText;
+          });
+          if (hasStale) {
+            setShowStaleWarning(true);
+            return;
+          }
+        }
       }
 
       setIsPublishing(true);
@@ -626,6 +782,7 @@ function IngestPageInner() {
           notes: cd.notes,
           image: cd.image,
           is_top_seller: cd.isTopSeller,
+          is_featured: cd.isFeatured,
           status: 'published' as const,
           version: 1,
           ai_ingestion_meta: {
@@ -669,8 +826,9 @@ function IngestPageInner() {
         }
 
         // Update ingestion session: mark published, clear editing flag
-        if (state.sessionId) {
-          await supabase
+        const pubSessionId = state.sessionId || sessionId;
+        if (pubSessionId) {
+          const { error: sessErr } = await supabase
             .from('ingestion_sessions')
             .update({
               status: 'published',
@@ -678,19 +836,53 @@ function IngestPageInner() {
               editing_product_id: null,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', state.sessionId);
+            .eq('id', pubSessionId);
+
+          if (sessErr) console.error('Failed to mark session published:', sessErr);
 
           // Backlink: set source_session_id on product row
           await supabase
             .from('cocktails')
-            .update({ source_session_id: state.sessionId })
+            .update({ source_session_id: pubSessionId })
             .eq('id', newRowId);
+        } else {
+          console.warn('No sessionId at cocktail publish time — session will remain as drafting');
         }
 
         // Fire-and-forget: generate embedding
         supabase.functions.invoke('embed-products', {
           body: { table: 'cocktails', rowId: newRowId },
         }).catch(() => {});
+
+        // Fire-and-forget: auto-translate on first publish (new cocktail, no existing translations)
+        if (!productId) {
+          const cocktailDbData = {
+            procedure: cd.procedure,
+            tasting_notes: cd.tastingNotes,
+            description: cd.description,
+            notes: cd.notes,
+          };
+          const texts = extractTranslatableTexts('cocktails', cocktailDbData);
+          if (texts.length > 0) {
+            translateFields(
+              'cocktails',
+              newRowId,
+              texts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+            ).then((results) => {
+              if (results.length > 0) {
+                const merged = results.map((r) => {
+                  const source = texts.find((t) => t.fieldPath === r.fieldPath);
+                  return {
+                    fieldPath: r.fieldPath,
+                    sourceText: source?.sourceText ?? '',
+                    translatedText: r.translatedText,
+                  };
+                });
+                saveTranslations('cocktails', newRowId, merged).catch(() => {});
+              }
+            }).catch(() => {});
+          }
+        }
 
         queryClient.invalidateQueries({ queryKey: ['cocktails'] });
         dispatch({ type: 'RESET_DRAFT' });
@@ -813,7 +1005,9 @@ function IngestPageInner() {
         const row = {
           slug,
           name: rd.name,
+          department: rd.department,
           prep_type: rd.prepType,
+          is_featured: rd.isFeatured,
           status: 'published' as const,
           version: 1,
           yield_qty: rd.yieldQty,
@@ -924,7 +1118,7 @@ function IngestPageInner() {
         }
 
         // Invalidate cache so /recipes page picks up new row
-        queryClient.invalidateQueries({ queryKey: ['recipes'] });
+        queryClient.invalidateQueries({ queryKey: [cacheKey] });
 
         dispatch({ type: 'RESET_DRAFT' });
 
@@ -933,7 +1127,7 @@ function IngestPageInner() {
           description: `"${rd.name}" has been ${productId ? 'updated' : 'published'} successfully`,
         });
 
-        navigate('/recipes');
+        navigate(isBarPrepType ? '/cocktails?tab=bar-prep' : '/recipes');
       } catch (err) {
         console.error('Publish error:', err);
         toast({
@@ -944,65 +1138,12 @@ function IngestPageInner() {
         setIsPublishing(false);
       }
     }
-  }, [user, state, productId, isWineType, isCocktailType, dispatch, toast, navigate, queryClient, getActiveCategories, translateFields, saveTranslations]);
-
-  // ---------------------------------------------------------------------------
-  // Re-translate & Publish (staleness gate action)
-  // ---------------------------------------------------------------------------
-  const handleRetranslateAndPublish = useCallback(async () => {
-    if (!productId) return;
-    setShowStaleWarning(false);
-
-    const rd = state.draft as PrepRecipeDraft;
-    const dbData = {
-      name: rd.name,
-      ingredients: rd.ingredients,
-      procedure: rd.procedure,
-      training_notes: rd.trainingNotes,
-    };
-
-    // Get stale fields
-    const { data: existingTranslations } = await supabase
-      .from('product_translations')
-      .select('field_path, source_text')
-      .eq('product_table', 'prep_recipes')
-      .eq('product_id', productId);
-
-    if (existingTranslations && existingTranslations.length > 0) {
-      const staleFields = existingTranslations
-        .filter((t) => {
-          const currentText = getFieldValue(dbData, t.field_path);
-          return currentText !== null && t.source_text !== currentText;
-        })
-        .map((t) => {
-          const currentText = getFieldValue(dbData, t.field_path) ?? '';
-          return { fieldPath: t.field_path, sourceText: currentText };
-        });
-
-      if (staleFields.length > 0) {
-        const results = await translateFields('prep_recipes', productId, staleFields);
-        if (results.length > 0) {
-          const merged = results.map((r) => {
-            const source = staleFields.find((s) => s.fieldPath === r.fieldPath);
-            return {
-              fieldPath: r.fieldPath,
-              sourceText: source?.sourceText ?? '',
-              translatedText: r.translatedText,
-            };
-          });
-          await saveTranslations('prep_recipes', productId, merged);
-        }
-      }
-    }
-
-    // Now publish with both warnings skipped
-    handlePublish(true, true);
-  }, [productId, state.draft, translateFields, saveTranslations, handlePublish]);
+  }, [user, state, productId, isWineType, isCocktailType, cacheKey, dispatch, toast, navigate, queryClient, getActiveCategories, translateFields, saveTranslations]);
 
   // ---------------------------------------------------------------------------
   // Publish: Plate Spec (+ optional Dish Guide)
   // ---------------------------------------------------------------------------
-  const handlePublishPlateSpec = useCallback(async (skipImageWarning = false) => {
+  const handlePublishPlateSpec = useCallback(async (skipImageWarning = false, skipStaleWarning = false) => {
     if (!user) return;
 
     const ps = state.draft as PlateSpecDraft;
@@ -1026,6 +1167,20 @@ function IngestPageInner() {
     }
     if (ps.assemblyProcedure.length === 0 || !ps.assemblyProcedure.some(g => g.steps && g.steps.length > 0)) {
       toast({ title: 'Missing field', description: 'At least one assembly group with steps is required' });
+      return;
+    }
+
+    // --- Validate component prep_recipe_ref slugs ---
+    const compRefResult = await validatePlateSpecComponentRefs(
+      ps.components,
+      ps.slug || undefined,
+    );
+    if (!compRefResult.valid) {
+      toast({
+        title: 'Invalid sub-recipe references',
+        description: `These component refs don't match any published recipe: ${compRefResult.danglingRefs.join(', ')}`,
+      });
+      setIsPublishing(false);
       return;
     }
 
@@ -1073,6 +1228,63 @@ function IngestPageInner() {
       }
     }
 
+    // Staleness gate: check if existing translations are stale (edit mode only)
+    if (productId && !skipStaleWarning) {
+      let hasStale = false;
+
+      // Check BOH plate_specs translations
+      const bohDbData = {
+        assembly_procedure: ps.assemblyProcedure,
+        notes: ps.notes,
+      };
+      const { data: bohTranslations } = await supabase
+        .from('product_translations')
+        .select('field_path, source_text')
+        .eq('product_table', 'plate_specs')
+        .eq('product_id', productId);
+
+      if (bohTranslations && bohTranslations.length > 0) {
+        hasStale = bohTranslations.some((t) => {
+          const currentText = getFieldValue(bohDbData, t.field_path);
+          return currentText !== null && t.source_text !== currentText;
+        });
+      }
+
+      // Check FOH foh_plate_specs translations (if dish guide exists)
+      if (!hasStale && ps.dishGuide) {
+        const { data: existingDg } = await supabase
+          .from('foh_plate_specs')
+          .select('id')
+          .eq('plate_spec_id', productId)
+          .maybeSingle();
+
+        if (existingDg) {
+          const fohDbData = {
+            short_description: ps.dishGuide.shortDescription,
+            detailed_description: ps.dishGuide.detailedDescription,
+            notes: ps.dishGuide.notes,
+          };
+          const { data: fohTranslations } = await supabase
+            .from('product_translations')
+            .select('field_path, source_text')
+            .eq('product_table', 'foh_plate_specs')
+            .eq('product_id', existingDg.id);
+
+          if (fohTranslations && fohTranslations.length > 0) {
+            hasStale = fohTranslations.some((t) => {
+              const currentText = getFieldValue(fohDbData, t.field_path);
+              return currentText !== null && t.source_text !== currentText;
+            });
+          }
+        }
+      }
+
+      if (hasStale) {
+        setShowStaleWarning(true);
+        return;
+      }
+    }
+
     // Warn if no images
     if (ps.images.length === 0 && !skipImageWarning) {
       setShowNoImageWarning(true);
@@ -1116,6 +1328,7 @@ function IngestPageInner() {
         components: ps.components,
         assembly_procedure: ps.assemblyProcedure,
         notes: ps.notes,
+        is_featured: ps.isFeatured,
         images: ps.images,
         status: 'published' as const,
         version: 1,
@@ -1210,6 +1423,7 @@ function IngestPageInner() {
               notes: dg.notes,
               image: dg.image,
               is_top_seller: dg.isTopSeller,
+              is_featured: dg.isFeatured,
               status: 'published' as const,
               version: 1,
               ai_ingestion_meta: {
@@ -1303,6 +1517,64 @@ function IngestPageInner() {
         }).catch(() => {});
       }
 
+      // --- Fire-and-forget: auto-translate on first publish ---
+      if (!productId) {
+        // BOH plate_specs translation
+        const bohDbData = {
+          assembly_procedure: ps.assemblyProcedure,
+          notes: ps.notes,
+        };
+        const bohTexts = extractTranslatableTexts('plate_specs', bohDbData);
+        if (bohTexts.length > 0) {
+          translateFields(
+            'plate_specs',
+            plateSpecId,
+            bohTexts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+          ).then((results) => {
+            if (results.length > 0) {
+              const merged = results.map((r) => {
+                const source = bohTexts.find((t) => t.fieldPath === r.fieldPath);
+                return {
+                  fieldPath: r.fieldPath,
+                  sourceText: source?.sourceText ?? '',
+                  translatedText: r.translatedText,
+                };
+              });
+              saveTranslations('plate_specs', plateSpecId, merged).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+
+        // FOH foh_plate_specs translation
+        if (dishGuideId && ps.dishGuide) {
+          const fohDbData = {
+            short_description: ps.dishGuide.shortDescription,
+            detailed_description: ps.dishGuide.detailedDescription,
+            notes: ps.dishGuide.notes,
+          };
+          const fohTexts = extractTranslatableTexts('foh_plate_specs', fohDbData);
+          if (fohTexts.length > 0) {
+            translateFields(
+              'foh_plate_specs',
+              dishGuideId,
+              fohTexts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+            ).then((results) => {
+              if (results.length > 0) {
+                const merged = results.map((r) => {
+                  const source = fohTexts.find((t) => t.fieldPath === r.fieldPath);
+                  return {
+                    fieldPath: r.fieldPath,
+                    sourceText: source?.sourceText ?? '',
+                    translatedText: r.translatedText,
+                  };
+                });
+                saveTranslations('foh_plate_specs', dishGuideId!, merged).catch(() => {});
+              }
+            }).catch(() => {});
+          }
+        }
+      }
+
       // --- Invalidate caches ---
       queryClient.invalidateQueries({ queryKey: ['plate_specs'] });
       if (dishGuideId) {
@@ -1316,7 +1588,7 @@ function IngestPageInner() {
         description: `"${ps.name}" has been ${productId ? 'updated' : 'published'} successfully${dishGuideId ? ' (with dish guide)' : ''}`,
       });
 
-      navigate('/recipes');
+      navigate(isBarPrepType ? '/cocktails?tab=bar-prep' : '/recipes');
     } catch (err) {
       console.error('Publish error:', err);
       toast({
@@ -1326,7 +1598,183 @@ function IngestPageInner() {
     } finally {
       setIsPublishing(false);
     }
-  }, [user, state, productId, dispatch, toast, navigate, queryClient, generateDishGuide, handleSaveDraft]);
+  }, [user, state, productId, dispatch, toast, navigate, queryClient, generateDishGuide, handleSaveDraft, translateFields, saveTranslations]);
+
+  // ---------------------------------------------------------------------------
+  // Re-translate stale fields and then publish
+  // ---------------------------------------------------------------------------
+  const handleRetranslateAndPublish = useCallback(async () => {
+    if (!productId || isPublishing) return;
+
+    // 1. Close the stale warning dialog immediately
+    setShowStaleWarning(false);
+
+    try {
+      if (isPlateSpecType) {
+        const ps = state.draft as PlateSpecDraft;
+
+        // --- BOH plate_specs re-translation ---
+        const bohDbData = {
+          assembly_procedure: ps.assemblyProcedure,
+          notes: ps.notes,
+        };
+        const bohTexts = extractTranslatableTexts('plate_specs', bohDbData);
+        if (bohTexts.length > 0) {
+          const bohResults = await translateFields(
+            'plate_specs',
+            productId,
+            bohTexts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+          );
+          if (bohResults.length > 0) {
+            const bohMerged = bohResults.map((r) => {
+              const source = bohTexts.find((t) => t.fieldPath === r.fieldPath);
+              return {
+                fieldPath: r.fieldPath,
+                sourceText: source?.sourceText ?? '',
+                translatedText: r.translatedText,
+              };
+            });
+            await saveTranslations('plate_specs', productId, bohMerged);
+          }
+        }
+
+        // --- FOH foh_plate_specs re-translation (if dish guide exists) ---
+        if (ps.dishGuide) {
+          const { data: existingDg } = await supabase
+            .from('foh_plate_specs')
+            .select('id')
+            .eq('plate_spec_id', productId)
+            .maybeSingle();
+
+          if (existingDg) {
+            const fohDbData = {
+              short_description: ps.dishGuide.shortDescription,
+              detailed_description: ps.dishGuide.detailedDescription,
+              notes: ps.dishGuide.notes,
+            };
+            const fohTexts = extractTranslatableTexts('foh_plate_specs', fohDbData);
+            if (fohTexts.length > 0) {
+              const fohResults = await translateFields(
+                'foh_plate_specs',
+                existingDg.id,
+                fohTexts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+              );
+              if (fohResults.length > 0) {
+                const fohMerged = fohResults.map((r) => {
+                  const source = fohTexts.find((t) => t.fieldPath === r.fieldPath);
+                  return {
+                    fieldPath: r.fieldPath,
+                    sourceText: source?.sourceText ?? '',
+                    translatedText: r.translatedText,
+                  };
+                });
+                await saveTranslations('foh_plate_specs', existingDg.id, fohMerged);
+              }
+            }
+          }
+        }
+
+        // 3. Publish with skipStaleWarning to avoid re-triggering
+        await handlePublishPlateSpec(false, true);
+      } else if (isWineType) {
+        const wd = state.draft as WineDraft;
+        const dbData = {
+          tasting_notes: wd.tastingNotes,
+          producer_notes: wd.producerNotes,
+          notes: wd.notes,
+        };
+        const texts = extractTranslatableTexts('wines', dbData);
+        if (texts.length > 0) {
+          const results = await translateFields(
+            'wines',
+            productId,
+            texts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+          );
+          if (results.length > 0) {
+            const merged = results.map((r) => {
+              const source = texts.find((t) => t.fieldPath === r.fieldPath);
+              return {
+                fieldPath: r.fieldPath,
+                sourceText: source?.sourceText ?? '',
+                translatedText: r.translatedText,
+              };
+            });
+            await saveTranslations('wines', productId, merged);
+          }
+        }
+
+        await handlePublish(false, true);
+      } else if (isCocktailType) {
+        const cd = state.draft as CocktailDraft;
+        const dbData = {
+          procedure: cd.procedure,
+          tasting_notes: cd.tastingNotes,
+          description: cd.description,
+          notes: cd.notes,
+        };
+        const texts = extractTranslatableTexts('cocktails', dbData);
+        if (texts.length > 0) {
+          const results = await translateFields(
+            'cocktails',
+            productId,
+            texts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+          );
+          if (results.length > 0) {
+            const merged = results.map((r) => {
+              const source = texts.find((t) => t.fieldPath === r.fieldPath);
+              return {
+                fieldPath: r.fieldPath,
+                sourceText: source?.sourceText ?? '',
+                translatedText: r.translatedText,
+              };
+            });
+            await saveTranslations('cocktails', productId, merged);
+          }
+        }
+
+        await handlePublish(false, true);
+      } else {
+        // Prep recipe — respect category preferences (same as first-publish path)
+        const rd = state.draft as PrepRecipeDraft;
+        const dbData = {
+          name: rd.name,
+          ingredients: rd.ingredients,
+          procedure: rd.procedure,
+          training_notes: rd.trainingNotes,
+        };
+        const categories = getActiveCategories('prep_recipes');
+        const texts = categories.size > 0
+          ? extractTranslatableTexts('prep_recipes', dbData, categories)
+          : extractTranslatableTexts('prep_recipes', dbData);
+        if (texts.length > 0) {
+          const results = await translateFields(
+            'prep_recipes',
+            productId,
+            texts.map((t) => ({ fieldPath: t.fieldPath, sourceText: t.sourceText })),
+          );
+          if (results.length > 0) {
+            const merged = results.map((r) => {
+              const source = texts.find((t) => t.fieldPath === r.fieldPath);
+              return {
+                fieldPath: r.fieldPath,
+                sourceText: source?.sourceText ?? '',
+                translatedText: r.translatedText,
+              };
+            });
+            await saveTranslations('prep_recipes', productId, merged);
+          }
+        }
+
+        await handlePublish(false, true);
+      }
+    } catch (err) {
+      console.error('Re-translate error:', err);
+      toast({
+        title: 'Translation failed',
+        description: err instanceof Error ? err.message : 'Failed to re-translate. You can still use "Publish Anyway" to skip translation.',
+      });
+    }
+  }, [user, state, productId, isPublishing, isWineType, isCocktailType, isPlateSpecType, translateFields, saveTranslations, getActiveCategories, toast, handlePublish, handlePublishPlateSpec]);
 
   // Load session from URL params on mount
   useEffect(() => {
@@ -1336,7 +1784,12 @@ function IngestPageInner() {
           dispatch({ type: 'SET_SESSION_ID', payload: sessionId });
 
           // Set active type based on session's product table
-          const activeType = TABLE_TO_ACTIVE_TYPE[result.session.productTable];
+          // For prep_recipes, check department in draft data to distinguish bar_prep vs prep_recipe
+          let activeType = TABLE_TO_ACTIVE_TYPE[result.session.productTable];
+          if (result.session.productTable === 'prep_recipes' && result.session.draftData) {
+            const dept = (result.session.draftData as any).department;
+            if (dept === 'bar') activeType = 'bar_prep';
+          }
           if (activeType) {
             dispatch({ type: 'SET_ACTIVE_TYPE', payload: activeType });
           }
@@ -1397,6 +1850,7 @@ function IngestPageInner() {
                   notes: dishGuideRow.notes ?? '',
                   image: dishGuideRow.image ?? null,
                   isTopSeller: dishGuideRow.is_top_seller ?? false,
+                  isFeatured: dishGuideRow.is_featured ?? false,
                 };
                 dispatch({ type: 'SET_DISH_GUIDE', payload: foh });
                 prevDishGuideRef.current = foh;
@@ -1426,7 +1880,12 @@ function IngestPageInner() {
           }
 
           // Set active type based on table
-          const activeType = TABLE_TO_ACTIVE_TYPE[table];
+          // For prep_recipes, check department to distinguish bar_prep vs prep_recipe
+          let activeType = TABLE_TO_ACTIVE_TYPE[table];
+          if (table === 'prep_recipes') {
+            const dept = (data as any).department || 'kitchen';
+            if (dept === 'bar') activeType = 'bar_prep';
+          }
           if (activeType) {
             dispatch({ type: 'SET_ACTIVE_TYPE', payload: activeType });
           }
@@ -1523,6 +1982,7 @@ function IngestPageInner() {
                 notes: dishGuideRow.notes ?? '',
                 image: dishGuideRow.image ?? null,
                 isTopSeller: dishGuideRow.is_top_seller ?? false,
+                isFeatured: dishGuideRow.is_featured ?? false,
               };
               dispatch({ type: 'SET_DISH_GUIDE', payload: foh });
               // Initialize ref so dishGuideSaveEffect doesn't spuriously fire
@@ -1537,8 +1997,8 @@ function IngestPageInner() {
     }
   }, [table, productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { uploadFile, isUploading: isFileUploading, error: fileError } = useFileUpload(productTable);
-  const { uploadImage, isUploading: isImageUploading, error: imageError } = useImageUpload(productTable);
+  const { uploadFile, isUploading: isFileUploading, error: fileError } = useFileUpload(productTable, department);
+  const { uploadImage, isUploading: isImageUploading, error: imageError } = useImageUpload(productTable, department);
 
   // Local UI state
   const [desktopView, setDesktopView] = useState<'preview' | 'edit'>('edit');
@@ -1729,13 +2189,13 @@ function IngestPageInner() {
     />
   );
 
-  // Desktop AI panel (chat docked on right)
-  const aiPanel = !isMobile ? (
+  // Desktop AI panel (chat docked on right — only when lg+ viewport)
+  const aiPanel = !isBelowLg ? (
     <div className="flex flex-col h-full p-4">
       <div className="shrink-0 mb-3">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-          <span className="text-[16px] leading-none">🤖</span>
-          AI {productLabel} Builder
+          <img src="/images/tastly-isotope.svg" alt="Tastly" className="w-5 h-5 shrink-0 rounded-[4px]" />
+          {isBarPrepType ? 'AI Bar Prep Builder' : `AI ${productLabel} Builder`}
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
           Describe your {productLabel.toLowerCase()} and I'll structure it
@@ -1783,7 +2243,7 @@ function IngestPageInner() {
 
   // Center toolbar: Save Draft + Publish (+ Delete in edit mode, + Discard in new draft mode)
   const headerToolbar = hasDraft ? (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2">
       {isEditMode && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -1794,9 +2254,9 @@ function IngestPageInner() {
               disabled={isDeleting || state.isSaving || isPublishing || isGeneratingDishGuide}
             >
               {isDeleting
-                ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
-              Delete
+                ? <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Delete</span>
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -1828,9 +2288,9 @@ function IngestPageInner() {
               disabled={isDiscarding || state.isSaving || isPublishing || isGeneratingDishGuide}
             >
               {isDiscarding
-                ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                : <Trash2 className="h-3.5 w-3.5 mr-1.5" />}
-              Discard
+                ? <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+                : <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Discard</span>
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -1872,9 +2332,9 @@ function IngestPageInner() {
           className="gap-1.5"
         >
           {isGeneratingDishGuide ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
+            <><Loader2 className="h-4 w-4 animate-spin" /> <span className="hidden md:inline">Generating...</span></>
           ) : (
-            <><Sparkles className="h-4 w-4" /> {hasDishGuide ? 'Regenerate' : 'Generate'} FOH Plate Spec</>
+            <><Sparkles className="h-4 w-4" /> <span className="hidden md:inline">{hasDishGuide ? 'Regenerate' : 'Generate'} FOH Plate Spec</span></>
           )}
         </Button>
       )}
@@ -1885,9 +2345,9 @@ function IngestPageInner() {
         disabled={state.isSaving || isPublishing || !state.isDirty || isGeneratingDishGuide}
       >
         {state.isSaving
-          ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-          : <Save className="h-3.5 w-3.5 mr-1.5" />}
-        Save Draft
+          ? <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+          : <Save className="h-3.5 w-3.5 sm:mr-1.5" />}
+        <span className="hidden sm:inline">Save Draft</span>
       </Button>
       <Button
         size="sm"
@@ -1902,9 +2362,9 @@ function IngestPageInner() {
         className="bg-orange-500 text-white hover:bg-orange-600"
       >
         {isPublishing
-          ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-          : <Send className="h-3.5 w-3.5 mr-1.5" />}
-        Publish
+          ? <Loader2 className="h-3.5 w-3.5 sm:mr-1.5 animate-spin" />
+          : <Send className="h-3.5 w-3.5 sm:mr-1.5" />}
+        <span className="hidden sm:inline">Publish</span>
       </Button>
     </div>
   ) : undefined;
@@ -1915,23 +2375,31 @@ function IngestPageInner() {
       onLanguageChange={setLanguage}
       isAdmin={isAdmin}
       showSearch={false}
-      aiPanel={aiPanel}
-      constrainContentWidth={true}
-      headerToolbar={headerToolbar}
+      aiPanel={isBeerLiquorType ? undefined : aiPanel}
+      constrainContentWidth={!isBeerLiquorType}
+      overflow={isBeerLiquorType ? 'hidden' : 'auto'}
+      headerToolbar={isBeerLiquorType ? undefined : headerToolbar}
       headerLeft={headerLeft}
     >
-      <div className="space-y-4">
+      <div className={isBeerLiquorType ? "flex flex-col gap-4 h-full max-w-reading-wide mx-auto px-4 pt-4 pb-24 md:px-6 md:pt-6 md:pb-6 lg:px-8" : "space-y-4"}>
         {/* Product Type Navbar — hidden once a session is active or in edit mode */}
         {!isEditMode && !state.sessionId && state.messages.length === 0 && (
           <ProductTypeNavbar
             activeType={state.activeType}
             onTypeChange={(type) => dispatch({ type: 'SET_ACTIVE_TYPE', payload: type })}
-            dirtyTypes={state.isDirty ? new Set([state.activeType]) : undefined}
+            dirtyTypes={(() => {
+              const dirty = new Set<string>();
+              if (state.isDirty) dirty.add(state.activeType);
+              if (beerLiquorDirty) dirty.add('beer_liquor');
+              return dirty.size > 0 ? dirty : undefined;
+            })()}
           />
         )}
 
-        {/* Mobile Layout */}
-        {isMobile ? (
+        {/* Beer/Liquor batch ingest — self-contained UI */}
+        {isBeerLiquorType ? (
+          <BeerLiquorBatchIngest onDirtyChange={setBeerLiquorDirty} />
+        ) : isBelowLg ? (
           <>
             {state.mobileMode === 'chat' && chatContent}
 
@@ -1950,12 +2418,17 @@ function IngestPageInner() {
               )
             )}
 
-            {/* Mobile Mode Segment Control */}
-            <div className="fixed bottom-16 left-0 right-0 px-4 pb-2 bg-background/95 backdrop-blur-sm border-t border-border pt-2 z-10">
-              <MobileModeTabs
-                activeMode={state.mobileMode}
-                onModeChange={(mode) => dispatch({ type: 'SET_MOBILE_MODE', payload: mode })}
-              />
+            {/* Spacer so content isn't hidden behind fixed floating tabs */}
+            <div className="h-14" aria-hidden="true" />
+
+            {/* Floating Mode Tabs — fixed above MobileTabBar on mobile, near bottom on md+ */}
+            <div className="fixed bottom-[76px] md:bottom-3 inset-x-0 md:left-16 z-[60] flex justify-center px-4 md:px-6 pointer-events-none">
+              <div className="w-full max-w-reading px-1 py-1 bg-muted/90 backdrop-blur-md rounded-2xl shadow-[0_2px_16px_rgba(0,0,0,0.15)] pointer-events-auto">
+                <MobileModeTabs
+                  activeMode={state.mobileMode}
+                  onModeChange={(mode) => dispatch({ type: 'SET_MOBILE_MODE', payload: mode })}
+                />
+              </div>
             </div>
           </>
         ) : (
@@ -2096,18 +2569,23 @@ function IngestPageInner() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isAutoTranslating}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              disabled={isAutoTranslating}
               onClick={() => {
                 setShowStaleWarning(false);
-                handlePublish(false, true);
+                if (isPlateSpecType) {
+                  handlePublishPlateSpec(false, true);
+                } else {
+                  handlePublish(false, true);
+                }
               }}
             >
               Publish Anyway
             </AlertDialogAction>
             <Button
               onClick={handleRetranslateAndPublish}
-              disabled={isAutoTranslating}
+              disabled={isAutoTranslating || isPublishing}
               className="bg-orange-500 text-white hover:bg-orange-600"
             >
               {isAutoTranslating

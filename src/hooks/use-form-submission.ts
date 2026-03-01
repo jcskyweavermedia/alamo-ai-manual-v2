@@ -102,10 +102,17 @@ function submissionReducer(state: SubmissionState, action: SubmissionAction): Su
 
 interface UseFormSubmissionOptions {
   template: FormTemplate | null;
+  /** AI session ID to link with this submission (from useAskForm) */
+  aiSessionId?: string | null;
 }
 
-export function useFormSubmission({ template }: UseFormSubmissionOptions) {
+export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOptions) {
   const [state, dispatch] = useReducer(submissionReducer, INITIAL_STATE);
+  // Store aiSessionId in a ref so the submit callback always gets the latest
+  // value without needing it in the dependency array (it changes after the
+  // first AI turn, which would otherwise recreate the submit callback).
+  const aiSessionIdRef = useRef<string | null | undefined>(aiSessionId);
+  aiSessionIdRef.current = aiSessionId;
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -203,6 +210,19 @@ export function useFormSubmission({ template }: UseFormSubmissionOptions) {
         return existingDraft.id;
       }
 
+      // Build default values for date fields that should auto-fill on creation.
+      // Convention: fields with key "date_signed" or date fields whose ai_hint
+      // contains "default to today" get today's date (YYYY-MM-DD).
+      const defaultValues: FormFieldValues = {};
+      const today = new Date().toISOString().split('T')[0];
+      for (const field of template.fields) {
+        if (field.type !== 'date') continue;
+        const hintLower = (field.ai_hint ?? '').toLowerCase();
+        if (field.key === 'date_signed' || hintLower.includes('default to today')) {
+          defaultValues[field.key] = today;
+        }
+      }
+
       // Create new draft
       const { data, error } = await supabase
         .from('form_submissions')
@@ -210,7 +230,7 @@ export function useFormSubmission({ template }: UseFormSubmissionOptions) {
           template_id: template.id,
           group_id: groupId,
           template_version: template.templateVersion,
-          field_values: {},
+          field_values: defaultValues as unknown as Record<string, unknown>,
           status: 'draft' as FormSubmissionStatus,
           filled_by: user.id,
         })
@@ -223,7 +243,7 @@ export function useFormSubmission({ template }: UseFormSubmissionOptions) {
         type: 'SET_ALL',
         payload: {
           submissionId: data.id,
-          fieldValues: {},
+          fieldValues: defaultValues,
           attachments: [],
           notes: '',
           status: 'draft',
@@ -346,15 +366,21 @@ export function useFormSubmission({ template }: UseFormSubmissionOptions) {
       }
 
       // 3. Copy fields_snapshot + update status to submitted
+      const updatePayload: Record<string, unknown> = {
+        status: 'submitted' as FormSubmissionStatus,
+        fields_snapshot: JSON.parse(JSON.stringify(template.fields)),
+        submitted_by: user.id,
+        submitted_at: new Date().toISOString(),
+        field_values: state.fieldValues as unknown as Record<string, unknown>,
+      };
+      // Link AI session if one was used during form filling (read from ref for latest value)
+      if (aiSessionIdRef.current) {
+        updatePayload.ai_session_id = aiSessionIdRef.current;
+      }
+
       const { error } = await supabase
         .from('form_submissions')
-        .update({
-          status: 'submitted' as FormSubmissionStatus,
-          fields_snapshot: JSON.parse(JSON.stringify(template.fields)),
-          submitted_by: user.id,
-          submitted_at: new Date().toISOString(),
-          field_values: state.fieldValues as unknown as Record<string, unknown>,
-        })
+        .update(updatePayload)
         .eq('id', state.submissionId)
         .eq('status', 'draft'); // Guard against double-submit
 

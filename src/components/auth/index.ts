@@ -8,3 +8,4 @@ export { SignUpForm } from './SignUpForm';
 export { AuthLoadingScreen } from './AuthLoadingScreen';
 export { ProtectedRoute } from './ProtectedRoute';
 export { RoleGate } from './RoleGate';
+export { useAuth } from '@/hooks/use-auth';

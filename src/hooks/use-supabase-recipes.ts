@@ -19,12 +19,13 @@ export function useSupabaseRecipes() {
       const [prepResult, plateResult] = await Promise.all([
         supabase
           .from('prep_recipes')
-          .select('id, slug, name, prep_type, tags, yield_qty, yield_unit, shelf_life_value, shelf_life_unit, ingredients, procedure, batch_scaling, training_notes, images')
+          .select('id, slug, name, department, prep_type, tags, yield_qty, yield_unit, shelf_life_value, shelf_life_unit, ingredients, procedure, batch_scaling, training_notes, images, is_featured, created_at')
           .eq('status', 'published')
+          .neq('department', 'bar')
           .order('name'),
         supabase
           .from('plate_specs')
-          .select('id, slug, name, plate_type, menu_category, tags, allergens, components, assembly_procedure, notes, images')
+          .select('id, slug, name, plate_type, menu_category, tags, allergens, components, assembly_procedure, notes, images, is_featured, created_at')
           .eq('status', 'published')
           .order('name'),
       ]);
@@ -47,9 +48,11 @@ export function useSupabaseRecipes() {
         procedure: (row.procedure as unknown as RecipeProcedureGroup[]) ?? [],
         batchScaling: (row.batch_scaling as unknown as BatchScaling) ?? {},
         trainingNotes: (row.training_notes as unknown as TrainingNotes) ?? {},
+        isFeatured: row.is_featured,
         images: ((row.images ?? []) as unknown as (string | RecipeImage)[]).map(
           (img) => (typeof img === 'string' ? { url: img } : img)
         ),
+        createdAt: row.created_at,
       }));
 
       const plateSpecs: PlateSpec[] = (plateResult.data || []).map((row) => ({
@@ -64,9 +67,11 @@ export function useSupabaseRecipes() {
         components: (row.components as unknown as PlateComponentGroup[]) ?? [],
         assemblyProcedure: (row.assembly_procedure as unknown as RecipeProcedureGroup[]) ?? [],
         notes: row.notes ?? '',
+        isFeatured: row.is_featured,
         images: ((row.images ?? []) as unknown as (string | RecipeImage)[]).map(
           (img) => (typeof img === 'string' ? { url: img } : img)
         ),
+        createdAt: row.created_at,
       }));
 
       return [...prepRecipes, ...plateSpecs];

@@ -8,6 +8,8 @@
 // =============================================================================
 
 export type DishCategory = 'appetizer' | 'entree' | 'side' | 'dessert';
+
+export type ProductSortMode = 'name' | 'recent' | 'featured';
 export type AllergenType = 'dairy' | 'gluten' | 'eggs' | 'shellfish' | 'fish' | 'tree-nuts' | 'soy' | 'peanuts';
 
 export interface Dish {
@@ -26,7 +28,9 @@ export interface Dish {
   notes: string;
   image: string | null;
   isTopSeller: boolean;          // DB: is_top_seller (was mock: topSeller)
+  isFeatured: boolean;           // DB: is_featured
   plateSpecId: string | null;    // DB: plate_spec_id (links to plate_specs)
+  createdAt: string;             // DB: created_at
 }
 
 // =============================================================================
@@ -53,6 +57,8 @@ export interface Wine {
   notes: string;
   image: string | null;
   isTopSeller: boolean;          // DB: is_top_seller (was mock: topSeller)
+  isFeatured: boolean;           // DB: is_featured
+  createdAt: string;             // DB: created_at
 }
 
 // =============================================================================
@@ -72,7 +78,7 @@ export interface Cocktail {
   name: string;
   style: CocktailStyle;
   glass: string;
-  ingredients: string;           // DB: text (plain string)
+  ingredients: RecipeIngredientGroup[];  // DB: jsonb (same structure as prep recipes)
   keyIngredients: string;        // DB: text (plain string)
   procedure: CocktailProcedureStep[];  // DB: jsonb [{step, instruction}]
   tastingNotes: string;          // DB: tasting_notes
@@ -80,6 +86,8 @@ export interface Cocktail {
   notes: string;
   image: string | null;
   isTopSeller: boolean;          // DB: is_top_seller (was mock: topSeller)
+  isFeatured: boolean;           // DB: is_featured
+  createdAt: string;             // DB: created_at
 }
 
 // =============================================================================
@@ -146,6 +154,7 @@ export interface PrepRecipe {
   slug: string;
   type: 'prep';                  // Discriminator
   name: string;
+  department: 'kitchen' | 'bar'; // DB: department
   prepType: string;              // DB: prep_type
   tags: string[];
   yieldQty: number;              // DB: yield_qty NUMERIC
@@ -156,7 +165,9 @@ export interface PrepRecipe {
   procedure: RecipeProcedureGroup[];     // DB: jsonb
   batchScaling: BatchScaling | Record<string, never>;  // DB: jsonb (may be empty {})
   trainingNotes: TrainingNotes | Record<string, never>; // DB: jsonb (may be empty {})
+  isFeatured: boolean;           // DB: is_featured
   images: RecipeImage[];         // DB: jsonb[]
+  createdAt: string;             // DB: created_at
 }
 
 // --- Plate Spec ---
@@ -189,7 +200,9 @@ export interface PlateSpec {
   components: PlateComponentGroup[];     // DB: jsonb
   assemblyProcedure: RecipeProcedureGroup[];  // DB: assembly_procedure jsonb
   notes: string;
+  isFeatured: boolean;           // DB: is_featured
   images: RecipeImage[];         // DB: jsonb[]
+  createdAt: string;             // DB: created_at
 }
 
 export type Recipe = PrepRecipe | PlateSpec;
@@ -211,4 +224,7 @@ export interface BeerLiquorItem {
   description: string;
   style: string;
   notes: string;
+  image: string | null;
+  isFeatured: boolean;           // DB: is_featured
+  createdAt: string;             // DB: created_at
 }

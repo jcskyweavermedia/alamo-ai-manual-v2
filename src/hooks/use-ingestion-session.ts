@@ -38,6 +38,7 @@ export interface UseIngestionSessionReturn {
     messages: ChatMessage[];
   } | null>;
   saveDraft: (draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft, version: number) => Promise<boolean>;
+  completeSession: (sessionId: string) => Promise<boolean>;
   listSessions: (status?: string) => Promise<IngestionSession[]>;
   findSessionForProduct: (productId: string, productTable: string) => Promise<IngestionSession | null>;
   reuseSessionForEdit: (sessionId: string, productId: string, draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft) => Promise<boolean>;
@@ -257,6 +258,42 @@ export function useIngestionSession(): UseIngestionSessionReturn {
   );
 
   // ---------------------------------------------------------------------------
+  // completeSession — mark a session as 'published' after all items are ingested
+  // ---------------------------------------------------------------------------
+  const completeSession = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      if (!user) {
+        toast.error('Please sign in to complete a session');
+        return false;
+      }
+
+      try {
+        const { error: dbError } = await supabase
+          .from('ingestion_sessions')
+          .update({ status: 'published', updated_at: new Date().toISOString() })
+          .eq('id', sessionId);
+
+        if (dbError) {
+          throw new Error(dbError.message);
+        }
+
+        // If this is the active session, update local state too
+        if (sessionRef.current?.id === sessionId) {
+          setSession({ ...sessionRef.current, status: 'published' });
+        }
+
+        return true;
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to complete session';
+        console.error('completeSession error:', message);
+        return false;
+      }
+    },
+    [user, setSession],
+  );
+
+  // ---------------------------------------------------------------------------
   // listSessions
   // ---------------------------------------------------------------------------
   const listSessions = useCallback(
@@ -461,6 +498,7 @@ export function useIngestionSession(): UseIngestionSessionReturn {
     createSession,
     loadSession,
     saveDraft,
+    completeSession,
     listSessions,
     findSessionForProduct,
     reuseSessionForEdit,

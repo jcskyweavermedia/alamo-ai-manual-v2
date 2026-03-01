@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Dashboard — Alamo Prime</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js"></script>
+
+  <!-- Tailwind Config (mirrors review-dashboard-v2) -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas: 'hsl(var(--canvas))',
+            surface: 'hsl(var(--surface))',
+            'surface-foreground': 'hsl(var(--surface-foreground))',
+            border: 'hsl(var(--border-color))',
+            muted: 'hsl(var(--muted))',
+            'muted-fg': 'hsl(var(--muted-fg))',
+            'tertiary-fg': 'hsl(var(--tertiary-fg))',
+            brand: 'hsl(var(--brand))',
+            ink: 'hsl(var(--ink))',
+          },
+          borderRadius: {
+            'card': '16px',
+            'pill': '9999px',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['ui-monospace', 'SF Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+            'elevated': '0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04)',
+            'floating': '0 10px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06)',
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* ===== Design Tokens (same as review dashboard) ===== */
+    :root {
+      --canvas: 240 10% 98%;
+      --surface: 0 0% 100%;
+      --surface-foreground: 240 10% 7%;
+      --border-color: 240 6% 90%;
+      --muted: 240 5% 96%;
+      --muted-fg: 240 4% 38%;
+      --tertiary-fg: 240 4% 55%;
+      --brand: 25 95% 53%;
+      --ink: 240 10% 7%;
+    }
+    .dark {
+      --canvas: 240 10% 4%;
+      --surface: 240 10% 8%;
+      --surface-foreground: 240 5% 96%;
+      --border-color: 240 5% 18%;
+      --muted: 240 5% 15%;
+      --muted-fg: 240 5% 72%;
+      --tertiary-fg: 240 5% 57%;
+      --brand: 25 95% 53%;
+      --ink: 240 5% 96%;
+    }
+
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: hsl(var(--canvas));
+      color: hsl(var(--ink));
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      overflow-x: hidden;
+    }
+
+    .card {
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 16px;
+      padding: 24px;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .card:hover {
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    }
+    .dark .card:hover {
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+    }
+
+    .tab-active {
+      background: hsl(var(--ink));
+      color: hsl(var(--canvas));
+      font-weight: 600;
+    }
+    .tab-inactive {
+      color: hsl(var(--muted-fg));
+      font-weight: 500;
+    }
+    .tab-inactive:hover {
+      color: hsl(var(--ink));
+      background: hsl(var(--muted));
+    }
+
+    .progress-track {
+      background: hsl(var(--muted));
+      border-radius: 4px;
+      height: 12px;
+      width: 100%;
+    }
+    .progress-fill {
+      border-radius: 4px;
+      height: 100%;
+      transition: width 0.6s ease-out;
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .time-pill-bar {
+      display: inline-flex;
+      background: hsl(var(--muted));
+      border-radius: 9999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .time-pill {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .time-pill.active {
+      background: hsl(var(--surface));
+      color: hsl(var(--ink));
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+    }
+    .time-pill:not(.active) { color: hsl(var(--muted-fg)); }
+    .time-pill:not(.active):hover { color: hsl(var(--ink)); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--border-color)); border-radius: 3px; }
+    canvas { max-width: 100%; }
+
+    /* Status dots */
+    .status-on-track { background: #22c55e; }
+    .status-behind { background: #f59e0b; }
+    .status-inactive { background: #9ca3af; }
+    .status-overdue { background: #ef4444; }
+
+    /* Detail panel slide */
+    .detail-panel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 420px;
+      max-width: 100vw;
+      background: hsl(var(--surface));
+      border-left: 1px solid hsl(var(--border-color));
+      z-index: 200;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      box-shadow: -8px 0 24px rgb(0 0 0 / 0.1);
+    }
+    .detail-panel.open { transform: translateX(0); }
+    .detail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 199;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .detail-overlay.open { opacity: 1; pointer-events: auto; }
+
+    /* AI Chat */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 260px);
+      min-height: 400px;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+    .chat-bubble {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .chat-bubble.user {
+      background: #F97316;
+      color: white;
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-bubble.ai {
+      background: hsl(var(--muted));
+      color: hsl(var(--ink));
+      margin-right: auto;
+      border-bottom-left-radius: 4px;
+    }
+    .chat-input-bar {
+      display: flex;
+      gap: 8px;
+      padding: 16px 0 0;
+      border-top: 1px solid hsl(var(--border-color));
+    }
+    .chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid hsl(var(--border-color));
+      background: hsl(var(--surface));
+      color: hsl(var(--ink));
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .chat-input:focus { border-color: #F97316; }
+    .chat-input::placeholder { color: hsl(var(--tertiary-fg)); }
+    .chat-send {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #F97316;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+    .chat-send:hover { opacity: 0.9; }
+
+    /* Suggested prompts */
+    .prompt-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid hsl(var(--border-color));
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: hsl(var(--ink));
+      background: hsl(var(--surface));
+    }
+    .prompt-chip:hover {
+      border-color: #F97316;
+      background: rgba(249,115,22,0.05);
+    }
+
+    /* Mini bar for stat cards */
+    .mini-bar {
+      height: 12px;
+      border-radius: 4px;
+      transition: width 0.5s ease-out;
+    }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      width: 240px;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      flex-shrink: 0;
+      background: hsl(var(--surface));
+      border-right: 1px solid hsl(var(--border-color));
+      display: flex;
+      flex-direction: column;
+      transition: width 0.23s ease;
+      overflow: hidden;
+      z-index: 60;
+    }
+    .sidebar.collapsed { width: 64px; }
+    .sidebar .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: hsl(var(--muted-fg));
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .sidebar .nav-item:hover { color: hsl(var(--ink)); }
+    .sidebar .nav-item.active {
+      color: #2aa962;
+      font-weight: 500;
+    }
+    .sidebar .nav-item .nav-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .sidebar .nav-item.active .nav-icon {
+      background: #2aa962;
+      color: white;
+    }
+    .sidebar .nav-item:not(.active) .nav-icon {
+      color: inherit;
+    }
+    .sidebar .section-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 20px 12px 4px;
+    }
+    .sidebar .section-label span {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: hsl(var(--muted-fg) / 0.6);
+      white-space: nowrap;
+    }
+    .sidebar .section-label .divider {
+      flex: 1;
+      border-top: 1px solid hsl(var(--border-color) / 0.4);
+    }
+    .sidebar.collapsed .nav-label { display: none; }
+    .sidebar.collapsed .section-label .divider { display: none; }
+    .sidebar.collapsed .section-label span { font-size: 8px; letter-spacing: 0.08em; text-align: center; width: 100%; }
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 0; }
+    .sidebar.collapsed .section-label { padding: 20px 4px 4px; justify-content: center; }
+
+    @media (max-width: 767px) {
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================================================================== -->
+  <!-- APP SHELL: SIDEBAR + RIGHT COLUMN                                   -->
+  <!-- ================================================================== -->
+  <div class="flex" style="height: 100vh; overflow: hidden;">
+
+  <!-- ================================================================== -->
+  <!-- SIDEBAR                                                             -->
+  <!-- ================================================================== -->
+  <aside class="sidebar" id="app-sidebar">
+    <!-- Logo -->
+    <div class="flex items-center h-14 px-4 overflow-hidden" style="border-bottom: 1px solid hsl(var(--border-color));">
+      <img src="/images/tastly-isotope.svg" alt="Tastly" class="w-7 h-7 shrink-0" onerror="this.style.display='none'">
+      <span class="nav-label font-bold text-lg ml-2.5 whitespace-nowrap" style="color: hsl(var(--ink));">Tastly AI</span>
+    </div>
+
+    <!-- Collapse toggle -->
+    <div class="px-2 pt-3 pb-1 mb-2">
+      <div class="nav-item" onclick="toggleSidebar()">
+        <span class="nav-icon"><i data-lucide="panel-left-close" class="w-5 h-5" id="collapse-icon"></i></span>
+        <span class="nav-label">Collapse</span>
+      </div>
+    </div>
+
+    <!-- Main nav -->
+    <nav class="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto" style="scrollbar-width: none;">
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="book-open" class="w-5 h-5"></i></span>
+        <span class="nav-label">Manual</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="search" class="w-5 h-5"></i></span>
+        <span class="nav-label">Search</span>
+      </a>
+
+      <!-- BOH section -->
+      <div class="section-label">
+        <span>BOH</span>
+        <div class="divider"></div>
+      </div>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="chef-hat" class="w-5 h-5"></i></span>
+        <span class="nav-label">Recipes</span>
+      </a>
+
+      <!-- FOH section -->
+      <div class="section-label">
+        <span>FOH</span>
+        <div class="divider"></div>
+      </div>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="utensils-crossed" class="w-5 h-5"></i></span>
+        <span class="nav-label">Dish Guide</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="wine" class="w-5 h-5"></i></span>
+        <span class="nav-label">Wines</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="martini" class="w-5 h-5"></i></span>
+        <span class="nav-label">Cocktails</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="beer" class="w-5 h-5"></i></span>
+        <span class="nav-label">Beer & Liquor</span>
+      </a>
+
+      <!-- FORMS section -->
+      <div class="section-label">
+        <span>FORMS</span>
+        <div class="divider"></div>
+      </div>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="clipboard-list" class="w-5 h-5"></i></span>
+        <span class="nav-label">Forms</span>
+      </a>
+
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="sparkles" class="w-5 h-5"></i></span>
+        <span class="nav-label">Ask AI</span>
+      </a>
+    </nav>
+
+    <!-- Divider -->
+    <div class="mx-4" style="border-top: 1px solid hsl(var(--border-color));"></div>
+
+    <!-- Secondary nav (admin) -->
+    <nav class="py-4 px-2 space-y-0.5">
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="plus" class="w-5 h-5"></i></span>
+        <span class="nav-label">Ingest</span>
+      </a>
+      <a class="nav-item active" href="#">
+        <span class="nav-icon"><i data-lucide="bar-chart-3" class="w-5 h-5"></i></span>
+        <span class="nav-label">Training Dashboard</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="star" class="w-5 h-5"></i></span>
+        <span class="nav-label">Review Insights</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-icon"><i data-lucide="settings" class="w-5 h-5"></i></span>
+        <span class="nav-label">Admin</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- ================================================================== -->
+  <!-- RIGHT COLUMN (header + content)                                     -->
+  <!-- ================================================================== -->
+  <div class="flex-1 flex flex-col min-w-0 min-h-0" style="overflow-y: auto;">
+
+  <!-- ================================================================== -->
+  <!-- HEADER                                                              -->
+  <!-- ================================================================== -->
+  <header class="sticky top-0 z-50" style="background: hsl(var(--canvas)); border-bottom: 1px solid hsl(var(--border-color));">
+    <div class="px-4 md:px-6 lg:px-8">
+      <!-- Top row -->
+      <div class="flex items-center justify-between h-14">
+        <div class="flex items-center gap-3">
+          <!-- Mobile hamburger (hidden on desktop) -->
+          <button class="md:hidden w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+            <i data-lucide="menu" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));" aria-label="Search">
+            <i data-lucide="search" class="w-[18px] h-[18px]"></i>
+          </button>
+          <div class="time-pill-bar" style="padding: 2px;">
+            <button class="time-pill active text-xs px-3 py-1" id="lang-en" onclick="setLanguage('en')">EN</button>
+            <button class="time-pill text-xs px-3 py-1" id="lang-es" onclick="setLanguage('es')">ES</button>
+          </div>
+          <button id="dark-toggle" class="w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));" onclick="toggleDark()">
+            <i data-lucide="sun" class="w-[18px] h-[18px]" id="icon-sun"></i>
+            <i data-lucide="moon" class="w-[18px] h-[18px] hidden" id="icon-moon"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Nav tabs -->
+      <div class="flex items-center gap-1 pb-3 overflow-x-auto" style="scrollbar-width: none;">
+        <button class="nav-tab tab-active px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="overview" onclick="switchTab('overview')">
+          <span class="hidden sm:inline" data-i18n="tabOverview">Overview</span>
+          <i data-lucide="bar-chart-3" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="team" onclick="switchTab('team')">
+          <span class="hidden sm:inline" data-i18n="tabTeam">Team Progress</span>
+          <i data-lucide="users" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="courses" onclick="switchTab('courses')">
+          <span class="hidden sm:inline" data-i18n="tabCourses">Courses</span>
+          <i data-lucide="book-open" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="chat" onclick="switchTab('chat')">
+          <span class="hidden sm:inline" data-i18n="tabChat">AI Chat</span>
+          <i data-lucide="sparkles" class="w-4 h-4 sm:hidden"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================== -->
+  <!-- MAIN CONTENT                                                        -->
+  <!-- ================================================================== -->
+  <main class="px-4 md:px-6 lg:px-8 py-6 pb-24">
+
+    <!-- Page Title -->
+    <div class="mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight" style="color: hsl(var(--ink));" data-i18n="pageTitle">Training Dashboard</h1>
+      <p class="text-sm mt-1" style="color: hsl(var(--muted-fg));" data-i18n="pageSubtitle">Track team progress, completion rates, and training insights.</p>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 1: OVERVIEW                                              -->
+    <!-- ============================================================== -->
+    <div id="screen-overview" class="screen active">
+
+      <!-- Row 1: 4 Stat Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <!-- Team -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-2">
+            <p class="text-sm font-medium" style="color: hsl(var(--muted-fg));" data-i18n="team">Team</p>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(59,130,246,0.1);">
+              <i data-lucide="users" class="w-4 h-4" style="color: #3b82f6;"></i>
+            </div>
+          </div>
+          <span class="text-3xl font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">12</span>
+          <p class="text-xs mt-1" style="color: hsl(var(--muted-fg));">10 <span data-i18n="active">active</span></p>
+        </div>
+
+        <!-- Avg Progress -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-2">
+            <p class="text-sm font-medium" style="color: hsl(var(--muted-fg));" data-i18n="avgProgress">Avg Progress</p>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(16,185,129,0.1);">
+              <i data-lucide="trending-up" class="w-4 h-4" style="color: #10b981;"></i>
+            </div>
+          </div>
+          <span class="text-3xl font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">68%</span>
+          <p class="text-xs mt-1" style="color: #10b981;">+12% <span data-i18n="thisWeek">this week</span></p>
+        </div>
+
+        <!-- Courses -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-2">
+            <p class="text-sm font-medium" style="color: hsl(var(--muted-fg));" data-i18n="courses">Courses</p>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(139,92,246,0.1);">
+              <i data-lucide="book-open" class="w-4 h-4" style="color: #8b5cf6;"></i>
+            </div>
+          </div>
+          <span class="text-3xl font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">7</span>
+          <p class="text-xs mt-1" style="color: hsl(var(--muted-fg));" data-i18n="published">published</p>
+        </div>
+
+        <!-- Overdue -->
+        <div class="card" style="border-color: rgba(239,68,68,0.3);">
+          <div class="flex items-start justify-between mb-2">
+            <p class="text-sm font-medium" style="color: hsl(var(--muted-fg));" data-i18n="overdue">Overdue</p>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(245,158,11,0.1);">
+              <i data-lucide="alert-triangle" class="w-4 h-4" style="color: #f59e0b;"></i>
+            </div>
+          </div>
+          <span class="text-3xl font-bold font-mono" style="color: #ef4444; font-variant-numeric: tabular-nums;">3</span>
+          <p class="text-xs mt-1" style="color: hsl(var(--muted-fg));" data-i18n="tasks">tasks</p>
+        </div>
+      </div>
+
+      <!-- Row 2: Completion Chart + Status Breakdown -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
+
+        <!-- Completion Over Time (bar chart) -->
+        <div class="card lg:col-span-7">
+          <div class="flex items-start justify-between mb-1">
+            <div>
+              <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="completionOverTime">Completion Over Time</p>
+              <p class="text-xs mt-0.5" style="color: hsl(var(--tertiary-fg));" data-i18n="last8Weeks">Last 8 weeks</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <div style="position: relative; height: 240px;" class="mt-4">
+            <canvas id="chart-completion"></canvas>
+          </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="card lg:col-span-5">
+          <p class="text-lg font-semibold mb-4" style="color: hsl(var(--muted-fg));" data-i18n="teamStatus">Team Status</p>
+
+          <!-- Donut placeholder (we'll use bars for clarity) -->
+          <div class="space-y-4">
+            <!-- On Track -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full status-on-track"></div>
+                  <span class="text-sm font-medium" style="color: hsl(var(--ink));" data-i18n="onTrack">On Track</span>
+                </div>
+                <span class="text-sm font-bold font-mono" style="color: #22c55e; font-variant-numeric: tabular-nums;">7</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width: 58%; background: #22c55e;"></div></div>
+            </div>
+
+            <!-- Behind -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full status-behind"></div>
+                  <span class="text-sm font-medium" style="color: hsl(var(--ink));" data-i18n="behind">Behind</span>
+                </div>
+                <span class="text-sm font-bold font-mono" style="color: #f59e0b; font-variant-numeric: tabular-nums;">3</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width: 25%; background: #f59e0b;"></div></div>
+            </div>
+
+            <!-- Inactive -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full status-inactive"></div>
+                  <span class="text-sm font-medium" style="color: hsl(var(--ink));" data-i18n="inactive">Inactive</span>
+                </div>
+                <span class="text-sm font-bold font-mono" style="color: #9ca3af; font-variant-numeric: tabular-nums;">2</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width: 17%; background: #9ca3af;"></div></div>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid hsl(var(--border-color));" class="mt-5 pt-5">
+            <p class="text-xs font-semibold mb-3" style="color: hsl(var(--muted-fg));" data-i18n="recentActivity">Recent Activity</p>
+            <div class="space-y-2.5" id="recent-activity-list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Course Completion Rates -->
+      <div class="card">
+        <div class="flex items-start justify-between mb-4">
+          <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="courseCompletionRates">Course Completion Rates</p>
+          <div class="time-pill-bar">
+            <button class="time-pill active" data-i18n="allCourses">All</button>
+            <button class="time-pill" data-i18n="required">Required</button>
+            <button class="time-pill" data-i18n="optional">Optional</button>
+          </div>
+        </div>
+        <div class="space-y-4" id="course-completion-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 2: TEAM PROGRESS                                         -->
+    <!-- ============================================================== -->
+    <div id="screen-team" class="screen">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div class="time-pill-bar">
+          <button class="time-pill active" onclick="setTeamFilter(this, 'all')" data-i18n="allStaff">All Staff</button>
+          <button class="time-pill" onclick="setTeamFilter(this, 'on_track')" data-i18n="onTrack">On Track</button>
+          <button class="time-pill" onclick="setTeamFilter(this, 'behind')" data-i18n="behind">Behind</button>
+          <button class="time-pill" onclick="setTeamFilter(this, 'inactive')" data-i18n="inactive">Inactive</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color: hsl(var(--muted-fg));"></i>
+            <input type="text" placeholder="Search staff..." class="chat-input pl-9 py-2 text-sm" style="width: 200px;" oninput="filterTeam(this.value)">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <!-- Table header -->
+        <div class="hidden md:grid grid-cols-12 gap-3 pb-3 mb-3 text-xs font-semibold" style="color: hsl(var(--muted-fg)); border-bottom: 1px solid hsl(var(--border-color));">
+          <div class="col-span-3" data-i18n="name">Name</div>
+          <div class="col-span-2" data-i18n="role">Role</div>
+          <div class="col-span-3" data-i18n="progress">Progress</div>
+          <div class="col-span-1" data-i18n="quizAvg">Quiz Avg</div>
+          <div class="col-span-1" data-i18n="status">Status</div>
+          <div class="col-span-2" data-i18n="lastActive">Last Active</div>
+        </div>
+        <!-- Rows -->
+        <div class="space-y-1" id="team-table-body">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 3: COURSES                                               -->
+    <!-- ============================================================== -->
+    <div id="screen-courses" class="screen">
+      <div class="flex flex-wrap items-center gap-3 mb-5">
+        <div class="time-pill-bar">
+          <button class="time-pill active" data-i18n="allCourses">All</button>
+          <button class="time-pill" data-i18n="published">Published</button>
+          <button class="time-pill" data-i18n="draft">Draft</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="course-cards-grid">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 4: AI CHAT                                               -->
+    <!-- ============================================================== -->
+    <div id="screen-chat" class="screen">
+      <div class="card">
+        <div class="chat-container">
+          <!-- Messages area -->
+          <div class="chat-messages" id="chat-messages">
+            <!-- Welcome message -->
+            <div class="chat-bubble ai">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center" style="background: #F97316;">
+                  <i data-lucide="sparkles" class="w-3 h-3 text-white"></i>
+                </div>
+                <span class="text-xs font-semibold" style="color: hsl(var(--muted-fg));">Training AI</span>
+              </div>
+              <span data-i18n="aiWelcome">Hey! I can help you understand your team's training data. Ask me about completion rates, individual progress, quiz performance, or training recommendations.</span>
+            </div>
+
+            <!-- Suggested prompts -->
+            <div class="flex flex-wrap gap-2 mb-4 ml-1" id="suggested-prompts">
+              <button class="prompt-chip" onclick="sendPrompt(this.textContent)">
+                <i data-lucide="users" class="w-3.5 h-3.5" style="color: #F97316;"></i>
+                Who is behind on training?
+              </button>
+              <button class="prompt-chip" onclick="sendPrompt(this.textContent)">
+                <i data-lucide="bar-chart-3" class="w-3.5 h-3.5" style="color: #F97316;"></i>
+                Show completion rates by course
+              </button>
+              <button class="prompt-chip" onclick="sendPrompt(this.textContent)">
+                <i data-lucide="trophy" class="w-3.5 h-3.5" style="color: #F97316;"></i>
+                Who has the best quiz scores?
+              </button>
+              <button class="prompt-chip" onclick="sendPrompt(this.textContent)">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5" style="color: #F97316;"></i>
+                Any overdue training tasks?
+              </button>
+            </div>
+          </div>
+
+          <!-- Input bar -->
+          <div class="chat-input-bar">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Ask about training data..." data-i18n-placeholder="chatPlaceholder" onkeydown="if(event.key==='Enter')sendMessage()">
+            <button class="chat-send" onclick="sendMessage()">
+              <i data-lucide="send" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  </div><!-- end right column -->
+  </div><!-- end app shell flex -->
+
+  <!-- ================================================================== -->
+  <!-- DETAIL PANEL (slide-in from right)                                  -->
+  <!-- ================================================================== -->
+  <div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="p-6">
+      <!-- Close button -->
+      <div class="flex items-center justify-between mb-6">
+        <p class="text-lg font-bold" style="color: hsl(var(--ink));" id="detail-name">—</p>
+        <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));" onclick="closeDetail()">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Role & Last Active -->
+      <div class="flex items-center gap-3 mb-6">
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-pill" id="detail-role-badge" style="background: hsl(var(--muted)); color: hsl(var(--muted-fg));">—</span>
+        <span class="text-xs" style="color: hsl(var(--muted-fg));" id="detail-last-active">—</span>
+      </div>
+
+      <!-- Overall Progress -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium" style="color: hsl(var(--ink));" data-i18n="overallProgress">Overall Progress</span>
+          <span class="text-sm font-bold font-mono" style="color: #F97316;" id="detail-progress-pct">—</span>
+        </div>
+        <div class="progress-track" style="height: 10px;">
+          <div class="progress-fill" id="detail-progress-bar" style="width: 0%; background: #F97316;"></div>
+        </div>
+      </div>
+
+      <!-- Quiz Average -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium" style="color: hsl(var(--ink));" data-i18n="quizAverage">Quiz Average</span>
+          <span class="text-sm font-bold font-mono" id="detail-quiz-avg" style="color: hsl(var(--ink));">—</span>
+        </div>
+        <div class="progress-track" style="height: 10px;">
+          <div class="progress-fill" id="detail-quiz-bar" style="width: 0%; background: #8b5cf6;"></div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid hsl(var(--border-color));" class="my-5"></div>
+
+      <!-- Course-by-course breakdown -->
+      <p class="text-sm font-semibold mb-3" style="color: hsl(var(--muted-fg));" data-i18n="courseBreakdown">Course Breakdown</p>
+      <div class="space-y-3" id="detail-courses">
+        <!-- Populated by JS -->
+      </div>
+
+      <div style="border-top: 1px solid hsl(var(--border-color));" class="my-5"></div>
+
+      <!-- AI Insight -->
+      <div class="p-4 rounded-xl" style="background: rgba(249,115,22,0.06); border: 1px solid rgba(249,115,22,0.15);">
+        <div class="flex items-center gap-2 mb-2">
+          <i data-lucide="sparkles" class="w-4 h-4" style="color: #F97316;"></i>
+          <span class="text-xs font-bold" style="color: #F97316;" data-i18n="aiInsight">AI Insight</span>
+        </div>
+        <p class="text-sm" style="color: hsl(var(--ink));" id="detail-ai-insight">—</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- JAVASCRIPT                                                          -->
+  <!-- ================================================================== -->
+  <script>
+    // ===== i18n =====
+    const STRINGS = {
+      en: {
+        pageTitle: 'Training Dashboard',
+        pageSubtitle: 'Track team progress, completion rates, and training insights.',
+        tabOverview: 'Overview',
+        tabTeam: 'Team Progress',
+        tabCourses: 'Courses',
+        tabChat: 'AI Chat',
+        team: 'Team',
+        active: 'active',
+        avgProgress: 'Avg Progress',
+        thisWeek: 'this week',
+        courses: 'Courses',
+        published: 'Published',
+        overdue: 'Overdue',
+        tasks: 'tasks',
+        completionOverTime: 'Completion Over Time',
+        last8Weeks: 'Last 8 weeks',
+        teamStatus: 'Team Status',
+        onTrack: 'On Track',
+        behind: 'Behind',
+        inactive: 'Inactive',
+        recentActivity: 'Recent Activity',
+        courseCompletionRates: 'Course Completion Rates',
+        allCourses: 'All',
+        required: 'Required',
+        optional: 'Optional',
+        allStaff: 'All Staff',
+        name: 'Name',
+        role: 'Role',
+        progress: 'Progress',
+        quizAvg: 'Quiz Avg',
+        status: 'Status',
+        lastActive: 'Last Active',
+        draft: 'Draft',
+        overallProgress: 'Overall Progress',
+        quizAverage: 'Quiz Average',
+        courseBreakdown: 'Course Breakdown',
+        aiInsight: 'AI Insight',
+        aiWelcome: 'Hey! I can help you understand your team\'s training data. Ask me about completion rates, individual progress, quiz performance, or training recommendations.',
+        enrolled: 'enrolled',
+        completed: 'completed',
+        sections: 'sections',
+      },
+      es: {
+        pageTitle: 'Dashboard de Entrenamiento',
+        pageSubtitle: 'Seguimiento de progreso del equipo, tasas de completado e insights.',
+        tabOverview: 'Resumen',
+        tabTeam: 'Progreso del Equipo',
+        tabCourses: 'Cursos',
+        tabChat: 'Chat IA',
+        team: 'Equipo',
+        active: 'activos',
+        avgProgress: 'Progreso Prom.',
+        thisWeek: 'esta semana',
+        courses: 'Cursos',
+        published: 'Publicados',
+        overdue: 'Atrasados',
+        tasks: 'tareas',
+        completionOverTime: 'Completados en el Tiempo',
+        last8Weeks: 'Ultimas 8 semanas',
+        teamStatus: 'Estado del Equipo',
+        onTrack: 'Al dia',
+        behind: 'Atrasado',
+        inactive: 'Inactivo',
+        recentActivity: 'Actividad Reciente',
+        courseCompletionRates: 'Tasas de Completado por Curso',
+        allCourses: 'Todos',
+        required: 'Requeridos',
+        optional: 'Opcionales',
+        allStaff: 'Todo el Staff',
+        name: 'Nombre',
+        role: 'Rol',
+        progress: 'Progreso',
+        quizAvg: 'Prom. Quiz',
+        status: 'Estado',
+        lastActive: 'Ultima Actividad',
+        draft: 'Borrador',
+        overallProgress: 'Progreso General',
+        quizAverage: 'Promedio de Quiz',
+        courseBreakdown: 'Desglose por Curso',
+        aiInsight: 'Insight IA',
+        aiWelcome: 'Hola! Puedo ayudarte a entender los datos de entrenamiento de tu equipo. Preguntame sobre tasas de completado, progreso individual, desempeno en quizzes o recomendaciones.',
+        enrolled: 'inscritos',
+        completed: 'completados',
+        sections: 'secciones',
+      }
+    };
+
+    let currentLang = 'en';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      document.getElementById('lang-en').className = `time-pill text-xs px-3 py-1 ${lang === 'en' ? 'active' : ''}`;
+      document.getElementById('lang-es').className = `time-pill text-xs px-3 py-1 ${lang === 'es' ? 'active' : ''}`;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (STRINGS[lang][key]) el.innerHTML = STRINGS[lang][key];
+      });
+    }
+
+    // ===== Sidebar =====
+    function toggleSidebar() {
+      const sidebar = document.getElementById('app-sidebar');
+      sidebar.classList.toggle('collapsed');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      const icon = document.getElementById('collapse-icon');
+      icon.setAttribute('data-lucide', isCollapsed ? 'panel-left' : 'panel-left-close');
+      lucide.createIcons();
+    }
+
+    // ===== Dark Mode =====
+    function toggleDark() {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('icon-sun').classList.toggle('hidden', isDark);
+      document.getElementById('icon-moon').classList.toggle('hidden', !isDark);
+      createCompletionChart();
+    }
+
+    // ===== Tab Switching =====
+    function switchTab(tab) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + tab).classList.add('active');
+      document.querySelectorAll('.nav-tab').forEach(t => {
+        t.className = t.dataset.tab === tab
+          ? 'nav-tab tab-active px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap'
+          : 'nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap';
+      });
+      if (tab === 'chat') {
+        setTimeout(() => document.getElementById('chat-input').focus(), 200);
+        setTimeout(() => lucide.createIcons(), 100);
+      }
+    }
+
+    function setTeamFilter(btn, filter) {
+      btn.parentElement.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      populateTeamTable(filter);
+    }
+
+    function filterTeam(query) {
+      const q = query.toLowerCase();
+      document.querySelectorAll('#team-table-body .team-row').forEach(row => {
+        const name = row.dataset.name.toLowerCase();
+        row.style.display = name.includes(q) ? '' : 'none';
+      });
+    }
+
+    // ===== MOCK DATA =====
+    const TEAM = [
+      { name: 'Maria Garcia', role: 'Server', progress: 95, quiz: 92, status: 'on_track', lastActive: 'Today', courses: [
+        { name: 'Server 101', progress: 100, quiz: 95 },
+        { name: 'Wine Knowledge', progress: 100, quiz: 88 },
+        { name: 'Food Safety', progress: 85, quiz: 90 },
+      ], insight: 'Maria is your top performer. She completed Wine Knowledge 3 days ahead of deadline with a 95% quiz average. Consider having her mentor newer servers.' },
+
+      { name: 'Carlos Reyes', role: 'Bartender', progress: 88, quiz: 85, status: 'on_track', lastActive: 'Today', courses: [
+        { name: 'Server 101', progress: 100, quiz: 82 },
+        { name: 'Bar Essentials', progress: 100, quiz: 91 },
+        { name: 'Cocktail Mastery', progress: 65, quiz: 78 },
+      ], insight: 'Carlos excels in bar-related courses (91% avg) but should prioritize finishing Cocktail Mastery. He tends to complete modules in bursts — consider weekly check-ins.' },
+
+      { name: 'Jake Thompson', role: 'Server', progress: 72, quiz: 78, status: 'on_track', lastActive: 'Yesterday', courses: [
+        { name: 'Server 101', progress: 100, quiz: 80 },
+        { name: 'Wine Knowledge', progress: 55, quiz: 72 },
+        { name: 'Food Safety', progress: 60, quiz: 76 },
+      ], insight: 'Jake is making steady progress but his Wine Knowledge quiz scores are lower than average. Recommend scheduling a tasting session to reinforce learning.' },
+
+      { name: 'Sofia Martinez', role: 'Host', progress: 85, quiz: 90, status: 'on_track', lastActive: 'Today', courses: [
+        { name: 'Server 101', progress: 100, quiz: 94 },
+        { name: 'Guest Experience', progress: 100, quiz: 88 },
+        { name: 'Reservation Systems', progress: 55, quiz: 86 },
+      ], insight: 'Sofia scores exceptionally well (90% avg). She\'s nearly done with all required training — once finished, she\'s a strong candidate for team lead.' },
+
+      { name: 'David Chen', role: 'Manager', progress: 90, quiz: 88, status: 'on_track', lastActive: '2d ago', courses: [
+        { name: 'Server 101', progress: 100, quiz: 90 },
+        { name: 'Management Essentials', progress: 100, quiz: 85 },
+        { name: 'Food Safety', progress: 70, quiz: 88 },
+      ], insight: 'David has completed all management-track courses. His Food Safety module is the last remaining — should be done within the week at his current pace.' },
+
+      { name: 'Ana Lopez', role: 'Server', progress: 62, quiz: 74, status: 'on_track', lastActive: '2d ago', courses: [
+        { name: 'Server 101', progress: 100, quiz: 78 },
+        { name: 'Wine Knowledge', progress: 40, quiz: 68 },
+        { name: 'Food Safety', progress: 45, quiz: 72 },
+      ], insight: 'Ana is progressing but slower than peers. Her Wine Knowledge and Food Safety modules need attention. She averages one module per week — may need a deadline push.' },
+
+      { name: 'Miguel Santos', role: 'Server', progress: 55, quiz: 70, status: 'on_track', lastActive: '3d ago', courses: [
+        { name: 'Server 101', progress: 80, quiz: 72 },
+        { name: 'Wine Knowledge', progress: 35, quiz: 66 },
+        { name: 'Food Safety', progress: 50, quiz: 70 },
+      ], insight: 'Miguel hasn\'t been active in 3 days. His quiz scores are borderline — consider pairing him with Maria for peer study sessions.' },
+
+      { name: 'Lisa Park', role: 'Server', progress: 38, quiz: 65, status: 'behind', lastActive: '5d ago', courses: [
+        { name: 'Server 101', progress: 60, quiz: 68 },
+        { name: 'Wine Knowledge', progress: 20, quiz: 60 },
+        { name: 'Food Safety', progress: 35, quiz: 65 },
+      ], insight: 'Lisa is falling behind — only 38% overall with declining engagement. She hasn\'t logged in for 5 days. Recommend a 1-on-1 to understand barriers and reset expectations.' },
+
+      { name: 'Ryan Williams', role: 'Bartender', progress: 42, quiz: 62, status: 'behind', lastActive: '6d ago', courses: [
+        { name: 'Server 101', progress: 65, quiz: 64 },
+        { name: 'Bar Essentials', progress: 45, quiz: 60 },
+        { name: 'Cocktail Mastery', progress: 15, quiz: 58 },
+      ], insight: 'Ryan has only completed 15% of Cocktail Mastery with the lowest quiz scores on the team. He may need additional hands-on training before continuing digital modules.' },
+
+      { name: 'Emma Davis', role: 'Host', progress: 30, quiz: 58, status: 'behind', lastActive: '7d ago', courses: [
+        { name: 'Server 101', progress: 45, quiz: 60 },
+        { name: 'Guest Experience', progress: 25, quiz: 55 },
+        { name: 'Reservation Systems', progress: 20, quiz: 56 },
+      ], insight: 'Emma is at risk — borderline inactive with the lowest scores. She might benefit from a different learning approach. Consider offering in-person training as an alternative.' },
+
+      { name: 'Chris Johnson', role: 'Server', progress: 10, quiz: 0, status: 'inactive', lastActive: '14d ago', courses: [
+        { name: 'Server 101', progress: 10, quiz: 0 },
+        { name: 'Wine Knowledge', progress: 0, quiz: 0 },
+        { name: 'Food Safety', progress: 0, quiz: 0 },
+      ], insight: 'Chris hasn\'t engaged with training in 2 weeks. He only opened the first module. Requires immediate manager intervention — is he still on the team?' },
+
+      { name: 'Ashley Brown', role: 'Server', progress: 5, quiz: 0, status: 'inactive', lastActive: '21d ago', courses: [
+        { name: 'Server 101', progress: 5, quiz: 0 },
+        { name: 'Wine Knowledge', progress: 0, quiz: 0 },
+        { name: 'Food Safety', progress: 0, quiz: 0 },
+      ], insight: 'Ashley registered 3 weeks ago but has essentially not started. Verify employment status and re-issue training access if still active.' },
+    ];
+
+    const COURSES = [
+      { name: 'Server 101', sections: 7, enrolled: 12, completed: 5, avgScore: 78, status: 'published', required: true, icon: 'utensils-crossed' },
+      { name: 'Wine Knowledge', sections: 5, enrolled: 8, completed: 2, avgScore: 72, status: 'published', required: true, icon: 'wine' },
+      { name: 'Food Safety', sections: 6, enrolled: 10, completed: 3, avgScore: 76, status: 'published', required: true, icon: 'shield-check' },
+      { name: 'Bar Essentials', sections: 4, enrolled: 3, completed: 1, avgScore: 75, status: 'published', required: false, icon: 'beer' },
+      { name: 'Cocktail Mastery', sections: 6, enrolled: 2, completed: 0, avgScore: 68, status: 'published', required: false, icon: 'martini' },
+      { name: 'Guest Experience', sections: 4, enrolled: 2, completed: 1, avgScore: 72, status: 'published', required: false, icon: 'smile' },
+      { name: 'Management Essentials', sections: 5, enrolled: 1, completed: 1, avgScore: 85, status: 'published', required: false, icon: 'briefcase' },
+    ];
+
+    const RECENT_ACTIVITY = [
+      { name: 'Maria Garcia', action: 'completed Wine Knowledge quiz', time: '2h ago', icon: 'check-circle' },
+      { name: 'Carlos Reyes', action: 'started Cocktail Mastery Ch. 4', time: '3h ago', icon: 'play' },
+      { name: 'Sofia Martinez', action: 'scored 94% on Guest Experience', time: '5h ago', icon: 'trophy' },
+      { name: 'Jake Thompson', action: 'resumed Wine Knowledge', time: 'Yesterday', icon: 'play' },
+    ];
+
+    // ===== Populate Functions =====
+
+    function populateTeamTable(filter = 'all') {
+      const tbody = document.getElementById('team-table-body');
+      const filtered = filter === 'all' ? TEAM : TEAM.filter(m => m.status === filter);
+
+      tbody.innerHTML = filtered.map((m, i) => {
+        const statusClass = m.status === 'on_track' ? 'status-on-track' : m.status === 'behind' ? 'status-behind' : 'status-inactive';
+        const statusLabel = m.status === 'on_track' ? 'On Track' : m.status === 'behind' ? 'Behind' : 'Inactive';
+        const statusTextColor = m.status === 'on_track' ? '#22c55e' : m.status === 'behind' ? '#f59e0b' : '#9ca3af';
+        const progressColor = m.progress >= 70 ? '#22c55e' : m.progress >= 40 ? '#f59e0b' : '#ef4444';
+        const initials = m.name.split(' ').map(n => n[0]).join('');
+
+        return `
+          <div class="team-row grid grid-cols-1 md:grid-cols-12 gap-3 items-center py-3 px-2 rounded-xl cursor-pointer transition-all hover:bg-[hsl(var(--muted))]" data-name="${m.name}" data-index="${i}" onclick="openDetail(${i})">
+            <div class="col-span-3 flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full flex-shrink-0 ${statusClass}"></div>
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style="background: hsl(var(--muted)); color: hsl(var(--muted-fg));">${initials}</div>
+              <span class="text-sm font-semibold truncate" style="color: hsl(var(--ink));">${m.name}</span>
+            </div>
+            <div class="col-span-2 hidden md:block">
+              <span class="text-xs font-medium px-2 py-1 rounded-pill" style="background: hsl(var(--muted)); color: hsl(var(--muted-fg));">${m.role}</span>
+            </div>
+            <div class="col-span-3 hidden md:flex items-center gap-3">
+              <div class="progress-track flex-1" style="height: 8px;">
+                <div class="progress-fill" style="width: ${m.progress}%; background: ${progressColor};"></div>
+              </div>
+              <span class="text-xs font-bold font-mono w-8 text-right" style="color: ${progressColor}; font-variant-numeric: tabular-nums;">${m.progress}%</span>
+            </div>
+            <div class="col-span-1 hidden md:block">
+              <span class="text-xs font-mono font-semibold" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">${m.quiz > 0 ? m.quiz + '%' : '—'}</span>
+            </div>
+            <div class="col-span-1 hidden md:block">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-pill" style="background: ${statusTextColor}15; color: ${statusTextColor};">${statusLabel}</span>
+            </div>
+            <div class="col-span-2 hidden md:block">
+              <span class="text-xs" style="color: hsl(var(--muted-fg));">${m.lastActive}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function populateRecentActivity() {
+      document.getElementById('recent-activity-list').innerHTML = RECENT_ACTIVITY.map(a => `
+        <div class="flex items-start gap-2.5">
+          <i data-lucide="${a.icon}" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style="color: #F97316;"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs" style="color: hsl(var(--ink));"><span class="font-semibold">${a.name}</span> ${a.action}</p>
+            <p class="text-[10px]" style="color: hsl(var(--tertiary-fg));">${a.time}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function populateCourseCompletion() {
+      document.getElementById('course-completion-list').innerHTML = COURSES.map(c => {
+        const completionPct = c.enrolled > 0 ? Math.round((c.completed / c.enrolled) * 100) : 0;
+        const barColor = completionPct >= 60 ? '#22c55e' : completionPct >= 30 ? '#f59e0b' : '#ef4444';
+        return `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold" style="color: hsl(var(--ink));">${c.name}</span>
+                ${c.required ? '<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-pill" style="background: rgba(249,115,22,0.1); color: #F97316;">Required</span>' : ''}
+              </div>
+              <div class="flex items-center gap-4">
+                <span class="text-[10px]" style="color: hsl(var(--muted-fg));">${c.completed}/${c.enrolled} ${STRINGS[currentLang].completed}</span>
+                <span class="text-sm font-bold font-mono w-10 text-right" style="color: ${barColor}; font-variant-numeric: tabular-nums;">${completionPct}%</span>
+              </div>
+            </div>
+            <div class="progress-track" style="height: 8px;"><div class="progress-fill" style="width: ${completionPct}%; background: ${barColor};"></div></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function populateCourseCards() {
+      document.getElementById('course-cards-grid').innerHTML = COURSES.map(c => {
+        const completionPct = c.enrolled > 0 ? Math.round((c.completed / c.enrolled) * 100) : 0;
+        const barColor = completionPct >= 60 ? '#22c55e' : completionPct >= 30 ? '#f59e0b' : '#ef4444';
+        return `
+          <div class="card">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: rgba(249,115,22,0.1);">
+                <i data-lucide="book-open" class="w-5 h-5" style="color: #F97316;"></i>
+              </div>
+              ${c.required ? '<span class="text-[9px] font-bold px-2 py-0.5 rounded-pill text-white" style="background: #F97316;">Required</span>' : '<span class="text-[9px] font-medium px-2 py-0.5 rounded-pill" style="background: hsl(var(--muted)); color: hsl(var(--muted-fg));">Optional</span>'}
+            </div>
+            <p class="text-base font-bold mb-1" style="color: hsl(var(--ink));">${c.name}</p>
+            <p class="text-xs mb-4" style="color: hsl(var(--muted-fg));">${c.sections} ${STRINGS[currentLang].sections} &middot; ${c.enrolled} ${STRINGS[currentLang].enrolled}</p>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs" style="color: hsl(var(--muted-fg));">${STRINGS[currentLang].completed}: ${c.completed}/${c.enrolled}</span>
+              <span class="text-xs font-bold font-mono" style="color: ${barColor}; font-variant-numeric: tabular-nums;">${completionPct}%</span>
+            </div>
+            <div class="progress-track" style="height: 8px;"><div class="progress-fill" style="width: ${completionPct}%; background: ${barColor};"></div></div>
+            <div class="flex items-center justify-between mt-3 pt-3" style="border-top: 1px solid hsl(var(--border-color));">
+              <span class="text-xs" style="color: hsl(var(--muted-fg));">Avg Score</span>
+              <span class="text-sm font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">${c.avgScore}%</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ===== Detail Panel =====
+    function openDetail(index) {
+      const m = TEAM[index];
+      document.getElementById('detail-name').textContent = m.name;
+      document.getElementById('detail-role-badge').textContent = m.role;
+      document.getElementById('detail-last-active').textContent = 'Last active: ' + m.lastActive;
+      document.getElementById('detail-progress-pct').textContent = m.progress + '%';
+      document.getElementById('detail-progress-bar').style.width = m.progress + '%';
+      document.getElementById('detail-quiz-avg').textContent = m.quiz > 0 ? m.quiz + '%' : '—';
+      document.getElementById('detail-quiz-bar').style.width = m.quiz + '%';
+      document.getElementById('detail-ai-insight').textContent = m.insight;
+
+      document.getElementById('detail-courses').innerHTML = m.courses.map(c => {
+        const color = c.progress >= 80 ? '#22c55e' : c.progress >= 40 ? '#f59e0b' : '#ef4444';
+        return `
+          <div class="flex items-center justify-between">
+            <div class="flex-1 mr-3">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs font-medium" style="color: hsl(var(--ink));">${c.name}</span>
+                <span class="text-[10px] font-mono" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">${c.quiz > 0 ? c.quiz + '%' : '—'}</span>
+              </div>
+              <div class="progress-track" style="height: 6px;"><div class="progress-fill" style="width: ${c.progress}%; background: ${color};"></div></div>
+            </div>
+            <span class="text-[10px] font-bold font-mono w-8 text-right" style="color: ${color}; font-variant-numeric: tabular-nums;">${c.progress}%</span>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('detail-panel').classList.add('open');
+      document.getElementById('detail-overlay').classList.add('open');
+      setTimeout(() => lucide.createIcons(), 50);
+    }
+
+    function closeDetail() {
+      document.getElementById('detail-panel').classList.remove('open');
+      document.getElementById('detail-overlay').classList.remove('open');
+    }
+
+    // ===== AI Chat =====
+    const CHAT_RESPONSES = {
+      'Who is behind on training?': `Based on current data, **3 team members** are behind schedule:\n\n• **Lisa Park** (Server) — 38% progress, inactive 5 days. Lowest engagement on the team.\n• **Ryan Williams** (Bartender) — 42% progress, inactive 6 days. Struggling with Cocktail Mastery (15%).\n• **Emma Davis** (Host) — 30% progress, inactive 7 days. Lowest quiz scores (58% avg).\n\nAdditionally, **Chris Johnson** and **Ashley Brown** are classified as inactive (10% and 5% respectively). I'd recommend a 1-on-1 with Lisa and Emma first — they still have recoverable timelines if they re-engage this week.`,
+
+      'Show completion rates by course': `Here's the breakdown:\n\n| Course | Completion | Avg Score |\n|--------|-----------|----------|\n| Server 101 | 5/12 (42%) | 78% |\n| Food Safety | 3/10 (30%) | 76% |\n| Wine Knowledge | 2/8 (25%) | 72% |\n| Guest Experience | 1/2 (50%) | 72% |\n| Bar Essentials | 1/3 (33%) | 75% |\n| Mgmt Essentials | 1/1 (100%) | 85% |\n| Cocktail Mastery | 0/2 (0%) | 68% |\n\n**Cocktail Mastery** has 0 completions and the lowest avg score. **Server 101** has the most enrollments but only 42% completion — this is your highest-impact course to push.`,
+
+      'Who has the best quiz scores?': `Top 5 by quiz average:\n\n🥇 **Maria Garcia** — 92% (Server)\n🥈 **Sofia Martinez** — 90% (Host)\n🥉 **David Chen** — 88% (Manager)\n4. **Carlos Reyes** — 85% (Bartender)\n5. **Jake Thompson** — 78% (Server)\n\nMaria and Sofia are significantly ahead of the pack. They could serve as peer mentors for team members scoring below 70%.`,
+
+      'Any overdue training tasks?': `Yes, **3 overdue items** flagged:\n\n1. **Lisa Park** — Server 101 was due Feb 15. Currently at 60%.\n2. **Ryan Williams** — Bar Essentials was due Feb 20. Currently at 45%.\n3. **Emma Davis** — Server 101 was due Feb 15. Currently at 45%.\n\nAll three are in the "Behind" category and haven't logged in within the past 5-7 days. Sending a reminder notification or scheduling a brief check-in meeting would be the recommended next step.`,
+    };
+
+    function sendPrompt(text) {
+      document.getElementById('chat-input').value = text;
+      sendMessage();
+      // Hide suggested prompts after first use
+      document.getElementById('suggested-prompts').style.display = 'none';
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const messages = document.getElementById('chat-messages');
+
+      // User bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user';
+      userBubble.textContent = text;
+      messages.appendChild(userBubble);
+
+      input.value = '';
+      messages.scrollTop = messages.scrollHeight;
+
+      // Simulate typing delay
+      setTimeout(() => {
+        const aiBubble = document.createElement('div');
+        aiBubble.className = 'chat-bubble ai';
+
+        // Check for pre-defined responses
+        const response = CHAT_RESPONSES[text] || generateGenericResponse(text);
+
+        // Simple markdown-like rendering
+        aiBubble.innerHTML = `
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-6 h-6 rounded-full flex items-center justify-center" style="background: #F97316;">
+              <i data-lucide="sparkles" class="w-3 h-3 text-white"></i>
+            </div>
+            <span class="text-xs font-semibold" style="color: hsl(var(--muted-fg));">Training AI</span>
+          </div>
+          <div class="whitespace-pre-wrap">${renderMarkdown(response)}</div>
+        `;
+        messages.appendChild(aiBubble);
+        messages.scrollTop = messages.scrollHeight;
+        setTimeout(() => lucide.createIcons(), 50);
+      }, 800);
+    }
+
+    function generateGenericResponse(query) {
+      const q = query.toLowerCase();
+      if (q.includes('maria')) return 'Maria Garcia is your top performer with 95% progress and 92% quiz average. She completed Wine Knowledge and Server 101 with top marks. She\'d be an excellent peer mentor for struggling team members.';
+      if (q.includes('carlos')) return 'Carlos Reyes is at 88% overall. He excels in bar-related courses (91% on Bar Essentials) but still has 35% remaining on Cocktail Mastery. Recommend focusing his remaining training time there.';
+      if (q.includes('lisa') || q.includes('park')) return 'Lisa Park is behind at 38% progress with declining engagement. She hasn\'t logged in for 5 days. Her Wine Knowledge score (60%) is the lowest on the team for that course. A 1-on-1 check-in is strongly recommended.';
+      if (q.includes('progress')) return 'Team average is 68% completion. 7 members are on track, 3 are behind, and 2 are inactive. The biggest gap is in Wine Knowledge (25% completion rate) and Cocktail Mastery (0% completions). Focus coaching efforts on Lisa Park, Ryan Williams, and Emma Davis.';
+      if (q.includes('recommend')) return 'Based on the data, here are my top 3 recommendations:\n\n1. **Schedule 1-on-1s** with Lisa Park, Ryan Williams, and Emma Davis this week — they\'re all behind and disengaging.\n2. **Push Server 101 completion** — it\'s required but only at 42%. Set a team-wide deadline.\n3. **Pair Maria Garcia with struggling servers** — her 92% score makes her an ideal peer mentor.';
+      return 'I can help with questions about team progress, course completion rates, quiz scores, individual member details, and training recommendations. Try asking "Who is behind on training?" or "Show completion rates by course" to get started.';
+    }
+
+    function renderMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>')
+        .replace(/\|(.+)\|/g, (match) => {
+          return '<span class="font-mono text-xs">' + match + '</span>';
+        });
+    }
+
+    // ===== CHART =====
+    let completionChart = null;
+
+    function createCompletionChart() {
+      const ctx = document.getElementById('chart-completion');
+      if (!ctx) return;
+      if (completionChart) completionChart.destroy();
+
+      const isDark = document.documentElement.classList.contains('dark');
+      const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+      const textColor = isDark ? '#B7B7C2' : '#5A5A66';
+
+      const weeks = ['Jan 6', 'Jan 13', 'Jan 20', 'Jan 27', 'Feb 3', 'Feb 10', 'Feb 17', 'Feb 24'];
+      const completions = [3, 5, 4, 8, 6, 7, 9, 12];
+      const cumulative = [3, 8, 12, 20, 26, 33, 42, 54];
+
+      completionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: weeks,
+          datasets: [
+            {
+              label: 'Modules Completed',
+              data: completions,
+              backgroundColor: '#F97316',
+              borderRadius: { topLeft: 6, topRight: 6 },
+              borderSkipped: 'bottom',
+              barPercentage: 0.6,
+              order: 2,
+            },
+            {
+              label: 'Cumulative',
+              data: cumulative,
+              type: 'line',
+              borderColor: '#C2410C',
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 3,
+              pointBackgroundColor: '#C2410C',
+              fill: false,
+              order: 1,
+              yAxisID: 'y1',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              align: 'end',
+              labels: { color: textColor, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 11 } }
+            },
+            tooltip: {
+              backgroundColor: isDark ? '#1e1e2e' : '#1a1a2e',
+              titleColor: '#F5F5F7',
+              bodyColor: '#F5F5F7',
+              padding: 10,
+              cornerRadius: 8,
+            }
+          },
+          scales: {
+            y: {
+              min: 0,
+              grid: { color: gridColor, drawBorder: false },
+              ticks: { color: textColor, font: { size: 11 } },
+              border: { display: false },
+            },
+            y1: {
+              min: 0,
+              position: 'right',
+              grid: { display: false },
+              ticks: { color: textColor, font: { size: 11 } },
+              border: { display: false },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: textColor, font: { size: 11 } },
+              border: { display: false },
+            }
+          }
+        }
+      });
+    }
+
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      populateTeamTable();
+      populateRecentActivity();
+      populateCourseCompletion();
+      populateCourseCards();
+      createCompletionChart();
+      setTimeout(() => lucide.createIcons(), 100);
+    });
+  </script>
+</body>
+</html>

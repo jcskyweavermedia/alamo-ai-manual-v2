@@ -15,17 +15,17 @@ interface MobileModeTabsProps {
 
 export function MobileModeTabs({ activeMode, onModeChange, className }: MobileModeTabsProps) {
   return (
-    <div className={cn('flex gap-1 rounded-lg bg-muted p-1', className)}>
+    <div className={cn('flex gap-1 rounded-xl p-1', className)}>
       {MODE_OPTIONS.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onModeChange(opt.value)}
           className={cn(
-            'flex-1 min-h-[36px] px-3 rounded-md text-xs font-semibold',
+            'flex-1 min-h-[36px] px-3 rounded-lg text-xs font-semibold',
             'transition-colors duration-150',
             activeMode === opt.value
-              ? 'bg-background text-foreground shadow-sm'
+              ? 'bg-orange-500 text-white shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >

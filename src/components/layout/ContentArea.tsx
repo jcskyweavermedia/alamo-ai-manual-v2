@@ -59,7 +59,11 @@ export function ContentArea({
         className
       )}
     >
-      {animate ? <PageTransition>{content}</PageTransition> : content}
+      {animate ? (
+        <PageTransition className={overflow === 'hidden' ? 'h-full' : undefined}>
+          {content}
+        </PageTransition>
+      ) : content}
     </main>
   );
 }

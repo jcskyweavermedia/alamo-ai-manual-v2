@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Review Insights — Alamo Prime</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas: 'hsl(var(--canvas))',
+            surface: 'hsl(var(--surface))',
+            'surface-foreground': 'hsl(var(--surface-foreground))',
+            border: 'hsl(var(--border-color))',
+            muted: 'hsl(var(--muted))',
+            'muted-fg': 'hsl(var(--muted-fg))',
+            'tertiary-fg': 'hsl(var(--tertiary-fg))',
+            brand: 'hsl(var(--brand))',
+            'brand-hover': 'hsl(var(--brand-hover))',
+            ink: 'hsl(var(--ink))',
+            // Flavor zones (monochromatic orange gradient)
+            'zone-wc': '#EA580C',
+            'zone-ex': '#F97316',
+            'zone-gr': '#FB923C',
+            'zone-gd': '#FDBA74',
+            'zone-ni': '#FED7AA',
+            // Series (monochromatic orange band)
+            'series-own': '#F97316',
+            'series-c1': '#FB923C',
+            'series-c2': '#FDBA74',
+            'series-c3': '#FED7AA',
+            'series-highlight': '#C2410C',
+          },
+          borderRadius: {
+            'card': '16px',
+            'pill': '9999px',
+            'bar': '6px',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['ui-monospace', 'SF Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+            'elevated': '0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04)',
+            'floating': '0 10px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06)',
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* ===== Design Tokens ===== */
+    :root {
+      --canvas: 240 10% 98%;
+      --surface: 0 0% 100%;
+      --surface-foreground: 240 10% 7%;
+      --border-color: 240 6% 90%;
+      --muted: 240 5% 96%;
+      --muted-fg: 240 4% 38%;
+      --tertiary-fg: 240 4% 55%;
+      --brand: 25 95% 53%;
+      --brand-hover: 21 90% 48%;
+      --ink: 240 10% 7%;
+
+      /* Flavor zones (monochromatic orange gradient) */
+      --flavor-world-class: 21 90% 48%;
+      --flavor-excellent: 25 95% 53%;
+      --flavor-great: 27 96% 61%;
+      --flavor-good: 31 97% 72%;
+      --flavor-needs-improvement: 27 98% 83%;
+    }
+
+    .dark {
+      --canvas: 240 10% 4%;
+      --surface: 240 10% 8%;
+      --surface-foreground: 240 5% 96%;
+      --border-color: 240 5% 18%;
+      --muted: 240 5% 15%;
+      --muted-fg: 240 5% 72%;
+      --tertiary-fg: 240 5% 57%;
+      --brand: 25 95% 53%;
+      --brand-hover: 21 90% 48%;
+      --ink: 240 5% 96%;
+    }
+
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: hsl(var(--canvas));
+      color: hsl(var(--ink));
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      overflow-x: hidden;
+    }
+
+    /* Hatched pattern for "previous" bars */
+    .bar-hatched {
+      background: repeating-linear-gradient(
+        45deg,
+        hsl(var(--muted)),
+        hsl(var(--muted)) 2px,
+        hsl(var(--muted-fg) / 0.12) 2px,
+        hsl(var(--muted-fg) / 0.12) 4px
+      );
+    }
+
+    /* Card base */
+    .card {
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 16px;
+      padding: 24px;
+      transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .card:hover {
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    }
+    .dark .card:hover {
+      box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.3);
+    }
+
+    /* Active pill */
+    .pill-active {
+      background: hsl(var(--ink));
+      color: hsl(var(--canvas));
+    }
+    .pill-inactive {
+      color: hsl(var(--muted-fg));
+    }
+    .pill-inactive:hover {
+      color: hsl(var(--ink));
+    }
+
+    /* Tab styling */
+    .tab-active {
+      background: hsl(var(--ink));
+      color: hsl(var(--canvas));
+      font-weight: 600;
+    }
+    .tab-inactive {
+      color: hsl(var(--muted-fg));
+      font-weight: 500;
+    }
+    .tab-inactive:hover {
+      color: hsl(var(--ink));
+      background: hsl(var(--muted));
+    }
+
+    /* Progress bar track — wider, less bullet-shaped (like PulseAI) */
+    .progress-track {
+      background: hsl(var(--muted));
+      border-radius: 4px;
+      height: 12px;
+      width: 100%;
+    }
+    .progress-fill {
+      border-radius: 4px;
+      height: 100%;
+      transition: width 0.6s ease-out;
+    }
+
+    /* Stacked bar — wider, less rounded */
+    .stacked-bar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; }
+    .stacked-bar > div { transition: width 0.6s ease-out; }
+
+    /* Smooth scroll tabs */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Floating AI button */
+    .fab {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 100;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .fab:hover { transform: scale(1.08); }
+    .fab:active { transform: scale(0.95); }
+
+    /* Tooltip */
+    .fab-tooltip {
+      position: fixed;
+      bottom: 88px;
+      right: 24px;
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      z-index: 101;
+    }
+    .fab:hover + .fab-tooltip { opacity: 1; }
+
+    /* Mini bar for stat cards */
+    .mini-bar {
+      height: 12px;
+      border-radius: 4px;
+      transition: width 0.5s ease-out;
+    }
+
+    /* Scrollbar thin */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--border-color)); border-radius: 3px; }
+
+    /* Chart canvases */
+    canvas { max-width: 100%; }
+
+    /* Time pill bar */
+    .time-pill-bar {
+      display: inline-flex;
+      background: hsl(var(--muted));
+      border-radius: 9999px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .time-pill {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .time-pill.active {
+      background: hsl(var(--surface));
+      color: hsl(var(--ink));
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+    }
+    .time-pill:not(.active) {
+      color: hsl(var(--muted-fg));
+    }
+    .time-pill:not(.active):hover {
+      color: hsl(var(--ink));
+    }
+
+    /* Category toggle chips */
+    .toggle-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      border: 1px solid hsl(var(--border-color));
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: transparent;
+    }
+    .toggle-chip.active {
+      border-color: currentColor;
+      background: hsl(var(--muted));
+    }
+    .toggle-chip .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Restaurant dropdown */
+    .restaurant-select {
+      appearance: none;
+      background: hsl(var(--muted));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 9999px;
+      padding: 6px 32px 6px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: hsl(var(--ink));
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+
+    /* Severity alert card */
+    .alert-card {
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      gap: 14px;
+    }
+    .alert-card .alert-bar {
+      width: 4px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================================================================== -->
+  <!-- HEADER                                                              -->
+  <!-- ================================================================== -->
+  <header class="sticky top-0 z-50" style="background: hsl(var(--canvas)); border-bottom: 1px solid hsl(var(--border-color));">
+    <div class="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8">
+      <!-- Top row: Brand + Actions -->
+      <div class="flex items-center justify-between h-16">
+        <!-- Brand -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm" style="background: hsl(var(--brand));">AP</div>
+          <span class="font-bold text-lg tracking-tight hidden sm:block" style="color: hsl(var(--ink));" data-i18n="brand">ALAMO PRIME</span>
+        </div>
+
+        <!-- Right actions -->
+        <div class="flex items-center gap-3">
+          <!-- Search -->
+          <button class="w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));" aria-label="Search">
+            <i data-lucide="search" class="w-[18px] h-[18px]"></i>
+          </button>
+
+          <!-- Date Range -->
+          <button class="hidden md:flex items-center gap-2 px-4 py-2 rounded-pill text-sm font-medium" style="border: 1px solid hsl(var(--border-color)); color: hsl(var(--ink));">
+            <i data-lucide="calendar" class="w-4 h-4" style="color: hsl(var(--muted-fg));"></i>
+            <span data-i18n="dateRange">Jan 08 - Feb 08</span>
+          </button>
+
+          <!-- Language Toggle -->
+          <div class="time-pill-bar" style="padding: 2px;">
+            <button class="time-pill active text-xs px-3 py-1" id="lang-en" onclick="setLanguage('en')">EN</button>
+            <button class="time-pill text-xs px-3 py-1" id="lang-es" onclick="setLanguage('es')">ES</button>
+          </div>
+
+          <!-- Dark Mode -->
+          <button id="dark-toggle" class="w-10 h-10 rounded-xl flex items-center justify-center" style="color: hsl(var(--muted-fg));" onclick="toggleDark()" aria-label="Toggle dark mode">
+            <i data-lucide="sun" class="w-[18px] h-[18px]" id="icon-sun"></i>
+            <i data-lucide="moon" class="w-[18px] h-[18px] hidden" id="icon-moon"></i>
+          </button>
+
+          <!-- Export -->
+          <button class="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90" style="background: hsl(var(--ink)); color: hsl(var(--canvas));">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span data-i18n="export">Export Report</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Nav tabs -->
+      <div class="flex items-center gap-1 pb-3 overflow-x-auto" style="scrollbar-width: none; -ms-overflow-style: none;">
+        <button class="nav-tab tab-active px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="overview" onclick="switchTab('overview')">
+          <span class="hidden sm:inline" data-i18n="tabOverview">Overview</span>
+          <i data-lucide="bar-chart-3" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="food" onclick="switchTab('food')">
+          <span class="hidden sm:inline" data-i18n="tabFood">Food & Drinks</span>
+          <i data-lucide="utensils-crossed" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="staff" onclick="switchTab('staff')">
+          <span class="hidden sm:inline" data-i18n="tabStaff">Staff Shoutouts</span>
+          <i data-lucide="users" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="categories" onclick="switchTab('categories')">
+          <span class="hidden sm:inline" data-i18n="tabCategories">Categories</span>
+          <i data-lucide="layers" class="w-4 h-4 sm:hidden"></i>
+        </button>
+        <button class="nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap" data-tab="company" onclick="switchTab('company')">
+          <span class="hidden sm:inline" data-i18n="tabCompany">Company</span>
+          <i data-lucide="building-2" class="w-4 h-4 sm:hidden"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================================================================== -->
+  <!-- MAIN CONTENT                                                        -->
+  <!-- ================================================================== -->
+  <main class="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-8 py-6 pb-24" style="min-height: calc(100vh - 120px); overflow-y: auto;">
+
+    <!-- Page Title -->
+    <div class="mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight" style="color: hsl(var(--ink));" data-i18n="pageTitle">Review Insights</h1>
+      <p class="text-sm mt-1" style="color: hsl(var(--muted-fg));" data-i18n="pageSubtitle">Comprehensive review analytics for your restaurants.</p>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 1: OVERVIEW                                              -->
+    <!-- ============================================================== -->
+    <div id="screen-overview" class="screen active">
+
+      <!-- Row 1: Rankings + Score/Low + Chart -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 mb-4">
+
+        <!-- Card A: Rankings (LOCAL + COMPANY) -->
+        <div class="card lg:col-span-3">
+          <!-- Local Ranking -->
+          <div class="mb-5">
+            <div class="flex items-start justify-between mb-1">
+              <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));">Local Ranking</p>
+              <i data-lucide="map-pin" class="w-4 h-4" style="color: hsl(var(--muted-fg));"></i>
+            </div>
+            <div class="flex items-baseline gap-2 mt-3 mb-4">
+              <span class="text-3xl font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">#1</span>
+              <span class="text-sm font-medium" style="color: hsl(var(--muted-fg));">/ 4</span>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between py-1.5 px-3 rounded-lg" style="background: rgba(249,115,22,0.08);">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-bold" style="color: #F97316;">1.</span>
+                  <span class="text-[11px] font-bold" style="color: hsl(var(--ink));">Alamo Prime</span>
+                </div>
+                <span class="text-[11px] font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">+75.3</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px]" style="color: hsl(var(--muted-fg));">2.</span>
+                  <span class="text-[11px]" style="color: hsl(var(--ink));">Longhorn & Ember</span>
+                </div>
+                <span class="text-[11px] font-mono" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">+48.0</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px]" style="color: hsl(var(--muted-fg));">3.</span>
+                  <span class="text-[11px]" style="color: hsl(var(--ink));">Salt & Sear</span>
+                </div>
+                <span class="text-[11px] font-mono" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">+25.0</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px]" style="color: hsl(var(--muted-fg));">4.</span>
+                  <span class="text-[11px]" style="color: hsl(var(--ink));">Mesquite Flame</span>
+                </div>
+                <span class="text-[11px] font-mono" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">-5.0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div style="border-top: 1px solid hsl(var(--border-color));" class="mb-5"></div>
+
+          <!-- Company Ranking -->
+          <div>
+            <div class="flex items-start justify-between mb-1">
+              <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));">Company Ranking</p>
+              <i data-lucide="building-2" class="w-4 h-4" style="color: hsl(var(--muted-fg));"></i>
+            </div>
+            <div class="flex items-baseline gap-2 mt-3 mb-4">
+              <span class="text-2xl font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">#1</span>
+              <span class="text-sm font-medium" style="color: hsl(var(--muted-fg));">/ 2</span>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between py-1.5 px-3 rounded-lg" style="background: rgba(249,115,22,0.08);">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-bold" style="color: #F97316;">1.</span>
+                  <span class="text-[11px] font-bold" style="color: hsl(var(--ink));">Austin — Main</span>
+                </div>
+                <span class="text-[11px] font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">+75.3</span>
+              </div>
+              <div class="flex items-center justify-between py-1.5 px-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px]" style="color: hsl(var(--muted-fg));">2.</span>
+                  <span class="text-[11px]" style="color: hsl(var(--ink));">Westside</span>
+                </div>
+                <span class="text-[11px] font-mono" style="color: hsl(var(--tertiary-fg)); font-variant-numeric: tabular-nums;">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card B: Score Trend + Low Ratings (merged) -->
+        <div class="card lg:col-span-3">
+          <!-- Score Trend -->
+          <div class="mb-5">
+            <div class="flex items-start justify-between mb-1">
+              <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="scoreTrend">Score Trend</p>
+              <i data-lucide="arrow-up-right" class="w-4 h-4" style="color: hsl(var(--muted-fg));"></i>
+            </div>
+            <div class="flex items-baseline gap-3 mt-3 mb-3">
+              <span class="text-3xl font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">+4.2</span>
+              <span class="text-xs font-medium" style="color: hsl(var(--muted-fg));" data-i18n="pts">pts</span>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <div class="flex justify-between text-[10px] mb-1" style="color: hsl(var(--muted-fg));">
+                  <span data-i18n="current">Current</span>
+                  <span class="font-mono font-bold" style="color: hsl(var(--ink));">+75.3</span>
+                </div>
+                <div class="progress-track" style="height: 8px;"><div class="mini-bar" style="width: 87.65%; background: #F97316;"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px] mb-1" style="color: hsl(var(--muted-fg));">
+                  <span data-i18n="previous">Previous</span>
+                  <span class="font-mono" style="color: hsl(var(--muted-fg));">+71.1</span>
+                </div>
+                <div class="progress-track" style="height: 8px;"><div class="mini-bar bar-hatched" style="width: 83.55%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div style="border-top: 1px solid hsl(var(--border-color));" class="mb-5"></div>
+
+          <!-- Low Ratings -->
+          <div>
+            <div class="flex items-start justify-between mb-1">
+              <p class="text-sm font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="lowRatings">Low Ratings</p>
+              <span class="text-[10px]" style="color: hsl(var(--tertiary-fg));" data-i18n="lowRatingsSub">1-3 star</span>
+            </div>
+            <div class="flex items-baseline gap-3 mt-3 mb-3">
+              <span class="text-2xl font-bold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">6.7%</span>
+              <span class="text-[11px] font-mono" style="color: hsl(var(--muted-fg));">10 total</span>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <div class="flex justify-between text-[10px] mb-1" style="color: hsl(var(--muted-fg));">
+                  <span data-i18n="current">Current</span>
+                  <span class="font-mono font-bold" style="color: hsl(var(--ink));">6.7%</span>
+                </div>
+                <div class="progress-track" style="height: 8px;"><div class="mini-bar" style="width: 6.7%; background: #FB923C;"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[10px] mb-1" style="color: hsl(var(--muted-fg));">
+                  <span data-i18n="previous">Previous</span>
+                  <span class="font-mono" style="color: hsl(var(--muted-fg));">8.2%</span>
+                </div>
+                <div class="progress-track" style="height: 8px;"><div class="mini-bar bar-hatched" style="width: 8.2%;"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card C: 12-Month Flavor Index Chart -->
+        <div class="card lg:col-span-6">
+          <div class="flex items-start justify-between mb-1">
+            <div>
+              <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="flavorIndex">Flavor Index</p>
+              <p class="text-xs mt-0.5" style="color: hsl(var(--tertiary-fg));" data-i18n="last12mo">Last 12 months</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
+              <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+          <!-- Toggle chips + Restaurant selector -->
+          <div class="flex flex-wrap items-center gap-2 mt-3 mb-4">
+            <button class="toggle-chip active" style="color: #F97316;" onclick="toggleCategory(this, 'food')">
+              <span class="dot" style="background: #F97316;"></span>
+              <span data-i18n="food">Food</span>
+            </button>
+            <button class="toggle-chip" style="color: #FB923C;" onclick="toggleCategory(this, 'service')">
+              <span class="dot" style="background: #FB923C;"></span>
+              <span data-i18n="service">Service</span>
+            </button>
+            <button class="toggle-chip" style="color: #FDBA74;" onclick="toggleCategory(this, 'ambience')">
+              <span class="dot" style="background: #FDBA74;"></span>
+              <span data-i18n="ambience">Ambience</span>
+            </button>
+            <button class="toggle-chip" style="color: #FED7AA;" onclick="toggleCategory(this, 'value')">
+              <span class="dot" style="background: #FED7AA;"></span>
+              <span data-i18n="value">Value</span>
+            </button>
+            <div class="ml-auto">
+              <select class="restaurant-select" id="chart-restaurant-select">
+                <option>Alamo Prime</option>
+                <option>Longhorn & Ember</option>
+                <option>Salt & Sear</option>
+                <option>Mesquite Flame</option>
+              </select>
+            </div>
+          </div>
+          <div style="position: relative; height: 220px;">
+            <canvas id="chart-flavor-12mo"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Restaurant Rank + Strengths -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- Card D: Flavor Index by Restaurant — gradient peach/orange background -->
+        <div class="card" style="background: linear-gradient(to right, #FB923C, #FFF7ED); border-color: #FDBA74;">
+          <div class="flex items-start justify-between mb-4">
+            <p class="text-lg font-semibold" style="color: #7C2D12;" data-i18n="fiByRestaurant">Flavor Index by Restaurant</p>
+            <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: #9A3412;">
+              <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Time selector -->
+          <div class="time-pill-bar mb-5" id="rank-time-bar" style="background: rgba(255,255,255,0.35);">
+            <button class="time-pill active" onclick="setRankTime(this)" data-i18n="month">Month</button>
+            <button class="time-pill" onclick="setRankTime(this)" data-i18n="quarter">Quarter</button>
+            <button class="time-pill" onclick="setRankTime(this)" data-i18n="year">Year</button>
+            <button class="time-pill" onclick="setRankTime(this)" data-i18n="lastYear">Last Year</button>
+            <button class="time-pill hidden sm:block" onclick="setRankTime(this)" data-i18n="fiveYr">5 Yr</button>
+            <button class="time-pill hidden sm:block" onclick="setRankTime(this)" data-i18n="all">All</button>
+          </div>
+
+          <!-- Restaurant rows — labels inside light bars on darker bg -->
+          <div class="space-y-3" id="restaurant-rank-list">
+            <!-- Alamo Prime -->
+            <div style="position: relative; height: 46px;">
+              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 87.65%; background: rgba(255, 247, 237, 0.7); border-radius: 8px;"></div>
+              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 14px;">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold" style="color: #7C2D12;">Alamo Prime</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-pill" style="background: #F97316; color: white;" data-i18n="you">You</span>
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold" style="color: #9A3412;">
+                    <i data-lucide="trending-up" class="w-3 h-3"></i>+4.2
+                  </span>
+                </div>
+                <span class="text-sm font-extrabold font-mono" style="color: #7C2D12; font-variant-numeric: tabular-nums;">+75.3</span>
+              </div>
+            </div>
+
+            <!-- Longhorn & Ember -->
+            <div style="position: relative; height: 46px;">
+              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 74%; background: rgba(255, 247, 237, 0.7); border-radius: 8px;"></div>
+              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 14px;">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold" style="color: #7C2D12;">Longhorn & Ember</span>
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold" style="color: #9A3412;">
+                    <i data-lucide="trending-up" class="w-3 h-3"></i>+2.1
+                  </span>
+                </div>
+                <span class="text-sm font-extrabold font-mono" style="color: #7C2D12; font-variant-numeric: tabular-nums;">+48.0</span>
+              </div>
+            </div>
+
+            <!-- Salt & Sear -->
+            <div style="position: relative; height: 46px;">
+              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 62.5%; background: rgba(255, 247, 237, 0.7); border-radius: 8px;"></div>
+              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 14px;">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold" style="color: #7C2D12;">Salt & Sear Chophouse</span>
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold" style="color: #C2410C;">
+                    <i data-lucide="trending-down" class="w-3 h-3"></i>-3.5
+                  </span>
+                </div>
+                <span class="text-sm font-extrabold font-mono" style="color: #7C2D12; font-variant-numeric: tabular-nums;">+25.0</span>
+              </div>
+            </div>
+
+            <!-- Mesquite Flame -->
+            <div style="position: relative; height: 46px;">
+              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 47.5%; background: rgba(255, 247, 237, 0.7); border-radius: 8px;"></div>
+              <div style="position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 14px;">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold" style="color: #7C2D12;">Mesquite Flame Grill</span>
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold" style="color: #C2410C;">
+                    <i data-lucide="trending-down" class="w-3 h-3"></i>-1.2
+                  </span>
+                </div>
+                <span class="text-sm font-extrabold font-mono" style="color: #7C2D12; font-variant-numeric: tabular-nums;">-5.0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- View All -->
+          <div class="text-center mt-5 pt-4" style="border-top: 1px solid rgba(255,255,255,0.35);">
+            <a href="#" class="text-sm font-medium" style="color: #9A3412;" data-i18n="viewDetailedComparison">View Detailed Comparison &rarr;</a>
+          </div>
+        </div>
+
+        <!-- Card E: Strengths & Opportunities -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-4">
+            <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="strengthsOpp">Strengths & Opportunities</p>
+            <select class="restaurant-select text-xs" style="padding: 4px 28px 4px 10px;">
+              <option data-i18n="thisMonth">This Month</option>
+              <option data-i18n="thisQuarter">This Quarter</option>
+              <option data-i18n="thisYear">This Year</option>
+            </select>
+          </div>
+
+          <!-- Hero score -->
+          <div class="flex items-center gap-4 mb-5">
+            <span class="text-4xl font-extrabold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">+75.3</span>
+            <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-pill text-white" style="background: #F97316;">
+              <i data-lucide="trending-up" class="w-3 h-3"></i>
+              <span data-i18n="worldClass">World-Class</span>
+            </span>
+          </div>
+
+          <!-- 4 category stats -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+            <div>
+              <div class="flex items-center gap-1.5 mb-1">
+                <div class="w-2.5 h-2.5 rounded-full" style="background: #EA580C;"></div>
+                <span class="text-lg font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">0.85</span>
+              </div>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));" data-i18n="foodQuality">Food Quality</p>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5 mb-1">
+                <div class="w-2.5 h-2.5 rounded-full" style="background: #FB923C;"></div>
+                <span class="text-lg font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">0.70</span>
+              </div>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));" data-i18n="serviceLabel">Service</p>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5 mb-1">
+                <div class="w-2.5 h-2.5 rounded-full" style="background: #FB923C;"></div>
+                <span class="text-lg font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">0.73</span>
+              </div>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));" data-i18n="ambienceLabel">Ambience</p>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5 mb-1">
+                <div class="w-2.5 h-2.5 rounded-full" style="background: #FDBA74;"></div>
+                <span class="text-lg font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">0.51</span>
+              </div>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));" data-i18n="valueLabel">Value</p>
+            </div>
+          </div>
+
+          <!-- Stacked distribution bar -->
+          <div class="mb-1.5">
+            <div class="stacked-bar">
+              <div style="width: 39%; background: #F97316;"></div>
+              <div style="width: 32%; background: #FB923C;"></div>
+              <div style="width: 19%; background: #FDBA74;"></div>
+              <div style="width: 10%; background: #FED7AA;"></div>
+            </div>
+          </div>
+          <div class="flex text-[10px] font-medium mb-5" style="color: hsl(var(--muted-fg));">
+            <span style="width: 39%;" data-i18n="food39">Food 39%</span>
+            <span style="width: 32%;" data-i18n="service32">Service 32%</span>
+            <span style="width: 19%;" data-i18n="ambience19">Ambience 19%</span>
+            <span style="width: 10%;" data-i18n="value10">Value 10%</span>
+          </div>
+
+          <!-- Top Strengths / Opportunities -->
+          <div class="grid grid-cols-2 gap-4 pt-4" style="border-top: 1px solid hsl(var(--border-color));">
+            <div>
+              <p class="text-xs font-semibold mb-3" style="color: hsl(var(--muted-fg));" data-i18n="topStrengths">Top Strengths</p>
+              <div class="space-y-2.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #EA580C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="foodQuality">Food Quality</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">4.6/5</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #FB923C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="presentation">Presentation</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">4.3/5</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #FB923C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="ambienceLabel">Ambience</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">4.1/5</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p class="text-xs font-semibold mb-3" style="color: hsl(var(--muted-fg));" data-i18n="topOpportunities">Top Opportunities</p>
+              <div class="space-y-2.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #EA580C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="waitTime">Wait Time</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">3.1/5</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #FB923C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="valueLabel">Value</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">2.8/5</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background: #FB923C;"></div>
+                  <span class="text-xs font-medium" style="color: hsl(var(--ink));" data-i18n="reservationExp">Reservation Exp.</span>
+                  <span class="text-[10px] font-mono ml-auto" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">2.5/5</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 2: FOOD & DRINKS                                         -->
+    <!-- ============================================================== -->
+    <div id="screen-food" class="screen">
+      <div class="flex flex-wrap items-center gap-3 mb-5">
+        <div class="time-pill-bar">
+          <button class="time-pill active" onclick="setFoodFilter(this)">All</button>
+          <button class="time-pill" onclick="setFoodFilter(this)" data-i18n="foodOnly">Food</button>
+          <button class="time-pill" onclick="setFoodFilter(this)" data-i18n="drinksOnly">Drinks</button>
+        </div>
+        <div class="ml-auto">
+          <div class="time-pill-bar">
+            <button class="time-pill active" data-i18n="month">Month</button>
+            <button class="time-pill" data-i18n="quarter">Quarter</button>
+            <button class="time-pill" data-i18n="year">Year</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Mentioned — 5 restaurants at a glance -->
+      <div class="card mb-4">
+        <div class="flex items-center gap-2 mb-5">
+          <div class="w-2 h-2 rounded-full" style="background: #F97316;"></div>
+          <p class="text-lg font-semibold" style="color: hsl(var(--ink));" data-i18n="topMentionedItems">Top Mentioned</p>
+          <span class="text-xs" style="color: hsl(var(--muted-fg));">— most praised items by restaurant</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5" id="top-items-grid"></div>
+      </div>
+
+      <!-- Worst Mentioned — 5 restaurants at a glance -->
+      <div class="card">
+        <div class="flex items-center gap-2 mb-5">
+          <div class="w-2 h-2 rounded-full" style="background: #EA580C;"></div>
+          <p class="text-lg font-semibold" style="color: hsl(var(--ink));" data-i18n="worstMentionedItems">Worst Mentioned</p>
+          <span class="text-xs" style="color: hsl(var(--muted-fg));">— most criticized items by restaurant</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5" id="worst-items-grid"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 3: STAFF SHOUTOUTS                                       -->
+    <!-- ============================================================== -->
+    <div id="screen-staff" class="screen">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="time-pill-bar">
+          <button class="time-pill active" data-i18n="month">Month</button>
+          <button class="time-pill" data-i18n="quarter">Quarter</button>
+          <button class="time-pill" data-i18n="year">Year</button>
+          <button class="time-pill" data-i18n="allTime">All Time</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Top 10 This Period -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-4">
+            <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="top10Period">Top 10 Staff — This Month</p>
+            <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+              <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="space-y-4" id="staff-month-list"></div>
+          <div class="text-center mt-4 pt-3" style="border-top: 1px solid hsl(var(--border-color));">
+            <a href="#" class="text-sm font-medium" style="color: #F97316;" data-i18n="viewAllStaff">View All Staff &rarr;</a>
+          </div>
+        </div>
+
+        <!-- Year Leaderboard -->
+        <div class="card">
+          <div class="flex items-start justify-between mb-4">
+            <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" data-i18n="yearLeaderboard">Year Leaderboard</p>
+            <button class="w-8 h-8 rounded-lg flex items-center justify-center" style="color: hsl(var(--muted-fg));">
+              <i data-lucide="trophy" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="space-y-4" id="staff-year-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 4: CATEGORIES                                            -->
+    <!-- ============================================================== -->
+    <div id="screen-categories" class="screen">
+      <div class="flex flex-wrap items-center gap-3 mb-5">
+        <div class="time-pill-bar" id="cat-selector">
+          <button class="time-pill active" onclick="setCategoryView(this, 'food')" data-i18n="foodQuality">Food Quality</button>
+          <button class="time-pill" onclick="setCategoryView(this, 'service')" data-i18n="serviceLabel">Service</button>
+          <button class="time-pill" onclick="setCategoryView(this, 'ambience')" data-i18n="ambienceLabel">Ambience</button>
+          <button class="time-pill" onclick="setCategoryView(this, 'value')" data-i18n="valueLabel">Value</button>
+        </div>
+        <div class="ml-auto">
+          <div class="time-pill-bar">
+            <button class="time-pill active" data-i18n="month">Month</button>
+            <button class="time-pill" data-i18n="quarter">Quarter</button>
+            <button class="time-pill" data-i18n="year">Year</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Trend Chart -->
+      <div class="card mb-4">
+        <div class="flex items-start justify-between mb-3">
+          <div>
+            <p class="text-lg font-semibold" style="color: hsl(var(--muted-fg));" id="cat-chart-title" data-i18n="foodQualityOverTime">Food Quality — Score Over Time</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button class="toggle-chip active" style="color: #F97316;" id="cat-chip-alamo">
+            <span class="dot" style="background: #F97316;"></span> Alamo Prime
+          </button>
+          <button class="toggle-chip active" style="color: #FB923C;" id="cat-chip-longhorn">
+            <span class="dot" style="background: #FB923C;"></span> Longhorn
+          </button>
+          <button class="toggle-chip active" style="color: #FDBA74;" id="cat-chip-saltsear">
+            <span class="dot" style="background: #FDBA74;"></span> Salt & Sear
+          </button>
+          <button class="toggle-chip active" style="color: #FED7AA;" id="cat-chip-mesquite">
+            <span class="dot" style="background: #FED7AA;"></span> Mesquite
+          </button>
+        </div>
+        <div style="position: relative; height: 260px;">
+          <canvas id="chart-category-trend"></canvas>
+        </div>
+      </div>
+
+      <!-- Competitor Comparison + Sub-Categories -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Competitor bars -->
+        <div class="card">
+          <p class="text-lg font-semibold mb-4" style="color: hsl(var(--muted-fg));" id="cat-comparison-title" data-i18n="foodCompetitorComparison">Food Quality — Competitor Comparison</p>
+          <div class="space-y-4" id="cat-competitor-list"></div>
+        </div>
+
+        <!-- Sub-categories -->
+        <div class="card">
+          <p class="text-lg font-semibold mb-4" style="color: hsl(var(--muted-fg));" data-i18n="subCategories">Sub-Categories</p>
+          <div class="space-y-3" id="sub-category-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- SCREEN 5: COMPANY                                               -->
+    <!-- ============================================================== -->
+    <div id="screen-company" class="screen">
+      <div class="flex flex-wrap items-center gap-3 mb-5">
+        <div class="time-pill-bar">
+          <button class="time-pill active" data-i18n="flavorIndex">Flavor Index</button>
+          <button class="time-pill" data-i18n="foodQuality">Food</button>
+          <button class="time-pill" data-i18n="serviceLabel">Service</button>
+          <button class="time-pill" data-i18n="ambienceLabel">Ambience</button>
+          <button class="time-pill" data-i18n="valueLabel">Value</button>
+        </div>
+        <div class="ml-auto">
+          <div class="time-pill-bar">
+            <button class="time-pill active" data-i18n="quarter">Quarter</button>
+            <button class="time-pill" data-i18n="year">Year</button>
+            <button class="time-pill" data-i18n="lastYear">Last Year</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Restaurant Scorecards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4" id="company-cards">
+        <!-- Alamo Prime Austin -->
+        <div class="card" style="border: 2px solid #F97316;">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <p class="text-sm font-bold" style="color: hsl(var(--ink));">Alamo Prime Steakhouse</p>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));">Austin, TX</p>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-pill text-white" style="background: #F97316;" data-i18n="primary">Primary</span>
+          </div>
+          <div class="flex items-end gap-3 mb-4">
+            <span class="text-4xl font-extrabold font-mono" style="color: #F97316; font-variant-numeric: tabular-nums;">+75.3</span>
+            <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-pill mb-1" style="background: rgba(249,115,22,0.1); color: #F97316;">
+              <i data-lucide="trending-up" class="w-3 h-3"></i>+4.2
+            </span>
+          </div>
+          <p class="text-[11px] font-bold px-2.5 py-1 rounded-pill inline-block mb-3 text-white" style="background: #F97316;" data-i18n="worldClass">World-Class</p>
+          <div class="flex justify-between text-xs" style="color: hsl(var(--muted-fg));">
+            <span>150 <span data-i18n="reviews">reviews</span></span>
+            <span class="flex items-center gap-1"><i data-lucide="star" class="w-3 h-3" style="color: #FB923C;"></i> 4.71</span>
+          </div>
+        </div>
+
+        <!-- Alamo Prime Westside -->
+        <div class="card" style="border: 2px dashed hsl(var(--border-color));">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <p class="text-sm font-bold" style="color: hsl(var(--ink));">Alamo Prime — Westside</p>
+              <p class="text-xs" style="color: hsl(var(--muted-fg));">Austin, TX</p>
+            </div>
+          </div>
+          <div class="flex flex-col items-center justify-center py-8">
+            <i data-lucide="bar-chart-3" class="w-10 h-10 mb-3" style="color: hsl(var(--border-color));"></i>
+            <p class="text-sm font-medium" style="color: hsl(var(--muted-fg));" data-i18n="noDataYet">No Data Yet</p>
+            <p class="text-xs mt-1" style="color: hsl(var(--tertiary-fg));" data-i18n="setupScraping">Configure review scraping to get started</p>
+            <a href="#" class="text-sm font-semibold mt-3 px-4 py-2 rounded-xl" style="background: #F97316; color: white;" data-i18n="setUp">Set Up &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company Trend Chart -->
+      <div class="card">
+        <p class="text-lg font-semibold mb-3" style="color: hsl(var(--muted-fg));" data-i18n="companyTrend">Company Trend — Own Restaurants</p>
+        <div style="position: relative; height: 240px;">
+          <canvas id="chart-company-trend"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================================================================== -->
+  <!-- FLOATING AI CHAT BUTTON                                             -->
+  <!-- ================================================================== -->
+  <div class="fab shadow-floating" style="background: #F97316;" onclick="alert('AI Chat — Coming Soon!')">
+    <i data-lucide="sparkles" class="w-6 h-6 text-white"></i>
+  </div>
+  <div class="fab-tooltip" data-i18n="askAboutReviews">Ask about reviews</div>
+
+
+  <!-- ================================================================== -->
+  <!-- JAVASCRIPT                                                          -->
+  <!-- ================================================================== -->
+  <script>
+    // ===== i18n =====
+    const STRINGS = {
+      en: {
+        brand: 'ALAMO PRIME',
+        pageTitle: 'Review Insights',
+        pageSubtitle: 'Comprehensive review analytics for your restaurants.',
+        tabOverview: 'Overview',
+        tabFood: 'Food & Drinks',
+        tabStaff: 'Staff Shoutouts',
+        tabCategories: 'Categories',
+        tabCompany: 'Company',
+        export: 'Export Report',
+        dateRange: 'Jan 08 - Feb 08',
+        scoreTrend: 'Score Trend',
+        vsLastPeriod: 'vs. last period',
+        current: 'Current',
+        previous: 'Previous',
+        currentScore: 'Current Score',
+        pts: 'pts',
+        lowRatings: 'Low Ratings',
+        lowRatingsSub: '1-3 star reviews',
+        totalLow: 'Total Low Ratings',
+        flavorIndex: 'Flavor Index',
+        last12mo: 'Last 12 months',
+        food: 'Food',
+        service: 'Service',
+        ambience: 'Ambience',
+        value: 'Value',
+        fiByRestaurant: 'Flavor Index by Restaurant',
+        you: 'You',
+        month: 'Month',
+        quarter: 'Quarter',
+        year: 'Year',
+        lastYear: 'Last Year',
+        fiveYr: '5 Yr',
+        all: 'All',
+        viewDetailedComparison: 'View Detailed Comparison &rarr;',
+        strengthsOpp: 'Strengths & Opportunities',
+        thisMonth: 'This Month',
+        thisQuarter: 'This Quarter',
+        thisYear: 'This Year',
+        worldClass: 'World-Class',
+        foodQuality: 'Food Quality',
+        serviceLabel: 'Service',
+        ambienceLabel: 'Ambience',
+        valueLabel: 'Value',
+        topStrengths: 'Top Strengths',
+        topOpportunities: 'Top Opportunities',
+        presentation: 'Presentation',
+        waitTime: 'Wait Time',
+        reservationExp: 'Reservation Exp.',
+        food39: 'Food 39%',
+        service32: 'Service 32%',
+        ambience19: 'Ambience 19%',
+        value10: 'Value 10%',
+        topMentionedItems: 'Top Mentioned Items',
+        viewAllItems: 'View all 23 items &rarr;',
+        foodOnly: 'Food',
+        drinksOnly: 'Drinks',
+        itemsByRestaurant: 'Item Mentions by Restaurant',
+        trendingItems: 'Trending Items',
+        top10Period: 'Top 10 Staff — This Month',
+        yearLeaderboard: 'Year Leaderboard',
+        viewAllStaff: 'View All Staff &rarr;',
+        allTime: 'All Time',
+        subCategories: 'Sub-Categories',
+        foodQualityOverTime: 'Food Quality — Score Over Time',
+        foodCompetitorComparison: 'Food Quality — Competitor Comparison',
+        noDataYet: 'No Data Yet',
+        setupScraping: 'Configure review scraping to get started',
+        setUp: 'Set Up &rarr;',
+        primary: 'Primary',
+        companyTrend: 'Company Trend — Own Restaurants',
+        reviews: 'reviews',
+        askAboutReviews: 'Ask about reviews',
+        mentions: 'mentions',
+        positive: 'positive',
+        rising: 'Rising',
+        falling: 'Falling',
+      },
+      es: {
+        brand: 'ALAMO PRIME',
+        pageTitle: 'Perspectivas de Resenas',
+        pageSubtitle: 'Analiticas completas de resenas para tus restaurantes.',
+        tabOverview: 'Resumen',
+        tabFood: 'Comida y Bebida',
+        tabStaff: 'Reconocimientos',
+        tabCategories: 'Categorias',
+        tabCompany: 'Empresa',
+        export: 'Exportar Reporte',
+        dateRange: 'Ene 08 - Feb 08',
+        scoreTrend: 'Tendencia de Puntaje',
+        vsLastPeriod: 'vs. periodo anterior',
+        current: 'Actual',
+        previous: 'Anterior',
+        currentScore: 'Puntaje Actual',
+        pts: 'pts',
+        lowRatings: 'Calificaciones Bajas',
+        lowRatingsSub: 'Resenas de 1-3 estrellas',
+        totalLow: 'Total de Bajas',
+        flavorIndex: 'Indice de Sabor',
+        last12mo: 'Ultimos 12 meses',
+        food: 'Comida',
+        service: 'Servicio',
+        ambience: 'Ambiente',
+        value: 'Valor',
+        fiByRestaurant: 'Indice de Sabor por Restaurante',
+        you: 'Tu',
+        month: 'Mes',
+        quarter: 'Trimestre',
+        year: 'Ano',
+        lastYear: 'Ano Anterior',
+        fiveYr: '5 Anos',
+        all: 'Todo',
+        viewDetailedComparison: 'Ver Comparacion Detallada &rarr;',
+        strengthsOpp: 'Fortalezas y Oportunidades',
+        thisMonth: 'Este Mes',
+        thisQuarter: 'Este Trimestre',
+        thisYear: 'Este Ano',
+        worldClass: 'Clase Mundial',
+        foodQuality: 'Calidad de Comida',
+        serviceLabel: 'Servicio',
+        ambienceLabel: 'Ambiente',
+        valueLabel: 'Valor',
+        topStrengths: 'Fortalezas',
+        topOpportunities: 'Oportunidades',
+        presentation: 'Presentacion',
+        waitTime: 'Tiempo de Espera',
+        reservationExp: 'Exp. Reserva',
+        food39: 'Comida 39%',
+        service32: 'Servicio 32%',
+        ambience19: 'Ambiente 19%',
+        value10: 'Valor 10%',
+        topMentionedItems: 'Items Mas Mencionados',
+        viewAllItems: 'Ver los 23 items &rarr;',
+        foodOnly: 'Comida',
+        drinksOnly: 'Bebidas',
+        itemsByRestaurant: 'Menciones por Restaurante',
+        trendingItems: 'Items en Tendencia',
+        top10Period: 'Top 10 Staff — Este Mes',
+        yearLeaderboard: 'Tabla del Ano',
+        viewAllStaff: 'Ver Todo el Staff &rarr;',
+        allTime: 'Todo',
+        subCategories: 'Sub-Categorias',
+        foodQualityOverTime: 'Calidad de Comida — Puntaje en el Tiempo',
+        foodCompetitorComparison: 'Calidad de Comida — Comparacion',
+        noDataYet: 'Sin Datos Aun',
+        setupScraping: 'Configura el scraping de resenas para comenzar',
+        setUp: 'Configurar &rarr;',
+        primary: 'Principal',
+        companyTrend: 'Tendencia Empresa — Restaurantes Propios',
+        reviews: 'resenas',
+        askAboutReviews: 'Preguntar sobre resenas',
+        mentions: 'menciones',
+        positive: 'positivo',
+        rising: 'Subiendo',
+        falling: 'Bajando',
+      }
+    };
+
+    let currentLang = 'en';
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      document.getElementById('lang-en').className = `time-pill text-xs px-3 py-1 ${lang === 'en' ? 'active' : ''}`;
+      document.getElementById('lang-es').className = `time-pill text-xs px-3 py-1 ${lang === 'es' ? 'active' : ''}`;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (STRINGS[lang][key]) el.innerHTML = STRINGS[lang][key];
+      });
+    }
+
+    // ===== Dark Mode =====
+    function toggleDark() {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      document.getElementById('icon-sun').classList.toggle('hidden', isDark);
+      document.getElementById('icon-moon').classList.toggle('hidden', !isDark);
+      // Recreate charts with new colors
+      createAllCharts();
+    }
+
+    // ===== Tab Switching =====
+    function switchTab(tab) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + tab).classList.add('active');
+      document.querySelectorAll('.nav-tab').forEach(t => {
+        t.className = t.dataset.tab === tab
+          ? 'nav-tab tab-active px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap'
+          : 'nav-tab tab-inactive px-4 py-2 rounded-pill text-sm transition-all whitespace-nowrap';
+      });
+      // Lazy-init charts when tab becomes visible
+      if (tab === 'categories' && !categoryChartCreated) createCategoryChart();
+      if (tab === 'company' && !companyChartCreated) createCompanyChart();
+    }
+
+    // ===== Pill bar interactions =====
+    function setRankTime(btn) {
+      btn.parentElement.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function setFoodFilter(btn) {
+      btn.parentElement.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function setCategoryView(btn, cat) {
+      btn.parentElement.querySelectorAll('.time-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+    }
+    function toggleCategory(btn, cat) {
+      btn.classList.toggle('active');
+    }
+
+    // ===== MOCK DATA =====
+    // 5-restaurant item comparison data
+    const RESTAURANT_ITEMS = [
+      {
+        name: 'Alamo Prime', isOwn: true,
+        top: [
+          { item: 'Bone-In Ribeye', count: 28 },
+          { item: 'Truffle Mac', count: 15 },
+          { item: 'Creme Brulee', count: 8 },
+          { item: 'Wagyu Slider', count: 6 },
+          { item: 'Caesar Salad', count: 5 },
+        ],
+        worst: [
+          { item: 'House Wine', count: 6 },
+          { item: 'Bread Basket', count: 4 },
+          { item: 'Fish Tacos', count: 3 },
+          { item: 'Onion Rings', count: 2 },
+          { item: 'Draft Beer', count: 1 },
+        ],
+      },
+      {
+        name: 'Longhorn & Ember',
+        top: [
+          { item: 'Porterhouse', count: 22 },
+          { item: 'Onion Soup', count: 18 },
+          { item: 'Old Fashioned', count: 15 },
+          { item: 'Wedge Salad', count: 12 },
+          { item: 'Cheesecake', count: 9 },
+        ],
+        worst: [
+          { item: 'Chicken Wings', count: 5 },
+          { item: 'House Salad', count: 4 },
+          { item: 'Mashed Potato', count: 3 },
+          { item: 'Iced Tea', count: 2 },
+          { item: 'Brownie', count: 1 },
+        ],
+      },
+      {
+        name: 'Salt & Sear',
+        top: [
+          { item: 'Tomahawk', count: 18 },
+          { item: 'Lobster Tail', count: 14 },
+          { item: 'Espresso Martini', count: 10 },
+          { item: 'Crispy Brussels', count: 8 },
+          { item: 'Key Lime Pie', count: 6 },
+        ],
+        worst: [
+          { item: 'Grilled Salmon', count: 5 },
+          { item: 'Bread Service', count: 4 },
+          { item: 'House Red', count: 3 },
+          { item: 'Shrimp App', count: 2 },
+          { item: 'Fries', count: 1 },
+        ],
+      },
+      {
+        name: 'Mesquite Flame',
+        top: [
+          { item: 'Brisket', count: 20 },
+          { item: 'Smoked Ribs', count: 16 },
+          { item: 'Jalapeño Marg', count: 11 },
+          { item: 'Cornbread', count: 9 },
+          { item: 'Pecan Pie', count: 7 },
+        ],
+        worst: [
+          { item: 'Pulled Pork', count: 6 },
+          { item: 'Coleslaw', count: 4 },
+          { item: 'Sweet Tea', count: 3 },
+          { item: 'Mac & Cheese', count: 2 },
+          { item: 'Bean Soup', count: 1 },
+        ],
+      },
+      {
+        name: 'Pisco y Nazca',
+        top: [
+          { item: 'Lomo Saltado', count: 24 },
+          { item: 'Ceviche', count: 19 },
+          { item: 'Pisco Sour', count: 14 },
+          { item: 'Anticuchos', count: 10 },
+          { item: 'Tres Leches', count: 8 },
+        ],
+        worst: [
+          { item: 'Aji de Gallina', count: 4 },
+          { item: 'Causa', count: 3 },
+          { item: 'Chicha Morada', count: 2 },
+          { item: 'Papa Rellena', count: 2 },
+          { item: 'Arroz con Leche', count: 1 },
+        ],
+      },
+    ];
+
+    const STAFF_DATA = [
+      { name: 'Maria Garcia', role: 'Server', mentions: 14, positive: 93, color: '#F97316' },
+      { name: 'Carlos Reyes', role: 'Bartender', mentions: 10, positive: 90, color: '#F97316' },
+      { name: 'Jake Thompson', role: 'Server', mentions: 7, positive: 86, color: '#FB923C' },
+      { name: 'Sofia Martinez', role: 'Host', mentions: 5, positive: 100, color: '#C2410C' },
+      { name: 'David Chen', role: 'Manager', mentions: 4, positive: 75, color: '#FDBA74' },
+    ];
+
+    const STAFF_YEAR = [
+      { name: 'Maria Garcia', role: 'Server', mentions: 48, positive: 94, color: '#F97316' },
+      { name: 'Carlos Reyes', role: 'Bartender', mentions: 35, positive: 91, color: '#F97316' },
+      { name: 'Jake Thompson', role: 'Server', mentions: 28, positive: 85, color: '#FB923C' },
+      { name: 'Sofia Martinez', role: 'Host', mentions: 22, positive: 100, color: '#C2410C' },
+      { name: 'David Chen', role: 'Manager', mentions: 15, positive: 73, color: '#FDBA74' },
+    ];
+
+    const CAT_COMPETITORS = [
+      { name: 'Alamo Prime', score: 0.85, color: '#F97316', isOwn: true },
+      { name: 'Longhorn & Ember', score: 0.78, color: '#FB923C' },
+      { name: 'Salt & Sear', score: 0.55, color: '#FDBA74' },
+      { name: 'Mesquite Flame', score: 0.32, color: '#FED7AA' },
+    ];
+
+    const SUB_CATEGORIES_FOOD = [
+      { name: 'Food Quality', intensity: 4.6, mentions: 42, trend: '+5' },
+      { name: 'Presentation', intensity: 4.3, mentions: 18, trend: '+2' },
+    ];
+    const SUB_CATEGORIES_SERVICE = [
+      { name: 'Service Attitude', intensity: 4.1, mentions: 30, trend: '+3' },
+      { name: 'Service Speed', intensity: 3.4, mentions: 22, trend: '-1' },
+      { name: 'Wait Time', intensity: 3.1, mentions: 15, trend: '-4' },
+      { name: 'Reservation Exp.', intensity: 2.5, mentions: 8, trend: '0' },
+      { name: 'Management', intensity: 3.8, mentions: 6, trend: '+1' },
+    ];
+
+    // ===== Populate Dynamic Content =====
+    function populateItemComparison() {
+      const topGrid = document.getElementById('top-items-grid');
+      const worstGrid = document.getElementById('worst-items-grid');
+
+      function renderColumn(restaurant, items, accentColor) {
+        const badge = restaurant.isOwn
+          ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded-pill text-white ml-1" style="background: hsl(var(--brand));">You</span>`
+          : '';
+        const rows = items.map((it, i) =>
+          `<div class="flex items-center justify-between py-1.5" style="${i < items.length - 1 ? 'border-bottom: 1px solid hsl(var(--border-color));' : ''}">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[10px] font-bold w-3" style="color: ${accentColor};">${i + 1}</span>
+              <span class="text-[11px]" style="color: hsl(var(--ink));">${it.item}</span>
+            </div>
+            <span class="text-[10px] font-mono font-semibold" style="color: hsl(var(--muted-fg)); font-variant-numeric: tabular-nums;">${it.count}</span>
+          </div>`
+        ).join('');
+
+        return `<div>
+          <p class="text-xs font-bold mb-2.5 pb-2" style="color: hsl(var(--ink)); border-bottom: 2px solid ${accentColor};">${restaurant.name}${badge}</p>
+          ${rows}
+        </div>`;
+      }
+
+      topGrid.innerHTML = RESTAURANT_ITEMS.map(r => renderColumn(r, r.top, '#F97316')).join('');
+      worstGrid.innerHTML = RESTAURANT_ITEMS.map(r => renderColumn(r, r.worst, '#EA580C')).join('');
+    }
+
+    function populateStaff(data, containerId) {
+      const maxMentions = Math.max(...data.map(s => s.mentions));
+      document.getElementById(containerId).innerHTML = data.map((s, i) => {
+        const barPct = (s.mentions / maxMentions * 100).toFixed(0);
+        const posColor = s.positive >= 90 ? '#F97316' : s.positive >= 70 ? '#FB923C' : '#FDBA74';
+        return `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style="background: hsl(var(--muted)); color: hsl(var(--muted-fg));">
+                  ${s.name.split(' ').map(n=>n[0]).join('')}
+                </div>
+                <div>
+                  <span class="text-sm font-semibold" style="color: hsl(var(--ink));">${s.name}</span>
+                  <span class="text-xs ml-1.5" style="color: hsl(var(--muted-fg));">${s.role}</span>
+                </div>
+                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-pill" style="background: ${posColor}15; color: ${posColor};">${s.positive}%+</span>
+              </div>
+              <span class="text-sm font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">${s.mentions}</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${barPct}%; background: ${posColor};"></div></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function populateCategoryCompetitors() {
+      const maxScore = 1.0;
+      document.getElementById('cat-competitor-list').innerHTML = CAT_COMPETITORS.map(c => {
+        const pct = (c.score / maxScore * 100).toFixed(0);
+        return `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-3 h-3 rounded-full" style="background: ${c.color};"></div>
+                <span class="text-sm font-semibold" style="color: hsl(var(--ink));">${c.name}</span>
+                ${c.isOwn ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-pill text-white" style="background: hsl(var(--brand));">You</span>` : ''}
+              </div>
+              <span class="text-sm font-bold font-mono" style="color: ${c.color}; font-variant-numeric: tabular-nums;">${c.score.toFixed(2)}</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${pct}%; background: ${c.color};"></div></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function populateSubCategories() {
+      document.getElementById('sub-category-list').innerHTML = SUB_CATEGORIES_FOOD.map(sc => {
+        const trendColor = sc.trend.startsWith('+') ? '#F97316' : sc.trend === '0' ? 'hsl(var(--muted-fg))' : '#EA580C';
+        return `
+          <div class="flex items-center justify-between py-2" style="border-bottom: 1px solid hsl(var(--border-color));">
+            <div>
+              <span class="text-sm font-medium" style="color: hsl(var(--ink));">${sc.name}</span>
+              <span class="text-xs ml-2" style="color: hsl(var(--muted-fg));">${sc.mentions} ${STRINGS[currentLang].mentions}</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-semibold" style="color: ${trendColor};">${sc.trend}</span>
+              <span class="text-sm font-bold font-mono" style="color: hsl(var(--ink)); font-variant-numeric: tabular-nums;">${sc.intensity}/5</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ===== CHARTS =====
+    let flavorChart = null;
+    let categoryChartCreated = false;
+    let companyChartCreated = false;
+    let catTrendChart = null;
+    let companyTrendChart = null;
+
+    function getChartColors() {
+      const isDark = document.documentElement.classList.contains('dark');
+      return {
+        gridColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+        textColor: isDark ? '#B7B7C2' : '#5A5A66',
+        zeroLine: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+      };
+    }
+
+    function createFlavorChart() {
+      const ctx = document.getElementById('chart-flavor-12mo');
+      if (!ctx) return;
+      if (flavorChart) flavorChart.destroy();
+
+      const c = getChartColors();
+      const months = ['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
+      const scores = [62, 58, 65, 68, 70, 72, 71, 73, 74, 72, 75, 75.3];
+      const zoneColors = scores.map(s => s >= 71 ? '#F97316' : s >= 51 ? '#FB923C' : s >= 31 ? '#FDBA74' : s >= 0 ? '#FED7AA' : '#FFEDD5');
+      // Highlight current month (Feb) with deep burnt orange
+      zoneColors[zoneColors.length - 1] = '#C2410C';
+
+      flavorChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{
+            data: scores,
+            backgroundColor: zoneColors,
+            borderRadius: { topLeft: 6, topRight: 6 },
+            borderSkipped: 'bottom',
+            barPercentage: 0.65,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'hsl(240, 10%, 8%)',
+              titleColor: '#F5F5F7',
+              bodyColor: '#F5F5F7',
+              padding: 12,
+              cornerRadius: 10,
+              displayColors: false,
+              callbacks: {
+                title: (items) => items[0].label + ' 2026',
+                label: (item) => 'Flavor Index: +' + item.raw,
+              }
+            }
+          },
+          scales: {
+            y: {
+              min: -25,
+              max: 100,
+              grid: { color: c.gridColor, drawBorder: false },
+              ticks: { color: c.textColor, font: { size: 11 }, stepSize: 25 },
+              border: { display: false },
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: c.textColor, font: { size: 11 } },
+              border: { display: false },
+            }
+          }
+        }
+      });
+    }
+
+    function createCategoryChart() {
+      const ctx = document.getElementById('chart-category-trend');
+      if (!ctx) return;
+      if (catTrendChart) catTrendChart.destroy();
+
+      const c = getChartColors();
+      const weeks = ['Dec 2', 'Dec 16', 'Dec 30', 'Jan 13', 'Jan 27', 'Feb 10', 'Feb 24'];
+
+      catTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: weeks,
+          datasets: [
+            { label: 'Alamo Prime', data: [0.80, 0.82, 0.84, 0.83, 0.85, 0.86, 0.85], borderColor: '#F97316', borderWidth: 3, tension: 0.3, pointRadius: 0, pointHoverRadius: 5 },
+            { label: 'Longhorn', data: [0.72, 0.74, 0.76, 0.75, 0.77, 0.78, 0.78], borderColor: '#FB923C', borderWidth: 1.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+            { label: 'Salt & Sear', data: [0.58, 0.56, 0.55, 0.54, 0.56, 0.55, 0.55], borderColor: '#FDBA74', borderWidth: 1.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+            { label: 'Mesquite', data: [0.35, 0.33, 0.32, 0.30, 0.31, 0.32, 0.32], borderColor: '#FED7AA', borderWidth: 1.5, tension: 0.3, pointRadius: 0, pointHoverRadius: 4 },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: 'hsl(240, 10%, 8%)', titleColor: '#F5F5F7', bodyColor: '#F5F5F7', padding: 10, cornerRadius: 8 } },
+          scales: {
+            y: { min: 0, max: 1, grid: { color: c.gridColor, drawBorder: false }, ticks: { color: c.textColor, font: { size: 11 }, callback: v => v.toFixed(1) }, border: { display: false } },
+            x: { grid: { display: false }, ticks: { color: c.textColor, font: { size: 11 } }, border: { display: false } }
+          }
+        }
+      });
+      categoryChartCreated = true;
+    }
+
+    function createCompanyChart() {
+      const ctx = document.getElementById('chart-company-trend');
+      if (!ctx) return;
+      if (companyTrendChart) companyTrendChart.destroy();
+
+      const c = getChartColors();
+      const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'];
+
+      companyTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            { label: 'Alamo Prime — Austin', data: [68, 70, 72, 73, 74, 75.3], borderColor: '#F97316', borderWidth: 3, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#F97316' },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top', labels: { color: c.textColor, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 12 } } },
+            tooltip: { backgroundColor: 'hsl(240, 10%, 8%)', titleColor: '#F5F5F7', bodyColor: '#F5F5F7', padding: 10, cornerRadius: 8, displayColors: false }
+          },
+          scales: {
+            y: { min: 0, max: 100, grid: { color: c.gridColor, drawBorder: false }, ticks: { color: c.textColor, font: { size: 11 }, stepSize: 25 }, border: { display: false } },
+            x: { grid: { display: false }, ticks: { color: c.textColor, font: { size: 11 } }, border: { display: false } }
+          }
+        }
+      });
+      companyChartCreated = true;
+    }
+
+    function createAllCharts() {
+      createFlavorChart();
+      if (categoryChartCreated) { categoryChartCreated = false; createCategoryChart(); }
+      if (companyChartCreated) { companyChartCreated = false; createCompanyChart(); }
+    }
+
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', () => {
+      // Init Lucide icons
+      lucide.createIcons();
+
+      // Populate dynamic content
+      populateItemComparison();
+      populateStaff(STAFF_DATA, 'staff-month-list');
+      populateStaff(STAFF_YEAR, 'staff-year-list');
+      populateCategoryCompetitors();
+      populateSubCategories();
+
+      // Create initial chart
+      createFlavorChart();
+
+      // Re-init icons after dynamic content
+      setTimeout(() => lucide.createIcons(), 100);
+    });
+  </script>
+</body>
+</html>

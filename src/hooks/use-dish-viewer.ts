@@ -1,8 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useSupabaseDishes } from '@/hooks/use-supabase-dishes';
-import type { Dish, DishCategory } from '@/types/products';
+import type { Dish, DishCategory, ProductSortMode } from '@/types/products';
 import type { DishFilterMode } from '@/components/dishes/DishGrid';
-import { CATEGORY_ORDER } from '@/data/mock-dishes';
 
 export type { DishFilterMode };
 
@@ -12,6 +11,7 @@ export function useDishViewer(initialSlug?: string | null) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(initialSlug ?? null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<DishFilterMode>('all');
+  const [sortMode, setSortMode] = useState<ProductSortMode>('name');
 
   const filteredDishes = useMemo(() => {
     let dishes = allDishes;
@@ -29,16 +29,21 @@ export function useDishViewer(initialSlug?: string | null) {
       );
     }
 
-    // Sort by category order, then alphabetical within each category
-    dishes = [...dishes].sort((a, b) => {
-      const catA = CATEGORY_ORDER.indexOf(a.plateType);
-      const catB = CATEGORY_ORDER.indexOf(b.plateType);
-      if (catA !== catB) return catA - catB;
-      return a.menuName.localeCompare(b.menuName);
-    });
-
-    return dishes;
-  }, [allDishes, filterMode, searchQuery]);
+    const sorted = [...dishes];
+    switch (sortMode) {
+      case 'recent':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'featured':
+        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        break;
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.menuName.localeCompare(b.menuName));
+        break;
+    }
+    return sorted;
+  }, [allDishes, filterMode, searchQuery, sortMode]);
 
   const selectedDish = useMemo<Dish | undefined>(
     () => selectedSlug ? allDishes.find(d => d.slug === selectedSlug) : undefined,
@@ -79,6 +84,8 @@ export function useDishViewer(initialSlug?: string | null) {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedDish,
     selectDish,
     clearSelection,

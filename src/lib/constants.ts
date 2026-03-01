@@ -21,6 +21,7 @@ export const ROUTES = {
   PROFILE: '/profile',
   ADMIN: '/admin',
   ADMIN_TRAINING: '/admin/training',
+  ADMIN_REVIEWS: '/admin/reviews',
 } as const;
 
 // Breakpoints (matches Tailwind defaults)

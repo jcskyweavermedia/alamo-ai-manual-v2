@@ -55,7 +55,7 @@ export function ProductAIDrawer({
       <DrawerContent className="max-h-[85vh] flex flex-col">
         <DrawerHeader className="flex flex-row items-center justify-between border-b pb-4 shrink-0">
           <div className="flex items-center gap-sm min-w-0">
-            <span className="flex items-center justify-center w-8 h-8 rounded-[10px] bg-slate-100 dark:bg-slate-800 text-lg leading-none shrink-0">🤖</span>
+            <img src="/images/tastly-isotope.svg" alt="Tastly" className="w-7 h-7 shrink-0 rounded-md" />
             <DrawerTitle className="text-base font-semibold truncate">
               {displayTitle}
             </DrawerTitle>

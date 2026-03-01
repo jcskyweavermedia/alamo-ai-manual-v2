@@ -8,7 +8,7 @@ export function useSupabaseBeerLiquor() {
     queryFn: async (): Promise<BeerLiquorItem[]> => {
       const { data, error } = await supabase
         .from('beer_liquor_list')
-        .select('id, slug, name, category, subcategory, producer, country, description, style, notes')
+        .select('id, slug, name, category, subcategory, producer, country, description, style, notes, image, is_featured, created_at')
         .eq('status', 'published')
         .order('category')
         .order('subcategory')
@@ -27,6 +27,9 @@ export function useSupabaseBeerLiquor() {
         description: row.description,
         style: row.style,
         notes: row.notes ?? '',
+        image: row.image ?? null,
+        isFeatured: row.is_featured,
+        createdAt: row.created_at,
       }));
     },
     staleTime: 5 * 60 * 1000,

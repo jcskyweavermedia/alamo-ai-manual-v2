@@ -367,12 +367,14 @@ export function ChatIngestionPanel({
                 msg.role === 'user' ? 'justify-end' : 'justify-start'
               )}>
                 {msg.role === 'assistant' && (
-                  <span className={cn(
-                    'text-[18px] leading-none shrink-0 mt-0.5',
-                    index < historyMessageCount && 'opacity-60'
-                  )}>
-                    🤖
-                  </span>
+                  <img
+                    src="/images/tastly-isotope.svg"
+                    alt="Tastly"
+                    className={cn(
+                      'w-5 h-5 shrink-0 mt-0.5 rounded-[4px]',
+                      index < historyMessageCount && 'opacity-60'
+                    )}
+                  />
                 )}
                 <div className={cn(
                   'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm',
@@ -411,7 +413,7 @@ export function ChatIngestionPanel({
 
         {isProcessing && (
           <div className="flex gap-2.5 justify-start">
-            <span className="text-[18px] leading-none shrink-0 mt-0.5">🤖</span>
+            <img src="/images/tastly-isotope.svg" alt="Tastly" className="w-5 h-5 shrink-0 mt-0.5 rounded-[4px]" />
             <div className="bg-muted rounded-lg px-3 py-2">
               <ThinkingIndicator />
             </div>

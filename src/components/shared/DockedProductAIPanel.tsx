@@ -94,7 +94,7 @@ export function DockedProductAIPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-sm min-w-0">
-          <span className="flex items-center justify-center w-8 h-8 rounded-[10px] bg-slate-100 dark:bg-slate-800 text-lg leading-none shrink-0">🤖</span>
+          <img src="/images/tastly-isotope.svg" alt="Tastly" className="w-7 h-7 shrink-0 rounded-md" />
           <span className="text-base font-semibold truncate">
             {actionLabel} — {displayTitle}
           </span>

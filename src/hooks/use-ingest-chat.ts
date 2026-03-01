@@ -37,7 +37,7 @@ export interface UseIngestChatReturn {
 // HOOK
 // =============================================================================
 
-export function useIngestChat(productTable: string = 'prep_recipes'): UseIngestChatReturn {
+export function useIngestChat(productTable: string = 'prep_recipes', department?: string): UseIngestChatReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +67,7 @@ export function useIngestChat(productTable: string = 'prep_recipes'): UseIngestC
               sessionId: sessionId ?? undefined,
               productTable,
               language,
+              department,
             },
           },
         );
@@ -100,7 +101,7 @@ export function useIngestChat(productTable: string = 'prep_recipes'): UseIngestC
         setIsProcessing(false);
       }
     },
-    [user, language, productTable],
+    [user, language, productTable, department],
   );
 
   return {

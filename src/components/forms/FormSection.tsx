@@ -19,7 +19,13 @@ interface FormSectionProps {
     value: FormFieldValue,
     error: string | undefined,
     onChange: (value: FormFieldValue) => void,
+    aiHighlighted?: boolean,
+    aiMissing?: boolean,
   ) => React.ReactNode;
+  /** Set of field keys currently highlighted by AI fill */
+  aiHighlightedFields?: Set<string>;
+  /** Set of field keys identified as missing by AI */
+  aiMissingFields?: Set<string>;
 }
 
 /**
@@ -34,6 +40,8 @@ export function FormSection({
   language,
   onFieldChange,
   renderField,
+  aiHighlightedFields,
+  aiMissingFields,
 }: FormSectionProps) {
   const label = getSectionLabel(section, language);
   const emojiInfo = getSectionEmoji(section.headerKey, section.label);
@@ -98,6 +106,9 @@ export function FormSection({
             const fieldError = errors[field.key];
             const isHalf = field.width === 'half';
 
+            const isAiHighlighted = aiHighlightedFields?.has(field.key) ?? false;
+            const isAiMissing = aiMissingFields?.has(field.key) ?? false;
+
             return (
               <div key={field.key} className={isHalf ? '' : 'sm:col-span-2'}>
                 {renderField(
@@ -105,6 +116,8 @@ export function FormSection({
                   fieldValue,
                   fieldError,
                   (newValue) => onFieldChange(field.key, newValue),
+                  isAiHighlighted,
+                  isAiMissing,
                 )}
               </div>
             );

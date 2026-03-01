@@ -26,6 +26,7 @@ import { ImageFieldInput } from '@/components/forms/fields/ImageFieldInput';
 import { FileFieldInput } from '@/components/forms/fields/FileFieldInput';
 import { InstructionsField } from '@/components/forms/fields/InstructionsField';
 import { ContactLookupFieldInput } from '@/components/forms/fields/ContactLookupFieldInput';
+import { YesNoFieldInput } from '@/components/forms/fields/YesNoFieldInput';
 
 import type {
   FormFieldRendererProps,
@@ -37,6 +38,13 @@ import type {
   ContactLookupValue,
 } from '@/types/forms';
 
+interface ExtendedFormFieldRendererProps extends FormFieldRendererProps {
+  aiHighlighted?: boolean;
+  aiMissing?: boolean;
+  /** When true, hides the label in FormFieldWrapper (for canvas inline editing) */
+  hideLabel?: boolean;
+}
+
 // =============================================================================
 // RENDERER COMPONENT (inner, pre-memo)
 // =============================================================================
@@ -47,7 +55,10 @@ function FormFieldRendererInner({
   error,
   language,
   onChange,
-}: FormFieldRendererProps) {
+  aiHighlighted,
+  aiMissing,
+  hideLabel,
+}: ExtendedFormFieldRendererProps) {
   // 'header' is not rendered here — handled at FormBody level
   if (field.type === 'header') {
     return null;
@@ -64,7 +75,7 @@ function FormFieldRendererInner({
   if (!fieldInput) {
     // Unknown field type fallback
     return (
-      <FormFieldWrapper field={field} error={error} language={language}>
+      <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel}>
         <p className="text-sm text-muted-foreground italic">
           Unsupported field type: {field.type}
         </p>
@@ -73,7 +84,7 @@ function FormFieldRendererInner({
   }
 
   return (
-    <FormFieldWrapper field={field} error={error} language={language}>
+    <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel}>
       {fieldInput}
     </FormFieldWrapper>
   );
@@ -248,6 +259,16 @@ function renderFieldInput(
         />
       );
 
+    case 'yes_no':
+      return (
+        <YesNoFieldInput
+          field={field}
+          value={(value as string) ?? ''}
+          onChange={onStringChange}
+          error={error}
+        />
+      );
+
     // 'header' and 'instructions' are handled above
     default:
       return null;
@@ -258,11 +279,14 @@ function renderFieldInput(
 // MEMOIZED EXPORT — custom comparator on value, error, language, field.key
 // =============================================================================
 
-export const FormFieldRenderer = React.memo(FormFieldRendererInner, (prev, next) => {
+export const FormFieldRenderer = React.memo(FormFieldRendererInner, (prev: ExtendedFormFieldRendererProps, next: ExtendedFormFieldRendererProps) => {
   // Return true if props are EQUAL (skip re-render)
   if (prev.field.key !== next.field.key) return false;
   if (prev.language !== next.language) return false;
   if (prev.error !== next.error) return false;
+  if (prev.aiHighlighted !== next.aiHighlighted) return false;
+  if (prev.aiMissing !== next.aiMissing) return false;
+  if (prev.hideLabel !== next.hideLabel) return false;
 
   // Deep compare value — handle arrays and objects
   if (prev.value === next.value) return true;

@@ -1584,6 +1584,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bookmarks: Json
           created_at: string
           default_language: string
           email: string
@@ -1594,6 +1595,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          bookmarks?: Json
           created_at?: string
           default_language?: string
           email: string
@@ -1604,6 +1606,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          bookmarks?: Json
           created_at?: string
           default_language?: string
           email?: string

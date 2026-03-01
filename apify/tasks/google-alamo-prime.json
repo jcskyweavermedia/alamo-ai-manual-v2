@@ -1,0 +1,43 @@
+{
+  "name": "google-alamo-prime",
+  "description": "Daily Google Maps review scraping for Alamo Prime Steakhouse",
+  "actorId": "compass/google-maps-reviews-scraper",
+  "input": {
+    "startUrls": [
+      { "url": "https://www.google.com/maps/place/Alamo+Prime+Steakhouse" }
+    ],
+    "maxReviewsPerPlace": 50,
+    "reviewsSort": "newest",
+    "language": "en",
+    "proxyConfiguration": {
+      "useApifyProxy": true
+    }
+  },
+  "webhook": {
+    "eventTypes": ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+    "requestUrl": "https://nxeorbwqsovybfttemrw.supabase.co/functions/v1/ingest-reviews",
+    "headers": {
+      "X-Apify-Webhook-Secret": "<APIFY_WEBHOOK_SECRET>"
+    },
+    "payloadTemplate": {
+      "event": "{{eventType}}",
+      "runId": "{{resource.id}}",
+      "datasetId": "{{resource.defaultDatasetId}}",
+      "actorId": "{{eventData.actorId}}",
+      "actorTaskId": "{{eventData.actorTaskId}}",
+      "status": "{{resource.status}}",
+      "computeUnits": "{{resource.stats.computeUnits}}",
+      "finishedAt": "{{resource.finishedAt}}",
+      "meta": {
+        "restaurant_id": "11111111-1111-1111-1111-111111111111",
+        "platform": "google",
+        "group_id": "<GROUP_ID>"
+      }
+    }
+  },
+  "schedule": {
+    "cronExpression": "0 8 * * *",
+    "timezone": "UTC",
+    "description": "Daily at 08:00 UTC (2:00 AM CT)"
+  }
+}

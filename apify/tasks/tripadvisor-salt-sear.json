@@ -1,0 +1,42 @@
+{
+  "name": "tripadvisor-salt-sear",
+  "description": "Daily TripAdvisor review scraping for Salt & Sear Chophouse",
+  "actorId": "maxcopell/tripadvisor-reviews",
+  "input": {
+    "startUrls": [
+      { "url": "https://www.tripadvisor.com/Restaurant_Review-Salt_Sear_Chophouse" }
+    ],
+    "maxReviews": 50,
+    "language": "ALL_REVIEW_LANGUAGES",
+    "proxyConfiguration": {
+      "useApifyProxy": true
+    }
+  },
+  "webhook": {
+    "eventTypes": ["ACTOR.RUN.SUCCEEDED", "ACTOR.RUN.FAILED"],
+    "requestUrl": "https://nxeorbwqsovybfttemrw.supabase.co/functions/v1/ingest-reviews",
+    "headers": {
+      "X-Apify-Webhook-Secret": "<APIFY_WEBHOOK_SECRET>"
+    },
+    "payloadTemplate": {
+      "event": "{{eventType}}",
+      "runId": "{{resource.id}}",
+      "datasetId": "{{resource.defaultDatasetId}}",
+      "actorId": "{{eventData.actorId}}",
+      "actorTaskId": "{{eventData.actorTaskId}}",
+      "status": "{{resource.status}}",
+      "computeUnits": "{{resource.stats.computeUnits}}",
+      "finishedAt": "{{resource.finishedAt}}",
+      "meta": {
+        "restaurant_id": "33333333-3333-3333-3333-333333333333",
+        "platform": "tripadvisor",
+        "group_id": "<GROUP_ID>"
+      }
+    }
+  },
+  "schedule": {
+    "cronExpression": "30 8 * * *",
+    "timezone": "UTC",
+    "description": "Daily at 08:30 UTC (2:30 AM CT)"
+  }
+}

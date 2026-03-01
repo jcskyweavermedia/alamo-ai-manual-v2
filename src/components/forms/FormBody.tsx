@@ -21,6 +21,8 @@ export function FormBody({
   errors,
   language,
   onFieldChange,
+  aiHighlightedFields,
+  aiMissingFields,
 }: FormBodyProps) {
   // Derive sections from the template fields (header fields become dividers)
   const sections = useMemo(() => groupFieldsIntoSections(fields), [fields]);
@@ -41,6 +43,8 @@ export function FormBody({
       value: FormFieldValue,
       error: string | undefined,
       onChange: (value: FormFieldValue) => void,
+      aiHighlighted?: boolean,
+      aiMissing?: boolean,
     ) => {
       const field = fieldMap.get(fieldKey);
       if (!field) return null;
@@ -52,6 +56,8 @@ export function FormBody({
           error={error}
           language={language}
           onChange={onChange}
+          aiHighlighted={aiHighlighted}
+          aiMissing={aiMissing}
         />
       );
     },
@@ -69,6 +75,8 @@ export function FormBody({
           language={language}
           onFieldChange={onFieldChange}
           renderField={renderField}
+          aiHighlightedFields={aiHighlightedFields}
+          aiMissingFields={aiMissingFields}
         />
       ))}
     </div>

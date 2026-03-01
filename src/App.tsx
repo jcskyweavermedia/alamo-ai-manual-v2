@@ -1,3 +1,4 @@
+import React, { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -29,6 +30,9 @@ import ManagerTrainingDashboard from "./pages/ManagerTrainingDashboard";
 import IngestDashboard from "./pages/IngestDashboard";
 import IngestWizard from "./pages/IngestWizard";
 import IngestPage from "./pages/IngestPage";
+const AdminFormsListPage = React.lazy(() => import("./pages/admin/AdminFormsListPage"));
+const AdminFormBuilderPage = React.lazy(() => import("./pages/admin/AdminFormBuilderPage"));
+const ReviewDashboard = React.lazy(() => import("./pages/ReviewDashboard"));
 import Forms from "./pages/Forms";
 import FormDetail from "./pages/FormDetail";
 import NotFound from "./pages/NotFound";
@@ -187,6 +191,38 @@ const App = () => (
               </ProtectedRoute>
             } />
             
+            {/* Form Builder Admin - requires manager or admin role (lazy-loaded) */}
+            <Route path="/admin/forms" element={
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminFormsListPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/forms/new" element={
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminFormBuilderPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/forms/:id/edit" element={
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminFormBuilderPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
+            {/* Review Insights Dashboard - requires manager or admin role (lazy-loaded) */}
+            <Route path="/admin/reviews" element={
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <ReviewDashboard />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

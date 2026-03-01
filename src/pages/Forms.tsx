@@ -75,7 +75,7 @@ const Forms = () => {
   // Header left: search input (matches Recipes.tsx pattern)
   // ---------------------------------------------------------------------------
 
-  const headerLeft = (
+  const headerToolbar = (
     <div className="flex items-center gap-2 min-w-0">
       <div className="relative flex-1 max-w-[240px] min-w-[120px]">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -116,7 +116,7 @@ const Forms = () => {
       language={language}
       onLanguageChange={setLanguage}
       showSearch={false}
-      headerLeft={headerLeft}
+      headerToolbar={headerToolbar}
     >
       {isLoading ? (
         <div className="py-6">

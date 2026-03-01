@@ -5,6 +5,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -203,6 +204,20 @@ export function PlateSpecEditor() {
 
   return (
     <div className="space-y-4">
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors",
+        draft.isFeatured
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+          : "bg-muted/30"
+      )}>
+        <span className="text-sm font-medium">Featured</span>
+        <Switch
+          id="plate-featured"
+          checked={draft.isFeatured}
+          onCheckedChange={(checked) => dispatch({ type: 'SET_PLATE_FEATURED', payload: checked })}
+        />
+      </div>
+
       <Accordion type="multiple" defaultValue={defaultSections}>
         {/* Metadata */}
         <AccordionItem value="metadata">

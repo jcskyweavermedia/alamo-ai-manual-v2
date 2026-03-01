@@ -20,6 +20,7 @@ interface IngredientItemRowProps {
   isFirst: boolean;
   isLast: boolean;
   currentRecipeSlug?: string;
+  department?: 'kitchen' | 'bar';
   onUpdate: (item: RecipeIngredient) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -32,6 +33,7 @@ export function IngredientItemRow({
   isFirst,
   isLast,
   currentRecipeSlug,
+  department,
   onUpdate,
   onRemove,
   onMoveUp,
@@ -148,6 +150,7 @@ export function IngredientItemRow({
         currentRef={item.prep_recipe_ref}
         currentRefName={isLinked ? item.name : undefined}
         excludeSlug={currentRecipeSlug}
+        department={department}
         onLink={handleLink}
         onUnlink={handleUnlink}
       />

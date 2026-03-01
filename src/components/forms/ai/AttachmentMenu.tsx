@@ -8,7 +8,6 @@
 import { useRef } from 'react';
 import { Paperclip, Camera, FileUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
@@ -45,16 +44,20 @@ export function AttachmentMenu({ language, disabled, onFileSelect }: AttachmentM
     <>
       <Popover>
         <PopoverTrigger asChild>
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
             disabled={disabled}
-            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+            className={cn(
+              'flex items-center justify-center shrink-0',
+              'h-9 w-9 rounded-full',
+              'text-muted-foreground hover:text-foreground hover:bg-muted',
+              'transition-colors duration-150',
+              'disabled:opacity-40 disabled:cursor-not-allowed',
+            )}
             aria-label={language === 'es' ? 'Adjuntar archivo' : 'Attach file'}
           >
             <Paperclip className="h-4 w-4" />
-          </Button>
+          </button>
         </PopoverTrigger>
         <PopoverContent
           side="top"
@@ -108,7 +111,7 @@ export function AttachmentMenu({ language, disabled, onFileSelect }: AttachmentM
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,.txt,.pdf"
+        accept="image/jpeg,image/png,image/webp,.txt,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         onChange={handleInputChange}
         className="hidden"
         aria-hidden="true"

@@ -10,7 +10,15 @@ import {
 import type { PrepRecipeDraft } from '@/types/ingestion';
 import { generateSlug } from '@/types/ingestion';
 
-const PREP_TYPES = ['sauce', 'marinade', 'brine', 'stock', 'dressing', 'garnish', 'protein', 'starch', 'vegetable', 'dessert', 'other'];
+const KITCHEN_PREP_TYPES = [
+  'sauce', 'base', 'dressing', 'marinade', 'rub', 'compound-butter',
+  'brine', 'stock', 'garnish', 'dessert-component', 'bread', 'dough',
+  'batter', 'cure', 'pickle', 'ferment', 'other',
+];
+
+const BAR_PREP_TYPES = [
+  'syrup', 'infusion', 'shrub', 'bitters', 'cordial', 'tincture', 'other',
+];
 const YIELD_UNITS = ['qt', 'gal', 'cups', 'oz', 'lb', 'kg', 'L', 'ea', 'portions'];
 const SHELF_LIFE_UNITS = ['days', 'hours', 'weeks'];
 
@@ -29,6 +37,8 @@ export function MetadataFields({
   onYieldChange,
   onShelfLifeChange,
 }: MetadataFieldsProps) {
+  const prepTypes = draft.department === 'bar' ? BAR_PREP_TYPES : KITCHEN_PREP_TYPES;
+
   return (
     <div className="space-y-4">
       {/* Recipe Name */}
@@ -55,7 +65,7 @@ export function MetadataFields({
             <SelectValue placeholder="Select type" />
           </SelectTrigger>
           <SelectContent>
-            {PREP_TYPES.map((t) => (
+            {prepTypes.map((t) => (
               <SelectItem key={t} value={t}>
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </SelectItem>

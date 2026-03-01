@@ -4,7 +4,7 @@
 // =============================================================================
 
 // =============================================================================
-// FIELD TYPES (17 types from the overview)
+// FIELD TYPES (18 types — 17 original + yes_no)
 // =============================================================================
 
 export type FormFieldType =
@@ -24,7 +24,8 @@ export type FormFieldType =
   | 'file'
   | 'header'
   | 'instructions'
-  | 'contact_lookup';
+  | 'contact_lookup'
+  | 'yes_no';
 
 // =============================================================================
 // FIELD CONDITION (conditional visibility)
@@ -90,6 +91,7 @@ export interface FormTemplate {
   descriptionEn: string | null;
   descriptionEs: string | null;
   icon: string;
+  iconColor: string;
   headerImage: string | null;
   fields: FormFieldDefinition[];
   instructionsEn: string | null;
@@ -101,6 +103,13 @@ export interface FormTemplate {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  // Phase 5: Form Builder Admin
+  publishedAt: string | null;
+  builderState: Record<string, unknown> | null;
+  aiRefinementLog: Array<{ role: string; content: string; timestamp: string }>;
+  aiSystemPromptEn: string | null;
+  aiSystemPromptEs: string | null;
+  instructionsRefined: boolean;
 }
 
 // =============================================================================
@@ -214,6 +223,7 @@ export interface FormSearchResult {
   title: string;
   description: string | null;
   icon: string;
+  iconColor?: string;
   score: number;
 }
 
@@ -266,6 +276,10 @@ export interface FormBodyProps {
   errors: Record<string, string>;
   language: 'en' | 'es';
   onFieldChange: (key: string, value: FormFieldValue) => void;
+  /** Set of field keys currently highlighted by AI fill */
+  aiHighlightedFields?: Set<string>;
+  /** Set of field keys identified as missing by AI */
+  aiMissingFields?: Set<string>;
 }
 
 export interface FormSectionProps {
@@ -297,16 +311,6 @@ export interface FormFieldWrapperProps {
   children: React.ReactNode;
 }
 
-export interface FormFooterProps {
-  isDirty: boolean;
-  isSaving: boolean;
-  isSubmitting: boolean;
-  canSubmit: boolean;
-  onSaveDraft: () => void;
-  onSubmit: () => void;
-  language: 'en' | 'es';
-}
-
 export interface SignatureFieldInputProps {
   field: FormFieldDefinition;
   value: SignatureValue | null;
@@ -333,6 +337,25 @@ export interface FileFieldInputProps {
   value: FileValue[] | null;
   onChange: (value: FileValue[]) => void;
   submissionId: string | null;
+}
+
+// =============================================================================
+// FORM SUGGESTION (from main AI chat → form navigation)
+// =============================================================================
+
+export interface FormSuggestion {
+  id?: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  icon: string;
+  iconColor?: string;
+}
+
+export interface FormPrefillState {
+  prefillContext: string;
+  fromChat: boolean;
+  formSuggestions?: FormSuggestion[];
 }
 
 // =============================================================================

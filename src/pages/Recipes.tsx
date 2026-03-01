@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, AlertCircle, Search, X } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
@@ -12,6 +12,9 @@ import { RecipeGrid, RecipeCardView } from '@/components/recipes';
 import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
 import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
 import { getActionConfig } from '@/data/ai-action-config';
+import type { ProductSortMode } from '@/types/products';
+import { NavbarBookmark } from '@/components/shared/NavbarBookmark';
+import { usePinnedRecipes } from '@/hooks/use-pinned-recipes';
 
 const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -19,9 +22,16 @@ const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
   { value: 'plate', label: 'Plate' },
 ];
 
+const SORT_OPTIONS: { value: ProductSortMode; label: string }[] = [
+  { value: 'name', label: 'A\u2013Z' },
+  { value: 'recent', label: 'New' },
+  { value: 'featured', label: 'Featured' },
+];
+
 const Recipes = () => {
   const { language, setLanguage } = useLanguage();
   const isMobile = useIsMobile();
+  const { togglePin, isPinned } = usePinnedRecipes();
   const [searchParams, setSearchParams] = useSearchParams();
   const slugParam = searchParams.get('slug');
 
@@ -31,6 +41,8 @@ const Recipes = () => {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedRecipe,
     selectRecipe,
     clearSelection,
@@ -68,7 +80,17 @@ const Recipes = () => {
     [selectedRecipe, isCrossLinked, hasPrev, hasNext, goToPrev, goToNext]
   );
 
-  const headerLeft = !selectedRecipe ? (
+  const headerLeft = selectedRecipe ? (
+    <button
+      onClick={handleNavigateBack}
+      className="flex items-center justify-center shrink-0 h-9 w-9 rounded-lg bg-orange-500 text-white hover:bg-orange-600 active:scale-[0.96] shadow-sm transition-all duration-150"
+      title="Back"
+    >
+      <ArrowLeft className="h-4 w-4" />
+    </button>
+  ) : undefined;
+
+  const headerToolbar = !selectedRecipe ? (
     <div className="flex items-center gap-2 min-w-0">
       <div className="relative flex-1 max-w-[200px] min-w-[120px]">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -115,7 +137,30 @@ const Recipes = () => {
           </button>
         ))}
       </div>
+      <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
+        {SORT_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setSortMode(opt.value)}
+            className={cn(
+              'min-h-[28px] px-2.5 rounded-md text-[11px] font-semibold',
+              'transition-colors duration-150',
+              sortMode === opt.value
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
+  ) : selectedRecipe ? (
+    <NavbarBookmark
+      pinned={isPinned(selectedRecipe.slug)}
+      onToggle={() => togglePin(selectedRecipe.slug)}
+    />
   ) : undefined;
 
   const aiPanel = selectedRecipe && activeAction ? (
@@ -137,6 +182,7 @@ const Recipes = () => {
       itemNav={itemNav}
       aiPanel={aiPanel}
       headerLeft={headerLeft}
+      headerToolbar={headerToolbar}
     >
       {isLoading ? (
         <div className="flex items-center justify-center py-20">

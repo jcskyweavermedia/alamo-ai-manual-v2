@@ -13,18 +13,21 @@ export interface PrepRecipeHit {
   id: string;
   slug: string;
   name: string;
+  department: 'kitchen' | 'bar';
 }
 
 interface UseSearchPrepRecipesOptions {
   query: string;
   enabled: boolean;
   excludeSlug?: string;
+  department?: 'kitchen' | 'bar';
 }
 
 export function useSearchPrepRecipes({
   query,
   enabled,
   excludeSlug,
+  department,
 }: UseSearchPrepRecipesOptions) {
   const [results, setResults] = useState<PrepRecipeHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,13 +59,17 @@ export function useSearchPrepRecipes({
 
       let qb = supabase
         .from('prep_recipes')
-        .select('id, slug, name')
+        .select('id, slug, name, department')
         .ilike('name', `%${escaped}%`)
         .eq('status', 'published')
         .limit(6);
 
       if (excludeSlug) {
         qb = qb.neq('slug', excludeSlug);
+      }
+
+      if (department) {
+        qb = qb.eq('department', department);
       }
 
       const { data, error: queryError } = await qb;
@@ -81,7 +88,7 @@ export function useSearchPrepRecipes({
     search();
 
     return () => { cancelled = true; };
-  }, [debouncedQuery, enabled, excludeSlug]);
+  }, [debouncedQuery, enabled, excludeSlug, department]);
 
   const reset = useCallback(() => {
     setResults([]);

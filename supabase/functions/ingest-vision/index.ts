@@ -30,6 +30,7 @@ const corsHeaders = {
 interface PrepRecipeDraft {
   name: string;
   prepType: string;
+  department?: "kitchen" | "bar";
   tags: string[];
   yieldQty: number;
   yieldUnit: string;
@@ -108,6 +109,7 @@ interface CocktailDraft {
   ingredients: string;
   keyIngredients: string;
   procedure: Array<{ step: number; instruction: string }>;
+  linkedPrepRecipes?: Array<{ prep_recipe_ref: string; name: string; quantity: number; unit: string }>;
   tastingNotes: string;
   description: string;
   notes: string;
@@ -176,6 +178,8 @@ function errorResponse(error: string, message?: string, status = 400): Response 
  */
 function generateSlug(name: string): string {
   return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
@@ -195,6 +199,11 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     properties: {
       name: { type: "string" },
       prepType: { type: "string" },
+      department: {
+        type: "string",
+        enum: ["kitchen", "bar"],
+        description: "kitchen = BOH food prep, bar = syrups, infusions, bitters, shrubs, cordials, tinctures",
+      },
       tags: { type: "array", items: { type: "string" } },
       yieldQty: { type: "number" },
       yieldUnit: { type: "string" },
@@ -286,6 +295,7 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     required: [
       "name",
       "prepType",
+      "department",
       "tags",
       "yieldQty",
       "yieldUnit",
@@ -374,6 +384,21 @@ const COCKTAIL_DRAFT_SCHEMA = {
         },
         description: "Ordered preparation steps",
       },
+      linkedPrepRecipes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            prep_recipe_ref: { type: "string", description: "Slug of the linked prep recipe" },
+            name: { type: "string", description: "Display name of the prep recipe" },
+            quantity: { type: "number", description: "Amount used in the cocktail" },
+            unit: { type: "string", description: "Unit of measurement (oz, dash, barspoon, etc.)" },
+          },
+          required: ["prep_recipe_ref", "name", "quantity", "unit"],
+          additionalProperties: false,
+        },
+        description: "House-made bar prep ingredients linked to prep recipes (syrups, infusions, bitters, etc.)",
+      },
       tastingNotes: { type: "string" },
       description: { type: "string", description: "Cocktail story, history, or context" },
       notes: { type: "string", description: "Service notes, garnish details, technique tips" },
@@ -391,9 +416,73 @@ const COCKTAIL_DRAFT_SCHEMA = {
     },
     required: [
       "name", "style", "glass", "ingredients", "keyIngredients",
-      "procedure", "tastingNotes", "description", "notes",
+      "procedure", "linkedPrepRecipes", "tastingNotes", "description", "notes",
       "isTopSeller", "confidence", "missingFields", "aiMessage",
     ],
+    additionalProperties: false,
+  },
+};
+
+// =============================================================================
+// OPENAI STRUCTURED OUTPUT SCHEMA (BeerLiquorBatch — vision extraction)
+// =============================================================================
+
+const BEER_LIQUOR_BATCH_SCHEMA = {
+  name: "beer_liquor_batch",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            category: { type: "string", enum: ["Beer", "Liquor"] },
+            subcategory: {
+              type: "string",
+              description:
+                "Beer: IPA, Lager, Stout, Pilsner, Wheat, Ale, Bock, Porter, Sour, etc. Liquor: Bourbon, Scotch, Vodka, Gin, Rum, Tequila, Mezcal, Whiskey, Rye, Brandy, Cognac, etc.",
+            },
+            producer: { type: "string", description: "Brewery or distillery" },
+            country: { type: "string" },
+            description: {
+              type: "string",
+              description: "1-3 sentence product description",
+            },
+            style: {
+              type: "string",
+              description: "Specific style/flavor profile",
+            },
+            notes: {
+              type: "string",
+              description: "Tasting notes, service temp, pairings",
+            },
+            isFeatured: { type: "boolean" },
+            confidence: {
+              type: "number",
+              description: "0-1 confidence score based on completeness of extracted info",
+            },
+          },
+          required: [
+            "name",
+            "category",
+            "subcategory",
+            "producer",
+            "country",
+            "description",
+            "style",
+            "notes",
+            "isFeatured",
+            "confidence",
+          ],
+          additionalProperties: false,
+        },
+      },
+      aiMessage: { type: "string" },
+    },
+    required: ["items", "aiMessage"],
     additionalProperties: false,
   },
 };
@@ -480,36 +569,15 @@ Deno.serve(async (req) => {
     // =========================================================================
     const formData = await req.formData();
 
-    const file = formData.get("file") as File | null;
     const productTable = formData.get("productTable") as string | null;
     const language = (formData.get("language") as string | null) || "en";
     const sessionId = formData.get("sessionId") as string | null;
+    const department = formData.get("department") as string | null;
+    const extractOnly = formData.get("extractOnly") === "true";
 
     // =========================================================================
-    // 4. VALIDATE INPUTS
+    // 4. VALIDATE COMMON INPUTS
     // =========================================================================
-
-    // Validate file exists and is a File
-    if (!file || !(file instanceof File)) {
-      console.log("[ingest-vision] No file provided or not a File object");
-      return errorResponse("bad_request", "file is required and must be a File", 400);
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      console.log(`[ingest-vision] File too large: ${file.size} bytes (max ${MAX_FILE_SIZE})`);
-      return errorResponse("bad_request", `File size exceeds 10MB limit (${file.size} bytes)`, 400);
-    }
-
-    // Validate MIME type
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      console.log(`[ingest-vision] Invalid MIME type: ${file.type}`);
-      return errorResponse(
-        "bad_request",
-        `Invalid file type "${file.type}". Allowed: ${[...ALLOWED_MIME_TYPES].join(", ")}`,
-        400
-      );
-    }
 
     // Validate productTable
     if (!productTable || !VALID_PRODUCT_TABLES.has(productTable)) {
@@ -525,9 +593,36 @@ Deno.serve(async (req) => {
       return errorResponse("bad_request", 'language must be "en" or "es"', 400);
     }
 
-    console.log(
-      `[ingest-vision] File: ${file.name} (${file.size} bytes, ${file.type}), table=${productTable}, lang=${language}`
-    );
+    // Beer/liquor batch path handles its own multi-file validation (section 6c).
+    // All other paths require exactly one image file — validate that here.
+    const file = productTable !== "beer_liquor_list"
+      ? formData.get("file") as File | null
+      : null;
+
+    if (productTable !== "beer_liquor_list") {
+      if (!file || !(file instanceof File)) {
+        console.log("[ingest-vision] No file provided or not a File object");
+        return errorResponse("bad_request", "file is required and must be a File", 400);
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        console.log(`[ingest-vision] File too large: ${file.size} bytes (max ${MAX_FILE_SIZE})`);
+        return errorResponse("bad_request", `File size exceeds 10MB limit (${file.size} bytes)`, 400);
+      }
+
+      if (!ALLOWED_MIME_TYPES.has(file.type)) {
+        console.log(`[ingest-vision] Invalid MIME type: ${file.type}`);
+        return errorResponse(
+          "bad_request",
+          `Invalid file type "${file.type}". Allowed: ${[...ALLOWED_MIME_TYPES].join(", ")}`,
+          400
+        );
+      }
+
+      console.log(
+        `[ingest-vision] File: ${file.name} (${file.size} bytes, ${file.type}), table=${productTable}, lang=${language}`
+      );
+    }
 
     // =========================================================================
     // 5. GET OPENAI API KEY
@@ -539,20 +634,286 @@ Deno.serve(async (req) => {
     }
 
     // =========================================================================
-    // 6. CONVERT IMAGE TO BASE64
+    // 6. CONVERT IMAGE TO BASE64 (non-batch paths only)
     // =========================================================================
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    let dataUrl = "";
+    let arrayBuffer: ArrayBuffer | null = null;
 
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    if (file) {
+      arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const mimeType = file.type;
+      dataUrl = `data:${mimeType};base64,${base64}`;
+
+      console.log(`[ingest-vision] Image converted to base64 (${base64.length} chars)`);
     }
-    const base64 = btoa(binary);
-    const mimeType = file.type;
-    const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    console.log(`[ingest-vision] Image converted to base64 (${base64.length} chars)`);
+    // =========================================================================
+    // 6b. EXTRACT-ONLY MODE (OCR — skip storage, session, structured AI)
+    // =========================================================================
+    if (extractOnly) {
+      console.log("[ingest-vision] extractOnly=true — running OCR-only pipeline");
+
+      const ocrResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are an OCR assistant. Extract ALL visible text from the image exactly as written. Output only the extracted text, one item per line. Do not add commentary or formatting.",
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Extract all text from this image. List each item on its own line." },
+                { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+              ],
+            },
+          ],
+          max_completion_tokens: 4000,
+          temperature: 0,
+        }),
+      });
+
+      if (!ocrResponse.ok) {
+        const errText = await ocrResponse.text();
+        console.error(`[ingest-vision] OCR error ${ocrResponse.status}:`, errText);
+        return errorResponse("ai_error", "Failed to extract text from image", 500);
+      }
+
+      const ocrData = await ocrResponse.json();
+      const extractedText = ocrData.choices?.[0]?.message?.content || "";
+
+      console.log(`[ingest-vision] OCR complete: ${extractedText.length} chars extracted`);
+
+      return new Response(
+        JSON.stringify({ extractedText, fileName: file.name, length: extractedText.length }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // =========================================================================
+    // 6c. BEER/LIQUOR BATCH VISION — multi-image + text, structured extraction
+    // =========================================================================
+    if (productTable === "beer_liquor_list") {
+      // Read all images + optional text from FormData
+      const allImages = formData.getAll("file").filter(
+        (f): f is File => f instanceof File,
+      );
+      const textContent = formData.get("textContent") as string | null;
+
+      // Validate: need at least 1 image OR textContent
+      if (allImages.length === 0 && !textContent?.trim()) {
+        return errorResponse("bad_request", "At least one image or text content is required", 400);
+      }
+
+      // Validate each image
+      for (const img of allImages) {
+        if (img.size > MAX_FILE_SIZE) {
+          return errorResponse("bad_request", `File "${img.name}" exceeds 10MB limit (${img.size} bytes)`, 400);
+        }
+        if (!ALLOWED_MIME_TYPES.has(img.type)) {
+          return errorResponse(
+            "bad_request",
+            `Invalid file type "${img.type}" for "${img.name}". Allowed: ${[...ALLOWED_MIME_TYPES].join(", ")}`,
+            400,
+          );
+        }
+      }
+
+      console.log(
+        `[ingest-vision] beer_liquor_list batch: ${allImages.length} image(s), textContent=${textContent ? textContent.length + " chars" : "none"}`,
+      );
+
+      // Convert all images to base64 content blocks
+      // deno-lint-ignore no-explicit-any
+      const imageBlocks: any[] = [];
+      for (const img of allImages) {
+        const ab = await img.arrayBuffer();
+        const bytes = new Uint8Array(ab);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const b64 = btoa(binary);
+        imageBlocks.push({
+          type: "image_url",
+          image_url: { url: `data:${img.type};base64,${b64}`, detail: "high" },
+        });
+      }
+
+      // Build user message — instructions/text + all image blocks
+      const userText = textContent?.trim()
+        ? `The user provided these instructions/text along with ${allImages.length > 0 ? "the images" : "no images"}:\n\n${textContent}\n\nExtract all beer and liquor items from the images and text above.`
+        : `Extract all beer and liquor items from ${allImages.length === 1 ? "this image" : "these images"}. Pay attention to the layout — if there are columns, headers, or groupings, use them to correctly categorize each item.`;
+
+      // deno-lint-ignore no-explicit-any
+      const userContent: any[] = [
+        { type: "text", text: userText },
+        ...imageBlocks,
+      ];
+
+      const batchResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-5.2",
+          messages: [
+            {
+              role: "system",
+              content: `You are a beverage industry expert helping a steakhouse restaurant catalog their beer and liquor inventory.
+
+You may receive text content AND/OR images. Extract items from ALL sources. The text may contain instructions, context, or additional items to extract.
+
+IMPORTANT: Pay attention to the VISUAL LAYOUT of any images:
+- If the image has columns, understand what each column represents (e.g., category, brand, style, price)
+- If items are grouped under headers, use those headers as category/subcategory context
+- If there are two columns, do NOT treat column headers as items
+- Preserve the relationships between items and their categories/groups
+
+Extract EVERY beer and liquor item from all provided sources. For each item:
+- Determine if it is Beer or Liquor
+- Use visual context (column headers, groupings, section labels) to correctly categorize
+- Use your knowledge to fill in missing fields (country, subcategory, producer, style, etc.)
+- Generate a professional 1-3 sentence description
+- Generate tasting notes and service recommendations
+- Set isFeatured to false by default
+- Set confidence based on how much info was available vs inferred (1.0 = all clearly visible, 0.5 = mostly inferred)
+
+Common subcategories:
+- Beer: IPA, Lager, Stout, Pilsner, Wheat, Ale, Bock, Porter, Sour, Pale Ale, Amber, Blonde, Hefeweizen
+- Liquor: Bourbon, Scotch, Vodka, Gin, Rum, Tequila, Mezcal, Whiskey, Rye, Brandy, Cognac, Aperitif, Digestif, Amaro
+
+Do NOT skip any items. Extract everything visible in images and mentioned in text.`,
+            },
+            {
+              role: "user",
+              content: userContent,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: BEER_LIQUOR_BATCH_SCHEMA,
+          },
+          reasoning_effort: "medium",
+          max_completion_tokens: 16000,
+        }),
+      });
+
+      if (!batchResponse.ok) {
+        const errText = await batchResponse.text();
+        console.error(`[ingest-vision] Batch vision error ${batchResponse.status}:`, errText);
+        return errorResponse("ai_error", "Failed to extract items from input", 500);
+      }
+
+      const batchData = await batchResponse.json();
+      const rawBatchContent = batchData.choices?.[0]?.message?.content;
+
+      if (!rawBatchContent) {
+        console.error("[ingest-vision] Batch vision returned empty content");
+        return errorResponse("ai_error", "AI returned empty response", 500);
+      }
+
+      // deno-lint-ignore no-explicit-any
+      let parsed: { items: any[]; aiMessage: string };
+      try {
+        parsed = JSON.parse(rawBatchContent);
+      } catch (_parseError) {
+        console.error("[ingest-vision] Failed to parse batch vision response:", rawBatchContent);
+        return errorResponse("ai_error", "AI returned invalid JSON", 500);
+      }
+
+      // Duplicate detection against existing published items
+      const { data: existingItems } = await supabase
+        .from("beer_liquor_list")
+        .select("id, name")
+        .eq("status", "published");
+
+      const existingMap = new Map<string, { id: string; name: string }>();
+      if (existingItems) {
+        // deno-lint-ignore no-explicit-any
+        for (const item of existingItems as any[]) {
+          existingMap.set(item.name.toLowerCase().trim(), { id: item.id, name: item.name });
+        }
+      }
+
+      let duplicateCount = 0;
+      // deno-lint-ignore no-explicit-any
+      const enrichedItems = (parsed.items || []).map((item: any) => {
+        const key = item.name.toLowerCase().trim();
+        const existing = existingMap.get(key);
+        if (existing) {
+          duplicateCount++;
+          return { ...item, duplicateOf: existing };
+        }
+        return { ...item, duplicateOf: null };
+      });
+
+      // Build source file name for session record
+      const sourceFileName = allImages.length > 0
+        ? allImages.map((f) => f.name).join(", ")
+        : "text-input";
+      const sourceFileType = allImages.length > 0
+        ? allImages[0].type
+        : "text/plain";
+      const ingestionMethod = allImages.length > 0 ? "image_upload" : "text_upload";
+
+      // Create batch session
+      const { data: batchSession, error: batchSessionError } = await supabase
+        .from("ingestion_sessions")
+        .insert({
+          product_table: "beer_liquor_list",
+          ingestion_method: ingestionMethod,
+          status: "drafting",
+          created_by: userId,
+          source_file_name: sourceFileName,
+          source_file_type: sourceFileType,
+          draft_data: { items: enrichedItems },
+        })
+        .select("id")
+        .single();
+
+      // deno-lint-ignore no-explicit-any
+      const batchSessionId = (batchSession as any)?.id || crypto.randomUUID();
+      if (batchSessionError) {
+        console.error("[ingest-vision] Failed to create batch session:", batchSessionError.message);
+      }
+
+      console.log(
+        `[ingest-vision] Batch complete: ${enrichedItems.length} items, ${duplicateCount} duplicates (${allImages.length} images, ${textContent ? "with" : "no"} text)`,
+      );
+
+      return new Response(
+        JSON.stringify({
+          sessionId: batchSessionId,
+          items: enrichedItems,
+          totalExtracted: enrichedItems.length,
+          duplicates: duplicateCount,
+          message: parsed.aiMessage || "",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // =========================================================================
     // 7. UPLOAD ORIGINAL IMAGE TO STORAGE
@@ -663,7 +1024,9 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 10. FETCH SYSTEM PROMPT FROM ai_prompts
     // =========================================================================
-    const promptSlug = FILE_PROMPT_MAP[productTable] || "ingest-file-prep-recipe";
+    // Use bar-specific prompt when department is "bar" and productTable is prep_recipes
+    const isBarPrep = productTable === "prep_recipes" && department === "bar";
+    const promptSlug = isBarPrep ? "ingest-file-bar-prep" : (FILE_PROMPT_MAP[productTable] || "ingest-file-prep-recipe");
     const { data: promptRow, error: promptError } = await supabase
       .from("ai_prompts")
       .select("prompt_en, prompt_es")
@@ -892,6 +1255,18 @@ Deno.serve(async (req) => {
       (draft as any).images = imageUrl
         ? [...existingImages, { url: imageUrl, alt: file?.name || 'Uploaded image', caption: '' }]
         : existingImages;
+    }
+
+    // Cocktail defaults: ensure linkedPrepRecipes array exists
+    if (productTable === "cocktails") {
+      // deno-lint-ignore no-explicit-any
+      if (!(draft as any).linkedPrepRecipes) (draft as any).linkedPrepRecipes = [];
+    }
+
+    // Prep recipe defaults: ensure department is set
+    if (productTable === "prep_recipes") {
+      // deno-lint-ignore no-explicit-any
+      if (!(draft as any).department) (draft as any).department = "kitchen";
     }
 
     console.log(

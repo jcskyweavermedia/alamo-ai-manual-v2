@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Eye, Expand, X, GlassWater } from 'lucide-react';
+import { Pencil, Eye, Expand, X, GlassWater, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CocktailStyleBadge } from '@/components/cocktails/CocktailStyleBadge';
@@ -14,6 +14,8 @@ interface CocktailIngestPreviewProps {
 
 export function CocktailIngestPreview({ draft, onSwitchToEdit }: CocktailIngestPreviewProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const hasIngredients = draft.ingredients.some(g => g.items.length > 0);
 
   if (!draft.name) {
     return (
@@ -92,14 +94,32 @@ export function CocktailIngestPreview({ draft, onSwitchToEdit }: CocktailIngestP
 
         {/* Right column -- info sections */}
         <div className="flex-1 min-w-0 space-y-3">
-          {draft.ingredients && (
+          {hasIngredients && (
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
                 Ingredients
               </h2>
-              <p className="text-sm leading-snug text-foreground whitespace-pre-wrap">
-                {draft.ingredients}
-              </p>
+              {draft.ingredients.map((group, gi) => (
+                <div key={gi} className="mb-2">
+                  {draft.ingredients.length > 1 && (
+                    <p className="text-xs font-semibold text-muted-foreground mb-0.5">{group.group_name}</p>
+                  )}
+                  <ul className="text-sm leading-snug text-foreground space-y-0.5 list-none">
+                    {group.items.map((item, ii) => (
+                      <li key={ii} className="flex items-baseline gap-1.5">
+                        <span>
+                          {item.quantity > 0 && `${item.quantity} `}
+                          {item.unit && `${item.unit} `}
+                          {item.name}
+                        </span>
+                        {item.prep_recipe_ref && (
+                          <FileText className="inline-block h-3.5 w-3.5 shrink-0 text-emerald-600 relative top-[2px]" />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </section>
           )}
           {draft.procedure.length > 0 && (
@@ -147,7 +167,7 @@ export function CocktailIngestPreview({ draft, onSwitchToEdit }: CocktailIngestP
               </p>
             </section>
           )}
-          {!draft.ingredients && draft.procedure.length === 0 && !draft.tastingNotes && !draft.description && !draft.notes && (
+          {!hasIngredients && draft.procedure.length === 0 && !draft.tastingNotes && !draft.description && !draft.notes && (
             <p className="text-xs text-muted-foreground text-center py-8">
               No cocktail details yet
             </p>

@@ -178,6 +178,7 @@ export function getDefaultValueForType(type: FormFieldType): FormFieldValue {
 
     case 'select':
     case 'radio':
+    case 'yes_no':
       return '';
 
     case 'checkbox':
@@ -268,7 +269,8 @@ export function transformTemplateRow(row: any): FormTemplate {
     titleEs: row.title_es ?? null,
     descriptionEn: row.description_en ?? null,
     descriptionEs: row.description_es ?? null,
-    icon: row.icon ?? 'ClipboardList',
+    icon: row.icon ?? '📋',
+    iconColor: row.icon_color ?? 'blue',
     headerImage: row.header_image ?? null,
     fields: (row.fields as unknown as FormFieldDefinition[]) ?? [],
     instructionsEn: row.instructions_en ?? null,
@@ -280,6 +282,12 @@ export function transformTemplateRow(row: any): FormTemplate {
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    publishedAt: row.published_at ?? null,
+    builderState: row.builder_state ?? null,
+    aiRefinementLog: (row.ai_refinement_log as unknown as Array<{ role: string; content: string; timestamp: string }>) ?? [],
+    aiSystemPromptEn: row.ai_system_prompt_en ?? null,
+    aiSystemPromptEs: row.ai_system_prompt_es ?? null,
+    instructionsRefined: row.instructions_refined ?? false,
   };
 }
 

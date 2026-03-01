@@ -1,19 +1,20 @@
 /**
  * Unified AI Assistant Edge Function
  *
- * Single endpoint serving all 6 viewer contexts (manual, dishes, wines,
- * cocktails, recipes, beer_liquor). Replaces both the old /ask and
+ * Single endpoint serving all 7 viewer contexts (manual, dishes, wines,
+ * cocktails, recipes, beer_liquor, forms). Replaces both the old /ask and
  * /ask-product edge functions.
  *
  * Two modes:
  *   1. Action mode — button presses with full card context (no search)
- *   2. Search mode — freeform questions with OpenAI tool use (6 search tools)
+ *   2. Search mode — freeform questions with OpenAI tool use (7 search tools)
  *
  * Features:
  *   - DB-driven prompts from ai_prompts table
  *   - Chat session memory via chat_sessions + chat_messages
- *   - Tool-use loop (max 3 rounds) with 6 hybrid search functions
+ *   - Tool-use loop (max 3 rounds) with 6 hybrid + 1 FTS-only search functions
  *   - Manual content expansion (full section fetch for manual domain)
+ *   - Form navigation: search_forms returns formSuggestions for UI rendering
  *   - Pairing enrichment for foodPairings/suggestPairing actions
  *   - Bilingual (EN/ES) with language-aware search and prompts
  *   - Backward compatible with existing useAskAI hook (domain defaults to 'manual')
@@ -44,7 +45,8 @@ type ContextType =
   | "cocktails"
   | "recipes"
   | "beer_liquor"
-  | "training";
+  | "training"
+  | "forms";
 
 const VALID_CONTEXTS: ContextType[] = [
   "manual",
@@ -54,6 +56,7 @@ const VALID_CONTEXTS: ContextType[] = [
   "recipes",
   "beer_liquor",
   "training",
+  "forms",
 ];
 
 interface UnifiedAskRequest {
@@ -84,12 +87,23 @@ interface UsageInfo {
   monthly: { used: number; limit: number };
 }
 
+interface FormSuggestion {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  icon: string;
+  iconColor?: string;
+}
+
 interface UnifiedAskResponse {
   answer: string;
   citations: UnifiedCitation[];
   usage: UsageInfo;
-  mode: "action" | "search";
+  mode: "action" | "search" | "form_navigation";
   sessionId: string;
+  formSuggestions?: FormSuggestion[];
+  prefillContext?: string;
 }
 
 interface ErrorResponse {
@@ -138,6 +152,9 @@ interface SearchResult {
   subcategory?: string;
   source_table?: string;
   combined_score?: number;
+  // Form-specific
+  icon?: string;
+  icon_color?: string;
 }
 
 // Maps search function names → context types (for citation tagging)
@@ -148,6 +165,7 @@ const SEARCH_FN_TO_CONTEXT: Record<string, ContextType> = {
   search_cocktails: "cocktails",
   search_recipes: "recipes",
   search_beer_liquor: "beer_liquor",
+  search_forms: "forms",
 };
 
 // =============================================================================
@@ -173,7 +191,7 @@ const OFF_TOPIC_PATTERNS = [
   /\b(celebrity|movie|tv show|netflix|music|song)\b/i,
   /\b(joke|riddle|fun fact|trivia)\b/i,
   /\b(math|calcul|equation|algorithm|coding|program)/i,
-  /\b(write me a|compose|draft a letter|essay)\b/i,
+  /\b(write me a (poem|song|story|letter|essay)|compose a (poem|song|story|letter)|draft a letter)\b/i,
   /\b(who are you|what are you|your name)\b/i,
   /\b(stock|crypto|bitcoin|invest)\b/i,
   /\b(relationship|dating|love advice)\b/i,
@@ -301,6 +319,25 @@ const SEARCH_TOOLS: any[] = [
             type: "string",
             description:
               "Search query — beer name, spirit type, brand, or style",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_forms",
+      description:
+        "Search available form templates by name or purpose. Call this when the user wants to fill out, create, file, or submit a form, report, write-up, incident report, injury report, or any operational document. Returns matching form templates.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description:
+              "Search query for the form template — e.g., 'injury report', 'employee write-up', 'incident form'",
           },
         },
         required: ["query"],
@@ -1244,6 +1281,7 @@ Deno.serve(async (req) => {
     const promptSlugs = [
       "base-persona",
       "tool-map",
+      "form-intent-map",
       "behavior-rules",
       `domain-${domain}`,
       ...(isActionMode ? [`action-${domain}-${action}`] : []),
@@ -1294,9 +1332,11 @@ Deno.serve(async (req) => {
         `Rules:\n- Use ONLY the product data provided below \u2014 never invent facts\n- Be warm, professional, and encouraging\n- ${langInstruction}\n- Keep responses focused and actionable`
       );
     } else {
-      // Search mode: add tool map + behavior rules + language instruction
+      // Search mode: add tool map + form intent map + behavior rules + language instruction
       const toolMap = getPrompt("tool-map");
       if (toolMap) systemParts.push(toolMap);
+      const formIntentMap = getPrompt("form-intent-map");
+      if (formIntentMap) systemParts.push(formIntentMap);
       const behaviorRules = getPrompt("behavior-rules");
       if (behaviorRules) systemParts.push(behaviorRules);
       const langInstruction =
@@ -1329,7 +1369,9 @@ Deno.serve(async (req) => {
     // =========================================================================
     let answer: string;
     let citations: UnifiedCitation[];
-    const mode: "action" | "search" = isActionMode ? "action" : "search";
+    let responseMode: "action" | "search" | "form_navigation" = isActionMode ? "action" : "search";
+    let formSuggestions: FormSuggestion[] | undefined;
+    let prefillContext: string | undefined;
 
     if (isActionMode) {
       // =====================================================================
@@ -1451,17 +1493,47 @@ Deno.serve(async (req) => {
             `[ask] Executing tool: ${fnName}(query="${searchQuery}")`
           );
 
-          // Generate embedding for the search query (use raw query for semantic matching)
-          const queryEmbedding = await getQueryEmbedding(rawQuery);
+          let results: SearchResult[];
 
-          // Dispatch to the correct PG function
-          const results = await executeSearch(
-            supabase,
-            fnName,
-            searchQuery,
-            queryEmbedding,
-            language
-          );
+          if (fnName === "search_forms") {
+            // FTS-only — no embedding needed
+            const { data, error: formError } = await supabase.rpc("search_forms", {
+              search_query: searchQuery,
+              search_language: language,
+              match_count: 5,
+              p_group_id: groupId,
+            });
+
+            if (formError) {
+              console.error(`[ask] search_forms error:`, formError.message);
+              results = [];
+            } else {
+              // Map search_forms return columns to SearchResult shape
+              results = (data || []).map(
+                // deno-lint-ignore no-explicit-any
+                (r: any) => ({
+                  id: r.id,
+                  slug: r.slug,
+                  name: r.title, // search_forms returns 'title' not 'name'
+                  snippet: r.description || "",
+                  icon: r.icon,
+                  icon_color: r.icon_color,
+                })
+              );
+            }
+          } else {
+            // Hybrid search — generate embedding for semantic matching
+            const queryEmbedding = await getQueryEmbedding(rawQuery);
+
+            // Dispatch to the correct PG function
+            results = await executeSearch(
+              supabase,
+              fnName,
+              searchQuery,
+              queryEmbedding,
+              language
+            );
+          }
 
           // Collect results for citation building
           allSearchResults.push(
@@ -1539,10 +1611,10 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Product content expansion (non-manual domains)
+      // Product content expansion (non-manual, non-forms domains)
       // Search snippets are sparse — fetch full records so the AI has real data
       const productSearchResults = allSearchResults.filter(
-        (r) => r.fnName !== "search_manual_v2"
+        (r) => r.fnName !== "search_manual_v2" && r.fnName !== "search_forms"
       );
       if (productSearchResults.length > 0) {
         const topProducts = productSearchResults.slice(0, 3);
@@ -1644,6 +1716,29 @@ Deno.serve(async (req) => {
           });
         }
       }
+
+      // Detect form search results and build form suggestions payload
+      const formSearchResults = allSearchResults.filter(
+        (r) => r.fnName === "search_forms"
+      );
+
+      if (formSearchResults.length > 0) {
+        responseMode = "form_navigation";
+        formSuggestions = formSearchResults.map(({ result: r }) => ({
+          id: r.id,
+          slug: r.slug,
+          title: r.name,
+          description: (r.snippet || "").replace(/<\/?mark>/g, ""),
+          icon: r.icon || "📋",
+          iconColor: r.icon_color || undefined,
+        }));
+        // Pass the original user question as pre-fill context for the form assistant
+        prefillContext = question;
+
+        console.log(
+          `[ask] Form navigation: ${formSuggestions.length} form(s) suggested`
+        );
+      }
     }
 
     // =========================================================================
@@ -1719,16 +1814,26 @@ Deno.serve(async (req) => {
       : usageInfo;
 
     console.log(
-      `[ask] Success \u2014 mode: ${mode}, domain: ${domain}, citations: ${citations.length}, answer length: ${answer.length}`
+      `[ask] Success \u2014 mode: ${responseMode}, domain: ${domain}, citations: ${citations.length}, answer length: ${answer.length}${formSuggestions ? `, forms: ${formSuggestions.length}` : ""}`
     );
 
-    return jsonResponse({
+    // Build response — include optional form fields only when present
+    const responseBody: UnifiedAskResponse = {
       answer,
       citations,
       usage: updatedUsage,
-      mode,
+      mode: responseMode,
       sessionId: activeSessionId,
-    });
+    };
+
+    if (formSuggestions) {
+      responseBody.formSuggestions = formSuggestions;
+    }
+    if (prefillContext) {
+      responseBody.prefillContext = prefillContext;
+    }
+
+    return jsonResponse(responseBody);
   } catch (error) {
     console.error("[ask] Unexpected error:", error);
     return errorResponse("server_error", "An unexpected error occurred", 500);

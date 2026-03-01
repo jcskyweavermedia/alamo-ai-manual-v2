@@ -21,20 +21,30 @@ interface SubRecipeLinkerProps {
   currentRef?: string;
   currentRefName?: string;
   excludeSlug?: string;
+  /** Array of slugs to exclude from results (used by cocktail linked recipes) */
+  excludeSlugs?: string[];
+  /** Filter results by department */
+  department?: 'kitchen' | 'bar';
   onLink: (slug: string, name: string) => void;
-  onUnlink: () => void;
+  onUnlink?: () => void;
 }
 
-export function SubRecipeLinker({ currentRef, currentRefName, excludeSlug, onLink, onUnlink }: SubRecipeLinkerProps) {
+export function SubRecipeLinker({ currentRef, currentRefName, excludeSlug, excludeSlugs, department, onLink, onUnlink }: SubRecipeLinkerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [checking, setChecking] = useState(false);
 
-  const { results, loading, error, reset } = useSearchPrepRecipes({
+  const { results: rawResults, loading, error, reset } = useSearchPrepRecipes({
     query,
     enabled: open && !currentRef,
     excludeSlug,
+    department,
   });
+
+  // Filter out already-linked slugs (used by cocktail editor's multi-link pattern)
+  const results = excludeSlugs?.length
+    ? rawResults.filter((r) => !excludeSlugs.includes(r.slug))
+    : rawResults;
 
   // Reset on close
   useEffect(() => {
@@ -73,7 +83,7 @@ export function SubRecipeLinker({ currentRef, currentRefName, excludeSlug, onLin
               size="sm"
               className="w-full text-xs"
               onClick={() => {
-                onUnlink();
+                onUnlink?.();
                 setOpen(false);
               }}
             >

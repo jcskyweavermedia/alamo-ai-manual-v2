@@ -54,7 +54,7 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // HOOK
 // =============================================================================
 
-export function useFileUpload(productTable: string = 'prep_recipes'): UseFileUploadReturn {
+export function useFileUpload(productTable: string = 'prep_recipes', department?: string): UseFileUploadReturn {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,6 +124,10 @@ export function useFileUpload(productTable: string = 'prep_recipes'): UseFileUpl
           formData.append('sessionId', sessionId);
         }
 
+        if (department) {
+          formData.append('department', department);
+        }
+
         // Call edge function via raw fetch (supabase.functions.invoke
         // does not support multipart/form-data)
         const response = await fetch(
@@ -174,7 +178,7 @@ export function useFileUpload(productTable: string = 'prep_recipes'): UseFileUpl
         setIsUploading(false);
       }
     },
-    [user, language, productTable],
+    [user, language, productTable, department],
   );
 
   return {

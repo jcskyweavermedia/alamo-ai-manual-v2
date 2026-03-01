@@ -1,20 +1,18 @@
 /**
  * ExtractedFieldRow
  *
- * Single toggleable field row inside the ExtractedFieldsCard.
- * Checkbox indicator + field label + value preview.
- * Keyboard accessible via native button element.
+ * Read-only field row inside the ExtractedFieldsCard.
+ * Green check icon + field label + value preview.
+ * Displayed after fields have been auto-applied to the form.
  */
 
-import { Check } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ExtractedFieldRowProps {
   fieldKey: string;
   label: string;
   value: unknown;
-  checked: boolean;
-  onToggle: (fieldKey: string) => void;
 }
 
 function formatValue(value: unknown): string {
@@ -33,38 +31,19 @@ function formatValue(value: unknown): string {
 }
 
 export function ExtractedFieldRow({
-  fieldKey,
+  fieldKey: _fieldKey,
   label,
   value,
-  checked,
-  onToggle,
 }: ExtractedFieldRowProps) {
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(fieldKey)}
+    <div
       className={cn(
-        'flex items-start gap-2.5 w-full text-left',
+        'flex items-start gap-2.5 w-full',
         'px-2.5 py-2 rounded-lg',
-        'hover:bg-muted/50 active:bg-muted/70',
-        'transition-colors duration-100',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
       )}
-      aria-pressed={checked}
     >
-      {/* Checkbox indicator */}
-      <div
-        className={cn(
-          'flex items-center justify-center shrink-0',
-          'w-5 h-5 mt-0.5 rounded',
-          'border-2 transition-colors duration-100',
-          checked
-            ? 'bg-primary border-primary text-primary-foreground'
-            : 'border-muted-foreground/30 bg-transparent',
-        )}
-      >
-        {checked && <Check className="h-3 w-3" strokeWidth={3} />}
-      </div>
+      {/* Green check icon (always shown -- field is already applied) */}
+      <CheckCircle2 className="h-4.5 w-4.5 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
 
       {/* Label + value */}
       <div className="flex-1 min-w-0">
@@ -75,6 +54,6 @@ export function ExtractedFieldRow({
           {formatValue(value)}
         </p>
       </div>
-    </button>
+    </div>
   );
 }

@@ -10,20 +10,37 @@ import { cn } from '@/lib/utils';
 
 interface UserMessageBubbleProps {
   message: string;
-  attachments?: Array<{ name: string; type: string }>;
+  attachments?: Array<{ name: string; type: string; previewUrl?: string }>;
   className?: string;
 }
 
 export function UserMessageBubble({ message, attachments, className }: UserMessageBubbleProps) {
+  const imageAttachments = attachments?.filter((a) => a.previewUrl) ?? [];
+  const fileAttachments = attachments?.filter((a) => !a.previewUrl) ?? [];
+
   return (
     <div className={cn('flex justify-end', className)}>
       <div className="max-w-[85%] space-y-1.5">
-        {/* Attachment indicators */}
-        {attachments && attachments.length > 0 && (
+        {/* Image thumbnails */}
+        {imageAttachments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {imageAttachments.map((att, i) => (
+              <img
+                key={`img-${i}`}
+                src={att.previewUrl}
+                alt={att.name}
+                className="h-16 w-16 rounded-lg object-cover border border-primary/20"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* File attachment indicators */}
+        {fileAttachments.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1">
-            {attachments.map((att, i) => (
+            {fileAttachments.map((att, i) => (
               <span
-                key={i}
+                key={`file-${i}`}
                 className={cn(
                   'inline-flex items-center gap-1',
                   'px-2 py-0.5 rounded-full',

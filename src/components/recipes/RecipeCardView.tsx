@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Expand, X } from 'lucide-react';
+import { Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AllergenBadge } from './AllergenBadge';
 import { BatchSizeSelector } from './BatchSizeSelector';
@@ -12,6 +12,7 @@ import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import type { Recipe, PrepRecipe, PlateSpec, BatchScaling, TrainingNotes } from '@/types/products';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
+import { HiQuestionMarkCircle } from 'react-icons/hi2';
 
 interface RecipeCardViewProps {
   recipe: Recipe;
@@ -73,22 +74,8 @@ export function RecipeCardView({
 
   return (
     <div ref={swipeRef} className="space-y-md">
-      {/* Title row with solid back button */}
+      {/* Title row */}
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className={cn(
-            'flex items-center justify-center shrink-0',
-            'h-10 w-10 rounded-lg',
-            'bg-orange-500 text-white',
-            'hover:bg-slate-800 dark:hover:bg-slate-500 active:bg-slate-900',
-            'shadow-sm transition-colors duration-150'
-          )}
-          title={backLabel ?? 'All Recipes'}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
         <h1 className="text-page-title text-foreground flex-1">{recipe.name}</h1>
 
         {isAdmin && (
@@ -114,11 +101,19 @@ export function RecipeCardView({
             )}
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
-            <span className="text-[14px] leading-none">❓</span>
+            <HiQuestionMarkCircle className="w-4 h-4 text-orange-500" />
             Ask a question
           </Button>
         )}
       </div>
+
+      {/* Featured badge */}
+      {recipe.isFeatured && (
+        <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
+          <span>Featured</span>
+        </div>
+      )}
 
       {/* Meta row: left info + right-anchored batch selector */}
       <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
@@ -155,6 +150,15 @@ export function RecipeCardView({
         {/* Spacer pushes buttons to the right */}
         <div className="flex-1" />
 
+        {/* Cross-nav: BOH → FOH (right side of meta row) */}
+        {recipe.type === 'plate' && fohSlug && (
+          <CrossNavButton
+            label="View FOH Plate Spec"
+            targetPath="/dish-guide"
+            targetSlug={fohSlug}
+          />
+        )}
+
         {/* Ask a Question — prep recipes: left of batch calculator */}
         {prep && (
           <Button
@@ -166,7 +170,7 @@ export function RecipeCardView({
             )}
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
-            <span className="text-[14px] leading-none">❓</span>
+            <HiQuestionMarkCircle className="w-4 h-4 text-orange-500" />
             Ask a question
           </Button>
         )}
@@ -175,15 +179,6 @@ export function RecipeCardView({
           <BatchSizeSelector value={batchMultiplier} onChange={onBatchChange} />
         )}
       </div>
-
-      {/* Cross-nav: BOH → FOH */}
-      {recipe.type === 'plate' && fohSlug && (
-        <CrossNavButton
-          label="View FOH Plate Spec"
-          targetPath="/dish-guide"
-          targetSlug={fohSlug}
-        />
-      )}
 
       {/* Divider */}
       <div className="border-t border-border" />

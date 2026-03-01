@@ -21,9 +21,7 @@ export function useFormTemplates() {
     queryFn: async (): Promise<FormTemplate[]> => {
       const { data, error } = await supabase
         .from('form_templates')
-        .select(
-          'id, group_id, slug, title_en, title_es, description_en, description_es, icon, header_image, fields, instructions_en, instructions_es, ai_tools, status, sort_order, template_version, created_by, created_at, updated_at',
-        )
+        .select('*')
         .in('status', ['published', 'archived'])
         .order('sort_order')
         .order('title_en');

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
+import type { FormSuggestion } from '@/types/forms';
 
 // =============================================================================
 // TYPES
@@ -31,7 +32,9 @@ export interface AskResult {
   citations: Citation[];
   usage: UsageInfo;
   sessionId?: string;
-  mode?: 'action' | 'search';
+  mode?: 'action' | 'search' | 'form_navigation';
+  formSuggestions?: FormSuggestion[];
+  prefillContext?: string;
 }
 
 export interface AskError {

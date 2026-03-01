@@ -103,6 +103,18 @@
     --sidebar-accent-foreground: 146 60% 41%;
     --sidebar-border: 240 6% 90%;
     --sidebar-ring: 146 60% 41%;
+
+    /* Flavor Index Score Zones (Monochromatic Orange) */
+    --flavor-world-class: 21 90% 48%;        /* #EA580C  orange-600 */
+    --flavor-excellent: 25 95% 53%;          /* #F97316  orange-500 */
+    --flavor-great: 27 96% 61%;             /* #FB923C  orange-400 */
+    --flavor-good: 31 97% 72%;              /* #FDBA74  orange-300 */
+    --flavor-needs-improvement: 27 98% 83%;  /* #FED7AA  orange-200 */
+
+    /* NPS Category Colors */
+    --flavor-loving: 25 95% 53%;             /* #F97316 */
+    --flavor-fence: 27 96% 61%;             /* #FB923C */
+    --flavor-not-feeling: 27 98% 83%;        /* #FED7AA */
   }
 
   /* ===========================================================================
@@ -193,6 +205,16 @@
     --sidebar-accent-foreground: 146 60% 50%;
     --sidebar-border: 240 5% 18%;
     --sidebar-ring: 146 60% 50%;
+
+    /* Flavor zones dark mode (slightly brighter) */
+    --flavor-world-class: 21 90% 53%;
+    --flavor-excellent: 25 95% 58%;
+    --flavor-great: 27 96% 66%;
+    --flavor-good: 31 97% 77%;
+    --flavor-needs-improvement: 27 98% 88%;
+    --flavor-loving: 25 95% 58%;
+    --flavor-fence: 27 96% 66%;
+    --flavor-not-feeling: 27 98% 88%;
   }
 }
 
@@ -274,6 +296,10 @@
   .max-w-reading-sm {
     max-width: 40rem; /* 640px */
   }
+
+  .max-w-reading-wide {
+    max-width: 1000px;
+  }
   
   /* Content padding (from design-specs.md) */
   .content-padding {
@@ -319,6 +345,17 @@
 }
 
 /* =============================================================================
+   REVIEW DASHBOARD — HATCHED BAR UTILITY
+============================================================================= */
+
+.bar-hatched {
+  background: repeating-linear-gradient(45deg,
+    hsl(var(--muted)), hsl(var(--muted)) 2px,
+    hsl(var(--muted-foreground) / 0.12) 2px,
+    hsl(var(--muted-foreground) / 0.12) 4px);
+}
+
+/* =============================================================================
    RECORDING ANIMATION
    For voice input recording indicator
 ============================================================================= */
@@ -348,6 +385,37 @@
 
 .recording-indicator-warning {
   animation: recording-pulse-warning 0.8s ease-in-out infinite;
+}
+
+/* =============================================================================
+   PRINT STYLES
+   Clean output for printing manual sections
+============================================================================= */
+
+/* =============================================================================
+   AI FILL FIELD HIGHLIGHT GLOW
+   Played on form fields when AI populates their values (Phase 3).
+   Green border glow that self-clears after 2s.
+============================================================================= */
+
+@keyframes ai-fill-glow {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); border-color: hsl(var(--primary) / 0.6); }
+  50% { box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15); border-color: hsl(var(--primary) / 0.4); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); border-color: transparent; }
+}
+
+.ai-fill-highlight {
+  animation: ai-fill-glow 2s ease-out forwards;
+  border: 1px solid hsl(var(--primary) / 0.6);
+  border-radius: var(--radius-card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-fill-highlight {
+    animation: none;
+    border-color: hsl(var(--primary) / 0.4);
+    transition: border-color 0.3s ease;
+  }
 }
 
 /* =============================================================================

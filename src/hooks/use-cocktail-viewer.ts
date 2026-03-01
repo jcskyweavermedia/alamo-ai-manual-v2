@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useSupabaseCocktails } from '@/hooks/use-supabase-cocktails';
-import type { Cocktail, CocktailStyle } from '@/types/products';
+import type { Cocktail, CocktailStyle, ProductSortMode } from '@/types/products';
 
 export type CocktailFilterMode = 'all' | CocktailStyle;
 
@@ -10,6 +10,7 @@ export function useCocktailViewer() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<CocktailFilterMode>('all');
+  const [sortMode, setSortMode] = useState<ProductSortMode>('name');
 
   const filteredCocktails = useMemo(() => {
     let cocktails = allCocktails;
@@ -28,8 +29,21 @@ export function useCocktailViewer() {
       );
     }
 
-    return cocktails;
-  }, [allCocktails, filterMode, searchQuery]);
+    const sorted = [...cocktails];
+    switch (sortMode) {
+      case 'recent':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case 'featured':
+        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        break;
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+    }
+    return sorted;
+  }, [allCocktails, filterMode, searchQuery, sortMode]);
 
   const selectedCocktail = useMemo<Cocktail | undefined>(
     () => selectedSlug ? allCocktails.find(c => c.slug === selectedSlug) : undefined,
@@ -70,6 +84,8 @@ export function useCocktailViewer() {
     setSearchQuery,
     filterMode,
     setFilterMode,
+    sortMode,
+    setSortMode,
     selectedCocktail,
     selectCocktail,
     clearSelection,

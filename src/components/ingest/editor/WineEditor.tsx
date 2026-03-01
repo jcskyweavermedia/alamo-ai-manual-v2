@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Globe } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { WineImageEditor } from './WineImageEditor';
 import { TranslationSheet } from './TranslationSheet';
 import { TranslationBadge } from '../TranslationBadge';
@@ -33,6 +34,20 @@ export function WineEditor() {
 
   return (
     <div className="space-y-4">
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors",
+        draft.isFeatured
+          ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-800/40 dark:bg-emerald-950/20"
+          : "bg-muted/30"
+      )}>
+        <span className="text-sm font-medium">Featured</span>
+        <Switch
+          id="wine-featured"
+          checked={draft.isFeatured}
+          onCheckedChange={(checked) => dispatch({ type: 'SET_WINE_FEATURED', payload: checked })}
+        />
+      </div>
+
       <Accordion type="multiple" defaultValue={['identity', 'classification', 'notes', 'image', 'options', 'translation']}>
         {/* Wine Identity */}
         <AccordionItem value="identity">
@@ -210,13 +225,15 @@ export function WineEditor() {
         <AccordionItem value="options">
           <AccordionTrigger className="text-base font-semibold tracking-tight">Options</AccordionTrigger>
           <AccordionContent>
-            <div className="flex items-center gap-3 pt-2">
-              <Switch
-                id="wine-top-seller"
-                checked={draft.isTopSeller}
-                onCheckedChange={(checked) => dispatch({ type: 'SET_WINE_TOP_SELLER', payload: checked })}
-              />
-              <Label htmlFor="wine-top-seller">Top Seller</Label>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="wine-top-seller"
+                  checked={draft.isTopSeller}
+                  onCheckedChange={(checked) => dispatch({ type: 'SET_WINE_TOP_SELLER', payload: checked })}
+                />
+                <Label htmlFor="wine-top-seller">Top Seller</Label>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>

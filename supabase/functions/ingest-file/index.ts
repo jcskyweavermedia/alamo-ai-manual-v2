@@ -35,6 +35,7 @@ const corsHeaders = {
 interface PrepRecipeDraft {
   name: string;
   prepType: string;
+  department?: "kitchen" | "bar";
   tags: string[];
   yieldQty: number;
   yieldUnit: string;
@@ -113,6 +114,7 @@ interface CocktailDraft {
   ingredients: string;
   keyIngredients: string;
   procedure: Array<{ step: number; instruction: string }>;
+  linkedPrepRecipes?: Array<{ prep_recipe_ref: string; name: string; quantity: number; unit: string }>;
   tastingNotes: string;
   description: string;
   notes: string;
@@ -171,6 +173,8 @@ function errorResponse(error: string, message?: string, status = 400): Response 
  */
 function generateSlug(name: string): string {
   return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
@@ -190,6 +194,11 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     properties: {
       name: { type: "string" },
       prepType: { type: "string" },
+      department: {
+        type: "string",
+        enum: ["kitchen", "bar"],
+        description: "kitchen = BOH food prep, bar = syrups, infusions, bitters, shrubs, cordials, tinctures",
+      },
       tags: { type: "array", items: { type: "string" } },
       yieldQty: { type: "number" },
       yieldUnit: { type: "string" },
@@ -281,6 +290,7 @@ const PREP_RECIPE_DRAFT_SCHEMA = {
     required: [
       "name",
       "prepType",
+      "department",
       "tags",
       "yieldQty",
       "yieldUnit",
@@ -369,6 +379,21 @@ const COCKTAIL_DRAFT_SCHEMA = {
         },
         description: "Ordered preparation steps",
       },
+      linkedPrepRecipes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            prep_recipe_ref: { type: "string", description: "Slug of the linked prep recipe" },
+            name: { type: "string", description: "Display name of the prep recipe" },
+            quantity: { type: "number", description: "Amount used in the cocktail" },
+            unit: { type: "string", description: "Unit of measurement (oz, dash, barspoon, etc.)" },
+          },
+          required: ["prep_recipe_ref", "name", "quantity", "unit"],
+          additionalProperties: false,
+        },
+        description: "House-made bar prep ingredients linked to prep recipes (syrups, infusions, bitters, etc.)",
+      },
       tastingNotes: { type: "string" },
       description: { type: "string", description: "Cocktail story, history, or context" },
       notes: { type: "string", description: "Service notes, garnish details, technique tips" },
@@ -386,7 +411,7 @@ const COCKTAIL_DRAFT_SCHEMA = {
     },
     required: [
       "name", "style", "glass", "ingredients", "keyIngredients",
-      "procedure", "tastingNotes", "description", "notes",
+      "procedure", "linkedPrepRecipes", "tastingNotes", "description", "notes",
       "isTopSeller", "confidence", "missingFields", "aiMessage",
     ],
     additionalProperties: false,
@@ -479,6 +504,7 @@ Deno.serve(async (req) => {
     const productTable = formData.get("productTable") as string | null;
     const language = (formData.get("language") as string | null) || "en";
     const sessionId = formData.get("sessionId") as string | null;
+    const department = formData.get("department") as string | null;
 
     // =========================================================================
     // 4. VALIDATE INPUTS
@@ -566,6 +592,18 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[ingest-file] Text extraction complete: ${extractedText.length} chars`);
+
+    // =========================================================================
+    // 5b. EXTRACT-ONLY MODE (for batch ingest pipeline)
+    // =========================================================================
+    if (formData.get("extractOnly") === "true") {
+      console.log("[ingest-file] extractOnly=true — returning raw text");
+      return jsonResponse({
+        extractedText,
+        fileName: file.name,
+        length: extractedText.length,
+      });
+    }
 
     // =========================================================================
     // 6. UPLOAD ORIGINAL FILE TO STORAGE
@@ -690,7 +728,9 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 9. FETCH SYSTEM PROMPT
     // =========================================================================
-    const promptSlug = FILE_PROMPT_MAP[productTable] || "ingest-file-prep-recipe";
+    // Use bar-specific prompt when department is "bar" and productTable is prep_recipes
+    const isBarPrep = productTable === "prep_recipes" && department === "bar";
+    const promptSlug = isBarPrep ? "ingest-file-bar-prep" : (FILE_PROMPT_MAP[productTable] || "ingest-file-prep-recipe");
     const { data: promptRow, error: promptError } = await supabase
       .from("ai_prompts")
       .select("prompt_en, prompt_es")
@@ -909,6 +949,18 @@ Deno.serve(async (req) => {
       const existingImages: Array<{url: string; alt: string; caption: string}> = (existingDraft as any)?.images || [];
       // deno-lint-ignore no-explicit-any
       (draft as any).images = existingImages;
+    }
+
+    // Cocktail defaults: ensure linkedPrepRecipes array exists
+    if (productTable === "cocktails") {
+      // deno-lint-ignore no-explicit-any
+      if (!(draft as any).linkedPrepRecipes) (draft as any).linkedPrepRecipes = [];
+    }
+
+    // Prep recipe defaults: ensure department is set
+    if (productTable === "prep_recipes") {
+      // deno-lint-ignore no-explicit-any
+      if (!(draft as any).department) (draft as any).department = "kitchen";
     }
 
     console.log(

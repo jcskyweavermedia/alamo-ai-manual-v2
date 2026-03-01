@@ -9,6 +9,8 @@
  *   - search_contacts: FTS-only contact directory search
  *   - search_manual: hybrid (FTS + vector) manual search
  *   - search_products: hybrid (FTS + vector) multi-domain product search
+ *   - search_standards: alias -> search_manual_v2 (quality standards, dress code)
+ *   - search_steps_of_service: alias -> search_manual_v2 (FOH procedures, service flow)
  *
  * Auth: verify_jwt=false -- manual JWT verification via authenticateWithClaims()
  */
@@ -17,10 +19,19 @@ import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
 import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 import type { SupabaseClient } from "../_shared/supabase.ts";
+import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@1.4.0";
+import mammoth from "https://esm.sh/mammoth@1.11.0";
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+interface AskFormAttachment {
+  type: "image" | "file";
+  name: string;
+  mimeType: string;
+  content: string; // base64 data URL for images/binary files, raw text for .txt
+}
 
 interface AskFormRequest {
   question: string;
@@ -30,6 +41,7 @@ interface AskFormRequest {
   groupId: string;
   conversationHistory?: Array<{ role: string; content: string }>;
   sessionId?: string;
+  attachments?: AskFormAttachment[];
 }
 
 interface ToolResultSummary {
@@ -76,6 +88,9 @@ const MAX_QUESTION_LENGTH = 5000;
 const MAX_HISTORY_MESSAGES = 6;
 const MAX_HISTORY_MESSAGE_LENGTH = 2000;
 const OPENAI_TIMEOUT_MS = 45_000;
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_CHARS = 15_000_000; // ~10MB base64
+const MAX_EXTRACTED_TEXT = 50_000;
 
 const NON_FILLABLE_TYPES = new Set([
   "header",
@@ -94,16 +109,34 @@ const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
 // BASE IDENTITY PROMPT
 // =============================================================================
 
-const BASE_IDENTITY_PROMPT = `You are the AI form assistant for Alamo Prime steakhouse. You help restaurant staff fill out operational forms (write-ups, injury reports, etc.) by extracting structured field values from unstructured natural language input.
+const BASE_IDENTITY_PROMPT = `You are the AI form assistant for Alamo Prime steakhouse. You help restaurant managers and staff fill out operational forms (write-ups, injury reports, checklists, etc.) by extracting structured field values from unstructured natural language input — often spoken via voice.
 
 Today's date is YYYY-MM-DD.
 
 Your job:
-1. Read the user's description of the situation.
+1. Read the user's description of the situation (often casual, spoken language).
 2. Extract values for as many form fields as possible.
 3. Use available tools to look up missing information (contacts, manual procedures).
-4. Report which required fields are still missing and ask about them.
+4. Report which required fields are still missing and ask about them ONE AT A TIME.
 5. Be factual, professional, and concise.
+
+WRITING STYLE — THIS IS CRITICAL:
+- Write field values in professional managerial language, NOT literal transcriptions.
+- The user speaks casually ("yeah so Maria cut her hand on the slicer, it was pretty bad"). You write formally ("Employee sustained a laceration to the hand from the meat slicer.").
+- Text and textarea fields: Write in clear, concise, third-person professional prose. Use proper grammar, capitalization, and punctuation.
+- Names: Always capitalize properly (e.g., "Maria Garcia", not "maria garcia").
+- Descriptions: Write as if filing an official report — factual, specific, no filler words, no first-person unless the form requires it.
+- Avoid transcribing filler words (um, uh, like, you know, so, yeah).
+- Avoid conversational phrasing ("I guess", "kind of", "pretty much"). Replace with precise language.
+- For select/dropdown fields, match the closest defined option exactly.
+- For yes_no fields, output "yes" or "no" (lowercase strings).
+
+CONVERSATION FLOW:
+- On the FIRST turn, extract as many fields as possible from the user's description, then ask about the MOST IMPORTANT missing required field.
+- On FOLLOW-UP turns, the user is answering your previous question. Map their answer to the specific field you asked about. Then ask about the NEXT missing required field.
+- Do NOT repeat questions the user already answered. Check the conversation history — your previous turns include the fieldUpdates you already made.
+- When all required fields are filled, let the user know the form is ready for review. Set followUpQuestion to null.
+- Keep your conversational messages SHORT (1-2 sentences). The form is the focus, not the chat.
 
 CRITICAL RULES:
 - Only populate fields defined in the form schema below. Never invent field keys.
@@ -113,7 +146,7 @@ CRITICAL RULES:
 - For time fields, output 24-hour format: HH:MM.
 - For datetime fields, output ISO 8601: YYYY-MM-DDTHH:MM.
 - For number fields, output a numeric value (not a string).
-- Never populate signature, image, or file fields -- those require user interaction.
+- Never populate signature, image, or file fields — those require user interaction.
 - If you cannot determine a field value with confidence, omit it from fieldUpdates and include the field key in missingFields.
 - Do not overwrite existing field values unless the user explicitly corrects them.
 - fieldUpdates REPLACE previous values for the same key (not merge).
@@ -124,8 +157,8 @@ Your response MUST be a JSON object with this exact structure:
 {
   "fieldUpdates": { "<field_key>": "<value matching field type>" },
   "missingFields": ["<required_field_key>"],
-  "followUpQuestion": "<question about missing fields or null>",
-  "message": "<your conversational response to the user>"
+  "followUpQuestion": "<single question about the next missing field, or null if complete>",
+  "message": "<short professional response to the user>"
 }`;
 
 // =============================================================================
@@ -210,11 +243,57 @@ const TOOL_SEARCH_PRODUCTS = {
   },
 };
 
+const TOOL_SEARCH_STANDARDS = {
+  type: "function",
+  function: {
+    name: "search_standards",
+    description:
+      "Search the restaurant's quality standards, dress code, appearance guidelines, " +
+      "professionalism expectations, and service standards. Use when the form involves " +
+      "employee evaluations, performance reviews, or standards compliance.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            'Search query -- e.g., "dress code", "professionalism standards", "quality expectations"',
+        },
+      },
+      required: ["query"],
+    },
+  },
+};
+
+const TOOL_SEARCH_STEPS_OF_SERVICE = {
+  type: "function",
+  function: {
+    name: "search_steps_of_service",
+    description:
+      "Search the restaurant's steps of service, guest interaction protocols, " +
+      "greeting procedures, tableside service techniques, and FOH service flow. " +
+      "Use when the form involves service quality incidents or FOH performance.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            'Search query -- e.g., "greeting procedure", "table touch timing", "check presentation"',
+        },
+      },
+      required: ["query"],
+    },
+  },
+};
+
 // deno-lint-ignore no-explicit-any
 const TOOL_REGISTRY: Record<string, any> = {
   search_contacts: TOOL_SEARCH_CONTACTS,
   search_manual: TOOL_SEARCH_MANUAL,
   search_products: TOOL_SEARCH_PRODUCTS,
+  search_standards: TOOL_SEARCH_STANDARDS,
+  search_steps_of_service: TOOL_SEARCH_STEPS_OF_SERVICE,
 };
 
 // =============================================================================
@@ -513,6 +592,44 @@ async function executeTool(
       return { results, citation };
     }
 
+    case "search_standards":
+    case "search_steps_of_service": {
+      // Both route to search_manual_v2 -- the query + tool description
+      // naturally scopes the results to the right manual sections.
+      const embedding = await getQueryEmbedding(args.query, apiKey);
+      if (!embedding) {
+        return { results: [], citation: null };
+      }
+
+      const { data, error } = await supabase.rpc("search_manual_v2", {
+        search_query: args.query,
+        query_embedding: JSON.stringify(embedding),
+        search_language: language,
+        result_limit: 3,
+      });
+
+      if (error) {
+        console.error(`[ask-form] ${toolName} error:`, error.message);
+        return { results: [], citation: null };
+      }
+
+      const results = data || [];
+      const citation: FormCitation | null = results.length > 0
+        ? {
+            source:
+              toolName === "search_standards"
+                ? "manual/standards"
+                : "manual/service",
+            title: results[0].name || results[0].slug,
+            snippet: results[0].snippet
+              ? results[0].snippet.replace(/<\/?mark>/g, "")
+              : "",
+          }
+        : null;
+
+      return { results, citation };
+    }
+
     default:
       console.warn(`[ask-form] Unknown tool: ${toolName}`);
       return { results: [], citation: null };
@@ -546,6 +663,8 @@ function formatToolResults(toolName: string, results: any[]): string {
         .join("\n\n");
 
     case "search_manual":
+    case "search_standards":
+    case "search_steps_of_service":
       return results
         // deno-lint-ignore no-explicit-any
         .map((r: any, i: number) => {
@@ -803,6 +922,78 @@ function isValidUUID(str: string): boolean {
 }
 
 // =============================================================================
+// HELPER: extractFileText (PDF, DOCX, TXT)
+// =============================================================================
+
+async function extractFileText(
+  attachment: AskFormAttachment,
+): Promise<string | null> {
+  try {
+    const { mimeType, content, name } = attachment;
+
+    // Plain text — content is already the text
+    if (mimeType === "text/plain") {
+      return content.slice(0, MAX_EXTRACTED_TEXT);
+    }
+
+    // For base64 data URLs, strip the prefix
+    const base64Match = content.match(
+      /^data:[^;]+;base64,(.+)$/s,
+    );
+    if (!base64Match) {
+      console.warn(`[ask-form] Attachment "${name}" is not a valid data URL`);
+      return null;
+    }
+    const rawBase64 = base64Match[1];
+
+    // PDF extraction via unpdf
+    if (mimeType === "application/pdf") {
+      const binaryStr = atob(rawBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const pdf = await getDocumentProxy(bytes);
+      const { text } = await extractText(pdf, { mergePages: true });
+      console.log(
+        `[ask-form] PDF "${name}" extracted: ${text.length} chars`,
+      );
+      return text.slice(0, MAX_EXTRACTED_TEXT);
+    }
+
+    // DOCX extraction via mammoth
+    if (
+      mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      const binaryStr = atob(rawBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const result = await mammoth.extractRawText({
+        arrayBuffer: bytes.buffer,
+      });
+      console.log(
+        `[ask-form] DOCX "${name}" extracted: ${result.value.length} chars`,
+      );
+      return result.value.slice(0, MAX_EXTRACTED_TEXT);
+    }
+
+    console.warn(
+      `[ask-form] Unsupported file type: ${mimeType} for "${name}"`,
+    );
+    return null;
+  } catch (err) {
+    console.error(
+      `[ask-form] Failed to extract text from "${attachment.name}":`,
+      err,
+    );
+    return null;
+  }
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -835,6 +1026,7 @@ Deno.serve(async (req) => {
       groupId,
       conversationHistory = [],
       sessionId,
+      attachments = [],
     } = body;
 
     // Validate question
@@ -863,8 +1055,26 @@ Deno.serve(async (req) => {
       return errorResponse("bad_request", "Group ID is required", 400);
     }
 
+    // Validate attachments
+    if (attachments.length > MAX_ATTACHMENTS) {
+      return errorResponse(
+        "bad_request",
+        `Maximum ${MAX_ATTACHMENTS} attachments allowed`,
+        400,
+      );
+    }
+    for (const att of attachments) {
+      if (att.content && att.content.length > MAX_ATTACHMENT_CHARS) {
+        return errorResponse(
+          "bad_request",
+          `Attachment "${att.name}" exceeds size limit`,
+          400,
+        );
+      }
+    }
+
     console.log(
-      `[ask-form] Template: ${templateId} | Lang: ${language} | History: ${conversationHistory.length} msgs`,
+      `[ask-form] Template: ${templateId} | Lang: ${language} | History: ${conversationHistory.length} msgs | Attachments: ${attachments.length}`,
     );
 
     // =========================================================================
@@ -954,7 +1164,55 @@ Deno.serve(async (req) => {
       }));
 
     messages.push(...sanitizedHistory);
-    messages.push({ role: "user", content: question.trim() });
+
+    // Build user message — multimodal if attachments present
+    if (attachments.length > 0) {
+      // Separate images from files
+      const imageAttachments = attachments.filter(
+        (a) => a.type === "image",
+      );
+      const fileAttachments = attachments.filter(
+        (a) => a.type === "file",
+      );
+
+      // Extract text from file attachments (PDF, DOCX, TXT)
+      let fileTextParts = "";
+      for (const fileAtt of fileAttachments) {
+        const extracted = await extractFileText(fileAtt);
+        if (extracted) {
+          fileTextParts += `\n\n[Content from ${fileAtt.name}]:\n${extracted}`;
+        }
+      }
+
+      // Combine question text with extracted file content
+      const textContent = question.trim() + fileTextParts;
+
+      if (imageAttachments.length > 0) {
+        // Multimodal message: text + image_url parts (OpenAI vision format)
+        // deno-lint-ignore no-explicit-any
+        const contentParts: any[] = [
+          { type: "text", text: textContent },
+        ];
+        for (const img of imageAttachments) {
+          contentParts.push({
+            type: "image_url",
+            image_url: { url: img.content, detail: "auto" },
+          });
+        }
+        messages.push({ role: "user", content: contentParts });
+        console.log(
+          `[ask-form] Built multimodal message: ${imageAttachments.length} image(s), ${fileAttachments.length} file(s)`,
+        );
+      } else {
+        // Text-only with extracted file content
+        messages.push({ role: "user", content: textContent });
+        console.log(
+          `[ask-form] Built text message with ${fileAttachments.length} file extract(s)`,
+        );
+      }
+    } else {
+      messages.push({ role: "user", content: question.trim() });
+    }
 
     // =========================================================================
     // Step 8: Tool-use loop (max 3 rounds) with OpenAI gpt-4o-mini

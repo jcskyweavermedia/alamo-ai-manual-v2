@@ -60,16 +60,21 @@ export function BeerLiquorList({
                             type="button"
                             onClick={() => onSelectItem ? onSelectItem(item.slug) : toggle(item.slug)}
                             className={cn(
-                              'w-full flex items-center gap-2 min-h-[40px] py-1.5 px-1 -mx-1 rounded',
+                              'w-full flex items-center gap-2 min-h-[44px] py-1.5 px-1 -mx-1 rounded',
                               'text-left transition-colors duration-100',
                               'hover:bg-muted/60 active:scale-[0.99]',
                               isOpen && 'bg-muted/40'
                             )}
                           >
-                            <span className="text-[13px] font-semibold text-foreground truncate">
+                            <span className="text-[13px] font-semibold text-foreground line-clamp-2 min-w-0">
                               {item.name}
                             </span>
-                            <span className="text-[11px] text-muted-foreground truncate shrink-0">
+                            {item.isFeatured && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground shrink-0">
+                                Featured
+                              </span>
+                            )}
+                            <span className="text-[11px] text-muted-foreground shrink-0">
                               {item.producer}
                             </span>
                             <span className="flex-1" />
