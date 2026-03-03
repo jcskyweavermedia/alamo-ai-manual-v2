@@ -36,9 +36,19 @@ export interface UseRealtimeWebRTCOptions {
   listenOnly?: boolean;
   /** Skip AI greeting — connect with mic ready but don't trigger AI to speak first */
   skipGreeting?: boolean;
+  /** Training teacher slug — activates AI teacher persona via realtime-session */
+  teacher_slug?: string;
+  /** Section ID for context enrichment in training mode */
+  section_id?: string;
   onTranscript?: (entry: TranscriptEntry) => void;
   onError?: (error: string) => void;
   onStateChange?: (state: WebRTCVoiceState) => void;
+  /** Auto-disconnect after this many ms of inactivity (0 = disabled) */
+  inactivityTimeoutMs?: number;
+  /** Show warning this many ms before auto-disconnect (default 15000) */
+  inactivityWarningMs?: number;
+  /** Called with seconds remaining before auto-disconnect */
+  onInactivityWarning?: (secondsRemaining: number) => void;
 }
 
 // Product search tool names that the realtime-search function supports
@@ -67,6 +77,7 @@ export interface UseRealtimeWebRTCReturn {
   transcript: TranscriptEntry[];
   connect: () => Promise<void>;
   disconnect: () => void;
+  interruptAndAsk: () => void;
   error: string | null;
 }
 
@@ -81,7 +92,13 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 // =============================================================================
 
 export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtimeWebRTCReturn {
-  const { language, groupId, domain, action, itemContext, listenOnly, skipGreeting, onTranscript, onError, onStateChange } = options;
+  const {
+    language, groupId, domain, action, itemContext, listenOnly, skipGreeting,
+    teacher_slug, section_id, onTranscript, onError, onStateChange,
+    inactivityTimeoutMs = 0,
+    inactivityWarningMs = 15_000,
+    onInactivityWarning,
+  } = options;
 
   // State
   const [state, setState] = useState<WebRTCVoiceState>('disconnected');
@@ -98,17 +115,31 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
   const abortRef = useRef<AbortController | null>(null);
   const sessionReadyRef = useRef(false);
   const messageHandlerRef = useRef<(event: MessageEvent) => void>(() => {});
+  const micMuteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Callback refs — always hold the latest caller-supplied callbacks without
+  // appearing in useCallback dep arrays, which would cascade and recreate
+  // cleanup(), triggering "cleanup on unmount" effect and disconnecting the session.
+  const onStateChangeRef = useRef(onStateChange);
+  const onTranscriptRef = useRef(onTranscript);
+  const onErrorRef = useRef(onError);
+  const onInactivityWarningRef = useRef(onInactivityWarning);
+  useEffect(() => { onStateChangeRef.current = onStateChange; });
+  useEffect(() => { onTranscriptRef.current = onTranscript; });
+  useEffect(() => { onErrorRef.current = onError; });
+  useEffect(() => { onInactivityWarningRef.current = onInactivityWarning; });
 
   // Derived state
   const isConnected = state !== 'disconnected' && state !== 'connecting';
   const isListening = state === 'listening';
   const isSpeaking = state === 'speaking';
 
-  // Update state and notify
+  // Update state and notify — uses ref so it never invalidates cleanup's deps
   const updateState = useCallback((newState: WebRTCVoiceState) => {
     setState(newState);
-    onStateChange?.(newState);
-  }, [onStateChange]);
+    onStateChangeRef.current?.(newState);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Add transcript entry
   const addTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
@@ -118,8 +149,8 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       timestamp: Date.now(),
     };
     setTranscript(prev => [...prev, entry]);
-    onTranscript?.(entry);
-  }, [onTranscript]);
+    onTranscriptRef.current?.(entry);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle tool calls (search_handbook + product search tools)
   const handleToolCall = useCallback(async (name: string, callId: string, args: string) => {
@@ -193,6 +224,99 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     }
   }, [language, groupId]);
 
+  // Mute the microphone (called when AI starts speaking to prevent echo)
+  const muteMic = useCallback(() => {
+    mediaStreamRef.current?.getAudioTracks().forEach(track => {
+      track.enabled = false;
+    });
+  }, []);
+
+  // Unmute the microphone after a 500ms deaf window to prevent echo pickup
+  const unmuteMic = useCallback(() => {
+    if (micMuteTimerRef.current) {
+      clearTimeout(micMuteTimerRef.current);
+    }
+    micMuteTimerRef.current = setTimeout(() => {
+      micMuteTimerRef.current = null;
+      mediaStreamRef.current?.getAudioTracks().forEach(track => {
+        track.enabled = true;
+      });
+      if (dcRef.current?.readyState === 'open') {
+        dcRef.current.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+      }
+    }, 500);
+  }, []);
+
+  // Cleanup
+  const cleanup = useCallback(() => {
+    console.log('[WebRTC] Cleaning up...');
+
+    // Clear mic and inactivity timers
+    if (micMuteTimerRef.current) {
+      clearTimeout(micMuteTimerRef.current);
+      micMuteTimerRef.current = null;
+    }
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+
+    // Abort any in-flight connect
+    abortRef.current?.abort();
+    abortRef.current = null;
+
+    // Reset session ready flag
+    sessionReadyRef.current = false;
+
+    // Close data channel
+    if (dcRef.current) {
+      dcRef.current.close();
+      dcRef.current = null;
+    }
+
+    // Close peer connection
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+
+    // Stop media stream (re-enable tracks before stopping to prevent ghost-muted state)
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => {
+        track.enabled = true;
+        track.stop();
+      });
+      mediaStreamRef.current = null;
+    }
+
+    // Remove audio element
+    if (audioElRef.current) {
+      audioElRef.current.srcObject = null;
+      audioElRef.current = null;
+    }
+
+    ephemeralKeyRef.current = null;
+    updateState('disconnected');
+  }, [updateState]);
+
+  // Reset inactivity timer — resets both warning and disconnect timeouts
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimeoutMs <= 0) return;
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    const warningMs = inactivityTimeoutMs - inactivityWarningMs;
+    if (warningMs > 0) {
+      setTimeout(() => {
+        onInactivityWarningRef.current?.(Math.round(inactivityWarningMs / 1000));
+      }, warningMs);
+    }
+    inactivityTimerRef.current = setTimeout(() => {
+      cleanup();
+    }, inactivityTimeoutMs);
+  }, [inactivityTimeoutMs, inactivityWarningMs, cleanup]); // onInactivityWarning via ref
+
   // Handle data channel messages
   const handleDataChannelMessage = useCallback((event: MessageEvent) => {
     try {
@@ -206,9 +330,9 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           console.log('[WebRTC] Session ready');
           sessionReadyRef.current = true;
           updateState('connected');
-          // In product mode, trigger AI greeting if data channel is already open
-          if (dcRef.current?.readyState === 'open' && domain && action && !skipGreeting) {
-            console.log('[WebRTC] Product mode — triggering AI greeting');
+          // In product mode or training mode, trigger AI greeting if data channel is already open
+          if (dcRef.current?.readyState === 'open' && ((domain && action) || teacher_slug) && !skipGreeting) {
+            console.log('[WebRTC] Triggering AI greeting');
             dcRef.current.send(JSON.stringify({ type: 'response.create' }));
           }
           break;
@@ -217,6 +341,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         case 'input_audio_buffer.speech_started':
           console.log('[WebRTC] User speech started');
           updateState('listening');
+          resetInactivityTimer();
           break;
 
         // User stopped speaking
@@ -244,6 +369,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         case 'response.audio.delta':
           if (state !== 'speaking') {
             updateState('speaking');
+            muteMic();
           }
           break;
 
@@ -289,12 +415,32 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
               console.log('[WebRTC] Tool-call response — waiting for audio response');
             }
           } else {
-            setTimeout(() => {
-              if (pcRef.current?.connectionState === 'connected') {
-                updateState('connected');
-              }
-            }, 300);
+            unmuteMic(); // fallback; output_audio_buffer.stopped handles the normal path
+            // For tool-call-only responses (no audio), output_audio_buffer.stopped won't fire
+            const outputItems = data.response?.output || [];
+            const hasAudio = outputItems.some((item: any) => item.type === 'message');
+            if (!hasAudio) {
+              resetInactivityTimer();
+              setTimeout(() => {
+                if (pcRef.current?.connectionState === 'connected') {
+                  updateState('connected');
+                }
+              }, 300);
+            }
+            // If hasAudio: output_audio_buffer.stopped will handle state + timer
           }
+          break;
+
+        // Audio buffer finished playing — reset state and inactivity timer
+        case 'output_audio_buffer.stopped':
+          console.log('[WebRTC] Audio playback complete');
+          unmuteMic();
+          resetInactivityTimer();
+          setTimeout(() => {
+            if (pcRef.current?.connectionState === 'connected') {
+              updateState('connected');
+            }
+          }, 100);
           break;
 
         // Error
@@ -302,7 +448,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           console.error('[WebRTC] Server error:', data.error);
           const errorMsg = data.error?.message || 'Unknown error';
           setError(errorMsg);
-          onError?.(errorMsg);
+          onErrorRef.current?.(errorMsg);
           break;
 
         default:
@@ -314,51 +460,12 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     } catch (err) {
       console.error('[WebRTC] Failed to parse message:', err);
     }
-  }, [state, updateState, addTranscript, handleToolCall, onError, domain, action, listenOnly]);
+  }, [state, updateState, addTranscript, handleToolCall, domain, action, listenOnly, muteMic, unmuteMic, resetInactivityTimer]); // onError via ref
 
   // Keep message handler ref in sync (fixes stale closure)
   useEffect(() => {
     messageHandlerRef.current = handleDataChannelMessage;
   }, [handleDataChannelMessage]);
-
-  // Cleanup
-  const cleanup = useCallback(() => {
-    console.log('[WebRTC] Cleaning up...');
-
-    // Abort any in-flight connect
-    abortRef.current?.abort();
-    abortRef.current = null;
-
-    // Reset session ready flag
-    sessionReadyRef.current = false;
-
-    // Close data channel
-    if (dcRef.current) {
-      dcRef.current.close();
-      dcRef.current = null;
-    }
-
-    // Close peer connection
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-
-    // Stop media stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-
-    // Remove audio element
-    if (audioElRef.current) {
-      audioElRef.current.srcObject = null;
-      audioElRef.current = null;
-    }
-
-    ephemeralKeyRef.current = null;
-    updateState('disconnected');
-  }, [updateState]);
 
   // Connect
   const connect = useCallback(async () => {
@@ -395,6 +502,8 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       if (action) sessionBody.action = action;
       if (itemContext) sessionBody.itemContext = itemContext;
       if (listenOnly) sessionBody.listenOnly = true;
+      if (teacher_slug) sessionBody.teacher_slug = teacher_slug;
+      if (section_id) sessionBody.section_id = section_id;
 
       const sessionResponse = await fetch(`${SUPABASE_URL}/functions/v1/realtime-session`, {
         method: 'POST',
@@ -481,9 +590,9 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
 
       dc.onopen = () => {
         console.log('[WebRTC] Data channel open');
-        // In product mode, trigger AI greeting only if session is already ready
-        if (sessionReadyRef.current && domain && action && !skipGreeting) {
-          console.log('[WebRTC] Product mode — triggering AI greeting');
+        // In product mode or training mode, trigger AI greeting only if session is already ready
+        if (sessionReadyRef.current && ((domain && action) || teacher_slug) && !skipGreeting) {
+          console.log('[WebRTC] Triggering AI greeting');
           dc.send(JSON.stringify({ type: 'response.create' }));
         }
       };
@@ -541,6 +650,9 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
         }
       };
 
+      // Inactivity timer starts after first audio buffer stops (output_audio_buffer.stopped)
+      // so we do NOT start it here at connect time
+
     } catch (err) {
       // Silently ignore intentional abort
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -550,16 +662,35 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
       console.error('[WebRTC] Connect failed:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to connect';
       setError(errorMsg);
-      onError?.(errorMsg);
+      onErrorRef.current?.(errorMsg);
       cleanup();
     }
-  }, [groupId, language, domain, action, itemContext, listenOnly, cleanup, onError, updateState]);
+  }, [groupId, language, domain, action, itemContext, listenOnly, teacher_slug, section_id, cleanup, updateState, resetInactivityTimer, inactivityTimeoutMs]); // onError via ref
 
   // Disconnect
   const disconnect = useCallback(() => {
     console.log('[WebRTC] Disconnecting');
     cleanup();
   }, [cleanup]);
+
+  // Interrupt AI speech and immediately re-enable mic so user can ask
+  const interruptAndAsk = useCallback(() => {
+    if (dcRef.current?.readyState !== 'open') {
+      console.warn('[WebRTC] interruptAndAsk: data channel not open');
+      return;
+    }
+    dcRef.current.send(JSON.stringify({ type: 'response.cancel' }));
+    dcRef.current.send(JSON.stringify({ type: 'input_audio_buffer.clear' }));
+    if (micMuteTimerRef.current) {
+      clearTimeout(micMuteTimerRef.current);
+      micMuteTimerRef.current = null;
+    }
+    mediaStreamRef.current?.getAudioTracks().forEach(track => {
+      track.enabled = true;
+    });
+    updateState('listening');
+    resetInactivityTimer();
+  }, [updateState, resetInactivityTimer]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -576,6 +707,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     transcript,
     connect,
     disconnect,
+    interruptAndAsk,
     error,
   };
 }
