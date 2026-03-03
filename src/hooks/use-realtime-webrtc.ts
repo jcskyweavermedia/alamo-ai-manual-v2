@@ -358,10 +358,11 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           }
           break;
 
-        // AI response started
+        // AI response started — pre-emptively mute mic to prevent echo
         case 'response.created':
           console.log('[WebRTC] AI response started');
           assistantTextRef.current = '';
+          muteMic();
           break;
 
         // AI is speaking (audio handled natively by WebRTC)
@@ -373,11 +374,15 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           }
           break;
 
-        // AI transcript delta
+        // AI transcript delta — in WebRTC mode, audio flows via RTP (not response.audio.delta),
+        // so this is the reliable signal that the AI is actively speaking
         case 'response.output_audio_transcript.delta':
         case 'response.audio_transcript.delta':
           if (data.delta) {
             assistantTextRef.current += data.delta;
+          }
+          if (state !== 'speaking') {
+            updateState('speaking');
           }
           break;
 
