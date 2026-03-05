@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useSupabaseRecipes } from '@/hooks/use-supabase-recipes';
-import type { Recipe, ProductSortMode } from '@/types/products';
+import type { Recipe, PlateSpec, ProductSortMode } from '@/types/products';
 
-export type FilterMode = 'all' | 'prep' | 'plate';
+export type FilterMode = 'all' | 'prep' | 'plates' | 'apps' | 'entrees' | 'sides' | 'desserts';
 
 export const BATCH_OPTIONS = [0.5, 1, 2, 4] as const;
 
@@ -27,8 +27,16 @@ export function useRecipeViewer(initialSlug?: string | null) {
 
     if (filterMode === 'prep') {
       recipes = recipes.filter(r => r.type === 'prep');
-    } else if (filterMode === 'plate') {
+    } else if (filterMode === 'plates') {
       recipes = recipes.filter(r => r.type === 'plate');
+    } else if (filterMode === 'apps') {
+      recipes = recipes.filter(r => r.type === 'plate' && (r as PlateSpec).plateType === 'appetizer');
+    } else if (filterMode === 'entrees') {
+      recipes = recipes.filter(r => r.type === 'plate' && (r as PlateSpec).plateType === 'entree');
+    } else if (filterMode === 'sides') {
+      recipes = recipes.filter(r => r.type === 'plate' && (r as PlateSpec).plateType === 'side');
+    } else if (filterMode === 'desserts') {
+      recipes = recipes.filter(r => r.type === 'plate' && (r as PlateSpec).plateType === 'dessert');
     }
 
     if (searchQuery.trim()) {
@@ -40,13 +48,17 @@ export function useRecipeViewer(initialSlug?: string | null) {
       );
     }
 
+    if (sortMode === 'featured') {
+      recipes = recipes.filter(r => r.isFeatured);
+    }
+
     const sorted = [...recipes];
     switch (sortMode) {
       case 'recent':
         sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         break;
       case 'featured':
-        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
         break;
       case 'name':
       default:

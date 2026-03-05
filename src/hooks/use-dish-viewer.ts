@@ -29,13 +29,17 @@ export function useDishViewer(initialSlug?: string | null) {
       );
     }
 
+    if (sortMode === 'featured') {
+      dishes = dishes.filter(d => d.isFeatured);
+    }
+
     const sorted = [...dishes];
     switch (sortMode) {
       case 'recent':
         sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         break;
       case 'featured':
-        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        sorted.sort((a, b) => a.menuName.localeCompare(b.menuName));
         break;
       case 'name':
       default:

@@ -30,7 +30,7 @@ export function RecipeGrid({
 
             return (
               <button
-                key={recipe.slug}
+                key={recipe.id}
                 type="button"
                 onClick={() => onSelectRecipe(recipe.slug)}
                 className={cn(
@@ -96,9 +96,16 @@ export function RecipeGrid({
                 </h3>
 
                 {/* Subtitle */}
-                <p className="text-sm text-muted-foreground capitalize mt-0.5">
-                  {isPrep ? `Prep · ${prep!.prepType}` : `Plate · ${plate!.plateType}`}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm text-muted-foreground capitalize">
+                    {isPrep ? `Prep · ${prep!.prepType}` : `Plate · ${plate!.plateType}`}
+                  </span>
+                  {recipe.isFeatured && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white">
+                      Featured
+                    </span>
+                  )}
+                </div>
 
                 {/* Metadata row — anchored to bottom with emojis */}
                 <div className="flex items-center gap-3 mt-auto pt-3 text-[13px] leading-none text-muted-foreground">
@@ -120,14 +127,6 @@ export function RecipeGrid({
                       <span>{plate.allergens.length} allergen{plate.allergens.length !== 1 ? 's' : ''}</span>
                     </span>
                   ) : null}
-                  {recipe.isFeatured && (
-                    <>
-                      <span className="text-black/10 dark:text-white/10">·</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-                        Featured
-                      </span>
-                    </>
-                  )}
                 </div>
               </button>
             );

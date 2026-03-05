@@ -29,13 +29,17 @@ export function useCocktailViewer() {
       );
     }
 
+    if (sortMode === 'featured') {
+      cocktails = cocktails.filter(c => c.isFeatured);
+    }
+
     const sorted = [...cocktails];
     switch (sortMode) {
       case 'recent':
         sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         break;
       case 'featured':
-        sorted.sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0));
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
         break;
       case 'name':
       default:

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Search, X } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2, Search, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
@@ -17,32 +17,100 @@ import { getActionConfig } from '@/data/ai-action-config';
 import type { ProductSortMode } from '@/types/products';
 import { NavbarBookmark } from '@/components/shared/NavbarBookmark';
 import { usePinnedRecipes } from '@/hooks/use-pinned-recipes';
+import { getCommon } from '@/lib/common-strings';
+import type { Language } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 
 type BarTab = 'all' | 'cocktails' | 'bar-prep';
 
-const TAB_OPTIONS: { value: BarTab; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'cocktails', label: 'Cocktails' },
-  { value: 'bar-prep', label: 'Bar Prep' },
-];
+const STRINGS = {
+  en: {
+    cocktails: 'Cocktails',
+    barPrep: 'Bar Prep',
+    classic: 'Classic',
+    modern: 'Modern',
+    tiki: 'Tiki',
+    refresher: 'Refresher',
+    heroLine1Cocktails: 'Shaken with',
+    heroLine2Cocktails: 'Soul',
+    heroLine1BarPrep: 'House-Made Syrups,',
+    heroLine2BarPrep: 'Infusions & More',
+    subtitleBarPrep: 'Bar prep recipes for syrups, infusions, and house-made ingredients.',
+    subtitleAll: 'Cocktails, syrups, infusions, and everything behind the bar.',
+    subtitleCocktails: 'Signature and classic cocktails with build specs and garnish details.',
+    sectionCocktails: 'Cocktails',
+    sectionBarPrep: 'Bar Prep',
+    noCocktailsFound: 'No cocktails found',
+    noBarRecipesFound: 'No bar recipes found',
+    failedCocktails: 'cocktails',
+    failedBarRecipes: 'bar recipes',
+    failedBarProgram: 'bar program',
+  },
+  es: {
+    cocktails: 'Cocteles',
+    barPrep: 'Prep de Barra',
+    classic: 'Clasico',
+    modern: 'Moderno',
+    tiki: 'Tiki',
+    refresher: 'Refrescante',
+    heroLine1Cocktails: 'Preparados con',
+    heroLine2Cocktails: 'Alma',
+    heroLine1BarPrep: 'Jarabes Artesanales,',
+    heroLine2BarPrep: 'Infusiones y Mas',
+    subtitleBarPrep: 'Recetas de preparacion de barra: jarabes, infusiones e ingredientes artesanales.',
+    subtitleAll: 'Cocteles, jarabes, infusiones y todo detras de la barra.',
+    subtitleCocktails: 'Cocteles clasicos y de la casa con especificaciones de preparacion y decoracion.',
+    sectionCocktails: 'Cocteles',
+    sectionBarPrep: 'Prep de Barra',
+    noCocktailsFound: 'No se encontraron cocteles',
+    noBarRecipesFound: 'No se encontraron recetas de barra',
+    failedCocktails: 'los cocteles',
+    failedBarRecipes: 'las recetas de barra',
+    failedBarProgram: 'el programa de barra',
+  },
+} as const;
 
-const FILTER_OPTIONS: { value: CocktailFilterMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'classic', label: 'Classic' },
-  { value: 'modern', label: 'Modern' },
-  { value: 'tiki', label: 'Tiki' },
-  { value: 'refresher', label: 'Refresher' },
-];
+function getTabOptions(language: Language): { value: BarTab; label: string }[] {
+  const t = STRINGS[language];
+  const c = getCommon(language);
+  return [
+    { value: 'all', label: c.all },
+    { value: 'cocktails', label: t.cocktails },
+    { value: 'bar-prep', label: t.barPrep },
+  ];
+}
 
-const SORT_OPTIONS: { value: ProductSortMode; label: string }[] = [
-  { value: 'name', label: 'A\u2013Z' },
-  { value: 'recent', label: 'New' },
-  { value: 'featured', label: 'Featured' },
-];
+function getFilterOptions(language: Language): { value: CocktailFilterMode; label: string }[] {
+  const t = STRINGS[language];
+  const c = getCommon(language);
+  return [
+    { value: 'all', label: c.all },
+    { value: 'classic', label: t.classic },
+    { value: 'modern', label: t.modern },
+    { value: 'tiki', label: t.tiki },
+    { value: 'refresher', label: t.refresher },
+  ];
+}
+
+function getSortOptions(language: Language): { value: ProductSortMode; label: string }[] {
+  const c = getCommon(language);
+  return [
+    { value: 'name', label: c.sortAZ },
+    { value: 'recent', label: c.sortNew },
+    { value: 'featured', label: c.featured },
+  ];
+}
 
 const Cocktails = () => {
   const { language, setLanguage } = useLanguage();
+  const t = STRINGS[language];
+  const c = getCommon(language);
+  const tabOptions = useMemo(() => getTabOptions(language), [language]);
+  const filterOptions = useMemo(() => getFilterOptions(language), [language]);
+  const sortOptions = useMemo(() => getSortOptions(language), [language]);
   const isMobile = useIsMobile();
+  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const { togglePin, isPinned } = usePinnedRecipes();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -163,7 +231,7 @@ const Cocktails = () => {
     <button
       onClick={handleClearSelection}
       className="flex items-center justify-center shrink-0 h-9 w-9 rounded-lg bg-orange-500 text-white hover:bg-orange-600 active:scale-[0.96] shadow-sm transition-all duration-150"
-      title="Back"
+      title={c.back}
     >
       <ArrowLeft className="h-4 w-4" />
     </button>
@@ -178,7 +246,7 @@ const Cocktails = () => {
           type="search"
           value={activeSearchQuery}
           onChange={e => setActiveSearchQuery(e.target.value)}
-          placeholder="Search..."
+          placeholder={c.search}
           className={cn(
             'h-9 w-full rounded-lg border border-input bg-background',
             'pl-8 pr-8 text-sm',
@@ -199,8 +267,8 @@ const Cocktails = () => {
           </button>
         )}
       </div>
-      <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
-        {TAB_OPTIONS.map(opt => (
+      <div className="hidden lg:flex gap-0.5 rounded-lg bg-muted p-0.5">
+        {tabOptions.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -217,8 +285,8 @@ const Cocktails = () => {
           </button>
         ))}
       </div>
-      <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
-        {SORT_OPTIONS.map(opt => (
+      <div className="hidden lg:flex gap-0.5 rounded-lg bg-muted p-0.5">
+        {sortOptions.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -279,7 +347,7 @@ const Cocktails = () => {
         <div className="flex flex-col items-center justify-center py-20 gap-2">
           <span className="text-[24px] h-[24px] leading-[24px]">⚠️</span>
           <p className="text-sm text-muted-foreground">
-            Failed to load {isCocktailMode ? 'cocktails' : isBarPrepMode ? 'bar recipes' : 'bar program'}
+            {c.failedToLoad} {isCocktailMode ? t.failedCocktails : isBarPrepMode ? t.failedBarRecipes : t.failedBarProgram}
           </p>
         </div>
       ) : selectedIsCocktail ? (
@@ -292,6 +360,7 @@ const Cocktails = () => {
             activeAction={activeAction}
             onActionChange={setActiveAction}
             onTapPrepRecipe={handleTapPrepRecipe}
+            language={language}
           />
           {isMobile && (
             <ProductAIDrawer
@@ -315,6 +384,7 @@ const Cocktails = () => {
             onNext={barGoNext}
             activeAction={activeAction}
             onActionChange={setActiveAction}
+            language={language}
           />
           {isMobile && (
             <ProductAIDrawer
@@ -330,26 +400,106 @@ const Cocktails = () => {
       ) : (
         <>
           {/* Hero text */}
-          <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
-              {isBarPrepMode ? 'House-Made Syrups,' : 'Shaken with'}
-              <br />
-              <span className="font-bold">{isBarPrepMode ? 'Infusions & More' : 'Soul'}</span>
-              {!isBarPrepMode && ' 🍸'}
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              {isBarPrepMode
-                ? 'Bar prep recipes for syrups, infusions, and house-made ingredients.'
-                : isAllMode
-                  ? 'Cocktails, syrups, infusions, and everything behind the bar.'
-                  : 'Signature and classic cocktails with build specs and garnish details.'}
-            </p>
+          <div className="py-6 flex items-start justify-between">
+            <div>
+              <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+                {isBarPrepMode ? t.heroLine1BarPrep : t.heroLine1Cocktails}
+                <br />
+                <span className="font-bold">{isBarPrepMode ? t.heroLine2BarPrep : t.heroLine2Cocktails}</span>
+                {!isBarPrepMode && ' 🍸'}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {isBarPrepMode
+                  ? t.subtitleBarPrep
+                  : isAllMode
+                    ? t.subtitleAll
+                    : t.subtitleCocktails}
+              </p>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/admin/ingest')}
+                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Manage in admin"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {/* Style filter — cocktails-only mode */}
+          {/* Mobile filter/sort chips — scrollable rows, below lg only */}
+          <div className="lg:hidden -mx-4 px-4 mb-4 space-y-2">
+            <div
+              className="flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+            >
+              {tabOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleTabChange(opt.value)}
+                  className={cn(
+                    'flex-none h-8 px-4 rounded-full text-[12px] font-semibold whitespace-nowrap',
+                    'transition-all duration-150 active:scale-[0.96]',
+                    barTab === opt.value
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className="flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+            >
+              {sortOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setActiveSortMode(opt.value)}
+                  className={cn(
+                    'flex-none h-7 px-3.5 rounded-full text-[11px] font-semibold whitespace-nowrap',
+                    'transition-all duration-150 active:scale-[0.96]',
+                    activeSortMode === opt.value
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {isCocktailMode && (
+              <div
+                className="flex gap-1.5 overflow-x-auto"
+                style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+              >
+                {filterOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setFilterMode(opt.value)}
+                    className={cn(
+                      'flex-none h-7 px-3.5 rounded-full text-[11px] font-semibold whitespace-nowrap',
+                      'transition-all duration-150 active:scale-[0.96]',
+                      filterMode === opt.value
+                        ? 'bg-orange-500 text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Style filter -- cocktails-only mode, desktop only */}
           {isCocktailMode && (
-            <div className="flex gap-0.5 rounded-lg bg-muted p-0.5 w-fit mb-4">
-              {FILTER_OPTIONS.map(opt => (
+            <div className="hidden lg:flex gap-0.5 rounded-lg bg-muted p-0.5 w-fit mb-4">
+              {filterOptions.map(opt => (
                 <button
                   key={opt.value}
                   type="button"
@@ -372,7 +522,7 @@ const Cocktails = () => {
           {showCocktails && filteredCocktails.length > 0 && (
             <>
               {isAllMode && (
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60 mb-3">Cocktails</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60 mb-3">{t.sectionCocktails}</p>
               )}
               <CocktailGrid
                 cocktails={filteredCocktails}
@@ -385,7 +535,7 @@ const Cocktails = () => {
           {showBarPrep && filteredBarRecipes.length > 0 && (
             <div className={showCocktails && filteredCocktails.length > 0 ? 'mt-8' : ''}>
               {isAllMode && (
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60 mb-3">Bar Prep</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60 mb-3">{t.sectionBarPrep}</p>
               )}
               <RecipeGrid
                 recipes={filteredBarRecipes}
@@ -397,17 +547,17 @@ const Cocktails = () => {
           {/* Empty state */}
           {showCocktails && filteredCocktails.length === 0 && showBarPrep && filteredBarRecipes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
-              <p className="text-sm text-muted-foreground">No results found</p>
+              <p className="text-sm text-muted-foreground">{c.noResults}</p>
             </div>
           )}
           {isCocktailMode && filteredCocktails.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
-              <p className="text-sm text-muted-foreground">No cocktails found</p>
+              <p className="text-sm text-muted-foreground">{t.noCocktailsFound}</p>
             </div>
           )}
           {isBarPrepMode && filteredBarRecipes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 gap-2">
-              <p className="text-sm text-muted-foreground">No bar recipes found</p>
+              <p className="text-sm text-muted-foreground">{t.noBarRecipesFound}</p>
             </div>
           )}
         </>

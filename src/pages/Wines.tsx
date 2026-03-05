@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { ArrowLeft, Loader2, Search, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2, Search, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
@@ -13,24 +14,63 @@ import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
 import { getActionConfig } from '@/data/ai-action-config';
 import { NavbarBookmark } from '@/components/shared/NavbarBookmark';
 import { usePinnedRecipes } from '@/hooks/use-pinned-recipes';
+import { getCommon } from '@/lib/common-strings';
+import type { Language } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 
-const FILTER_OPTIONS: { value: WineFilterMode; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'red', label: 'Red' },
-  { value: 'white', label: 'White' },
-  { value: 'rosé', label: 'Rosé' },
-  { value: 'sparkling', label: 'Sparkling' },
-];
+const STRINGS = {
+  en: {
+    heroLine1: 'Sip, Savor',
+    heroLine2: 'Discover',
+    subtitle: 'Our curated wine list with tasting notes and pairing suggestions.',
+    failedToLoadWines: 'Failed to load wines',
+    red: 'Red',
+    white: 'White',
+    rosé: 'Rosé',
+    sparkling: 'Sparkling',
+  },
+  es: {
+    heroLine1: 'Saborea',
+    heroLine2: 'Descubre',
+    subtitle: 'Nuestra carta de vinos con notas de cata y sugerencias de maridaje.',
+    failedToLoadWines: 'Error al cargar los vinos',
+    red: 'Tinto',
+    white: 'Blanco',
+    rosé: 'Rosado',
+    sparkling: 'Espumoso',
+  },
+} as const;
 
-const SORT_OPTIONS: { value: ProductSortMode; label: string }[] = [
-  { value: 'name', label: 'A\u2013Z' },
-  { value: 'recent', label: 'New' },
-  { value: 'featured', label: 'Featured' },
-];
+function getFilterOptions(language: Language): { value: WineFilterMode; label: string }[] {
+  const t = STRINGS[language];
+  const c = getCommon(language);
+  return [
+    { value: 'all', label: c.all },
+    { value: 'red', label: t.red },
+    { value: 'white', label: t.white },
+    { value: 'rosé', label: t.rosé },
+    { value: 'sparkling', label: t.sparkling },
+  ];
+}
+
+function getSortOptions(language: Language): { value: ProductSortMode; label: string }[] {
+  const c = getCommon(language);
+  return [
+    { value: 'name', label: c.sortAZ },
+    { value: 'recent', label: c.sortNew },
+    { value: 'featured', label: c.featured },
+  ];
+}
 
 const Wines = () => {
   const { language, setLanguage } = useLanguage();
+  const t = STRINGS[language];
+  const c = getCommon(language);
+  const filterOptions = useMemo(() => getFilterOptions(language), [language]);
+  const sortOptions = useMemo(() => getSortOptions(language), [language]);
   const isMobile = useIsMobile();
+  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const { togglePin, isPinned } = usePinnedRecipes();
 
   const {
@@ -68,7 +108,7 @@ const Wines = () => {
     <button
       onClick={handleClearSelection}
       className="flex items-center justify-center shrink-0 h-9 w-9 rounded-lg bg-orange-500 text-white hover:bg-orange-600 active:scale-[0.96] shadow-sm transition-all duration-150"
-      title="Back"
+      title={c.back}
     >
       <ArrowLeft className="h-4 w-4" />
     </button>
@@ -82,7 +122,7 @@ const Wines = () => {
           type="search"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search..."
+          placeholder={c.search}
           className={cn(
             'h-9 w-full rounded-lg border border-input bg-background',
             'pl-8 pr-8 text-sm',
@@ -103,8 +143,8 @@ const Wines = () => {
           </button>
         )}
       </div>
-      <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
-        {FILTER_OPTIONS.map(opt => (
+      <div className="hidden lg:flex gap-0.5 rounded-lg bg-muted p-0.5">
+        {filterOptions.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -121,8 +161,8 @@ const Wines = () => {
           </button>
         ))}
       </div>
-      <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
-        {SORT_OPTIONS.map(opt => (
+      <div className="hidden lg:flex gap-0.5 rounded-lg bg-muted p-0.5">
+        {sortOptions.map(opt => (
           <button
             key={opt.value}
             type="button"
@@ -175,7 +215,7 @@ const Wines = () => {
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 gap-2">
           <span className="text-[24px] h-[24px] leading-[24px]">⚠️</span>
-          <p className="text-sm text-muted-foreground">Failed to load wines</p>
+          <p className="text-sm text-muted-foreground">{t.failedToLoadWines}</p>
         </div>
       ) : selectedWine ? (
         <>
@@ -186,6 +226,7 @@ const Wines = () => {
             onNext={goToNext}
             activeAction={activeAction}
             onActionChange={setActiveAction}
+            language={language}
           />
           {isMobile && (
             <ProductAIDrawer
@@ -200,14 +241,71 @@ const Wines = () => {
         </>
       ) : (
         <>
-          <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
-              Sip, Savor
-              <br />
-              <span className="font-bold">Discover</span> 🍷
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">Our curated wine list with tasting notes and pairing suggestions.</p>
+          <div className="py-6 flex items-start justify-between">
+            <div>
+              <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+                {t.heroLine1}
+                <br />
+                <span className="font-bold">{t.heroLine2}</span> 🍷
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">{t.subtitle}</p>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/admin/ingest')}
+                className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Manage in admin"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
           </div>
+          {/* Mobile filter/sort chips — scrollable rows, below lg only */}
+          <div className="lg:hidden -mx-4 px-4 mb-4 space-y-2">
+            <div
+              className="flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+            >
+              {filterOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFilterMode(opt.value)}
+                  className={cn(
+                    'flex-none h-8 px-4 rounded-full text-[12px] font-semibold whitespace-nowrap',
+                    'transition-all duration-150 active:scale-[0.96]',
+                    filterMode === opt.value
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div
+              className="flex gap-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+            >
+              {sortOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSortMode(opt.value)}
+                  className={cn(
+                    'flex-none h-7 px-3.5 rounded-full text-[11px] font-semibold whitespace-nowrap',
+                    'transition-all duration-150 active:scale-[0.96]',
+                    sortMode === opt.value
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'bg-muted text-muted-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <WineGrid
             wines={filteredWines}
             onSelectWine={selectWine}
