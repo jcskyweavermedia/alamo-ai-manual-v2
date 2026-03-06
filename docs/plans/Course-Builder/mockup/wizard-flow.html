@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Rollout Wizard - Course Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex">
+  <!-- Dark Sidebar -->
+  <aside class="w-60 bg-slate-900 text-white flex flex-col shrink-0 min-h-screen">
+    <div class="px-5 py-5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-sm font-bold">A</div>
+        <span class="font-semibold text-sm">Alamo Prime</span>
+      </div>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="wizard-selector.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to Wizards
+      </a>
+      <div class="px-3 py-3">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Wizard Steps</div>
+        <div id="sidebar-steps" class="space-y-1"></div>
+      </div>
+    </nav>
+    <div class="px-5 py-4 border-t border-slate-700 text-xs text-slate-500">
+      <a href="index.html" class="hover:text-slate-300 transition">&larr; Back to mockup index</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto">
+    <div class="max-w-3xl mx-auto px-8 py-10">
+      <!-- Header -->
+      <div class="mb-2">
+        <div class="flex items-center gap-2 text-sm text-slate-500 mb-1">
+          <svg class="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+          Menu Rollout Wizard
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900">Create Menu Rollout Course</h1>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="flex items-center gap-1 my-6">
+        <div id="prog-1" class="h-1.5 flex-1 rounded-full bg-emerald-500 transition-colors"></div>
+        <div id="prog-2" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+        <div id="prog-3" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+        <div id="prog-4" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+        <div id="prog-5" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+        <div id="prog-6" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+      </div>
+
+      <!-- Step Panels -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm">
+
+        <!-- Step 1: Course Details -->
+        <div id="step-1" class="p-8">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 1 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Course Details</h2>
+          <p class="text-sm text-slate-500 mb-6">Title, description, and the reason behind this rollout.</p>
+
+          <div class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Course Title</label>
+              <input type="text" value="Spring 2026 Menu Launch" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Description</label>
+              <textarea rows="3" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">Introducing 4 new dishes and 2 seasonal cocktails for the spring menu. Staff must learn key ingredients, allergens, preparation notes, and guest talking points.</textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Effective Date</label>
+                <input type="date" value="2026-03-15" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Urgency</label>
+                <select class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                  <option>Standard</option>
+                  <option selected>High - Launching Soon</option>
+                  <option>Critical - Immediate</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Item Selection -->
+        <div id="step-2" class="p-8 hidden">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 2 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Item Selection</h2>
+          <p class="text-sm text-slate-500 mb-6">Search and pick items from your database to include in this course.</p>
+
+          <!-- Search Bar -->
+          <div class="relative mb-5">
+            <svg class="w-4 h-4 absolute left-3.5 top-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" placeholder="Search dishes, wines, cocktails, recipes..." class="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          </div>
+
+          <!-- Category Filters -->
+          <div class="flex gap-2 mb-5">
+            <button class="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-full">All</button>
+            <button class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">Dishes</button>
+            <button class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">Wines</button>
+            <button class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">Cocktails</button>
+            <button class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">Beer &amp; Liquor</button>
+            <button class="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full hover:bg-slate-200">Recipes</button>
+          </div>
+
+          <!-- Selected Items -->
+          <div class="mb-4">
+            <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Selected (4 items)</div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Dish</span>
+                  <span class="text-sm font-medium text-slate-900">Prime Dry-Aged Ribeye 16oz</span>
+                </div>
+                <button class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+              <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Dish</span>
+                  <span class="text-sm font-medium text-slate-900">Pan-Seared Chilean Sea Bass</span>
+                </div>
+                <button class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+              <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Wine</span>
+                  <span class="text-sm font-medium text-slate-900">Caymus Cabernet Sauvignon 2022</span>
+                </div>
+                <button class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+              <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Cocktail</span>
+                  <span class="text-sm font-medium text-slate-900">Smoked Rosemary Old Fashioned</span>
+                </div>
+                <button class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Available Items (sample) -->
+          <div>
+            <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Available</div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between border border-slate-200 rounded-xl px-4 py-2.5 hover:border-emerald-300 hover:bg-emerald-50/50 transition cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Dish</span>
+                  <span class="text-sm text-slate-700">Wagyu Burger with Truffle Aioli</span>
+                </div>
+                <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </div>
+              <div class="flex items-center justify-between border border-slate-200 rounded-xl px-4 py-2.5 hover:border-emerald-300 hover:bg-emerald-50/50 transition cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <span class="text-[11px] font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Wine</span>
+                  <span class="text-sm text-slate-700">Opus One 2021</span>
+                </div>
+                <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Assessment Type -->
+        <div id="step-3" class="p-8 hidden">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 3 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Assessment Type</h2>
+          <p class="text-sm text-slate-500 mb-6">How should staff be tested on this material?</p>
+
+          <div class="space-y-3">
+            <label class="flex items-start gap-4 border border-emerald-300 bg-emerald-50/50 rounded-xl p-4 cursor-pointer">
+              <input type="radio" name="assessment" checked class="mt-1 accent-emerald-600">
+              <div>
+                <div class="font-medium text-slate-900">Multiple Choice</div>
+                <div class="text-sm text-slate-500 mt-0.5">AI generates questions with 4 options each. Quick evaluation, works in noisy environments. <span class="text-emerald-600 font-medium">Recommended</span></div>
+              </div>
+            </label>
+            <label class="flex items-start gap-4 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-300 transition">
+              <input type="radio" name="assessment" class="mt-1 accent-emerald-600">
+              <div>
+                <div class="font-medium text-slate-900">Voice Response</div>
+                <div class="text-sm text-slate-500 mt-0.5">Open-ended questions where staff record voice answers. Tests verbal articulation &mdash; great for describing dishes to guests.</div>
+              </div>
+            </label>
+            <label class="flex items-start gap-4 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-300 transition">
+              <input type="radio" name="assessment" class="mt-1 accent-emerald-600">
+              <div>
+                <div class="font-medium text-slate-900 flex items-center gap-2">Interactive AI <span class="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">~5-8 credits/session</span></div>
+                <div class="text-sm text-slate-500 mt-0.5">Real-time voice conversation with AI evaluator. Role-playing scenarios, follow-up probing. Best for service training.</div>
+              </div>
+            </label>
+            <label class="flex items-start gap-4 border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-300 transition">
+              <input type="radio" name="assessment" class="mt-1 accent-emerald-600">
+              <div>
+                <div class="font-medium text-slate-900">Mixed</div>
+                <div class="text-sm text-slate-500 mt-0.5">Combine multiple choice and voice response in one assessment. Configure question counts for each type.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Step 4: Assignment -->
+        <div id="step-4" class="p-8 hidden">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 4 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Assignment</h2>
+          <p class="text-sm text-slate-500 mb-6">Who should take this course?</p>
+
+          <div class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Assign to</label>
+              <select class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option>All FOH Staff</option>
+                <option selected>By Role</option>
+                <option>Specific Individuals</option>
+                <option>All Staff</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Select Roles</label>
+              <div class="flex flex-wrap gap-2">
+                <label class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 cursor-pointer">
+                  <input type="checkbox" checked class="accent-emerald-600"><span class="text-sm">Servers</span>
+                </label>
+                <label class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 cursor-pointer">
+                  <input type="checkbox" checked class="accent-emerald-600"><span class="text-sm">Bartenders</span>
+                </label>
+                <label class="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" class="accent-emerald-600"><span class="text-sm">Hosts</span>
+                </label>
+                <label class="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" class="accent-emerald-600"><span class="text-sm">Bussers</span>
+                </label>
+                <label class="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" class="accent-emerald-600"><span class="text-sm">Managers</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Teacher Level</label>
+              <div class="space-y-2">
+                <label class="flex items-start gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="teacher" class="mt-1 accent-emerald-600"><div><div class="text-sm font-medium">Friendly</div><div class="text-xs text-slate-500">Warm, encouraging. Great for new hires.</div></div>
+                </label>
+                <label class="flex items-start gap-3 border border-emerald-300 bg-emerald-50/50 rounded-xl p-3 cursor-pointer">
+                  <input type="radio" name="teacher" checked class="mt-1 accent-emerald-600"><div><div class="text-sm font-medium">Professional <span class="text-emerald-600">(Recommended)</span></div><div class="text-xs text-slate-500">Clear and balanced. Good for most training.</div></div>
+                </label>
+                <label class="flex items-start gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="teacher" class="mt-1 accent-emerald-600"><div><div class="text-sm font-medium">Strict</div><div class="text-xs text-slate-500">Direct and precise. Best for safety-critical content.</div></div>
+                </label>
+                <label class="flex items-start gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="teacher" class="mt-1 accent-emerald-600"><div><div class="text-sm font-medium">Expert</div><div class="text-xs text-slate-500">Deep and challenging. For experienced staff or management.</div></div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Longevity -->
+        <div id="step-5" class="p-8 hidden">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 5 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Longevity &amp; Deadlines</h2>
+          <p class="text-sm text-slate-500 mb-6">Set completion deadlines and course expiry.</p>
+
+          <div class="space-y-5">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Completion Deadline</label>
+                <input type="date" value="2026-03-14" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Course Expiry</label>
+                <input type="date" value="2026-06-15" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Recurrence</label>
+              <select class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option selected>One-time</option>
+                <option>Recurring &mdash; Quarterly</option>
+                <option>Recurring &mdash; Annually</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Passing Score</label>
+                <div class="flex items-center gap-2">
+                  <input type="number" value="70" class="w-20 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <span class="text-sm text-slate-500">%</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">Max Attempts</label>
+                <select class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option>Unlimited</option>
+                  <option selected>3</option>
+                  <option>5</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 6: Review & Build -->
+        <div id="step-6" class="p-8 hidden">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Step 6 of 6</span>
+          </div>
+          <h2 class="text-xl font-semibold text-slate-900 mb-1">Review &amp; Build</h2>
+          <p class="text-sm text-slate-500 mb-6">Review your selections, then let the AI build your course.</p>
+
+          <div class="space-y-4">
+            <!-- Summary Cards -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Course</div>
+              <div class="font-medium text-slate-900">Spring 2026 Menu Launch</div>
+              <div class="text-sm text-slate-500 mt-1">4 new dishes and 2 seasonal cocktails</div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+              <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Items (4)</div>
+              <div class="flex flex-wrap gap-2 mt-1">
+                <span class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1">Prime Dry-Aged Ribeye 16oz</span>
+                <span class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1">Pan-Seared Chilean Sea Bass</span>
+                <span class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1">Caymus Cabernet Sauvignon 2022</span>
+                <span class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1">Smoked Rosemary Old Fashioned</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Assessment</div>
+                <div class="text-sm font-medium text-slate-900">Multiple Choice</div>
+              </div>
+              <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Assigned To</div>
+                <div class="text-sm font-medium text-slate-900">Servers, Bartenders</div>
+              </div>
+              <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Deadline</div>
+                <div class="text-sm font-medium text-slate-900">Mar 14, 2026</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Build Actions -->
+          <div class="mt-8 pt-6 border-t border-slate-200">
+            <div class="flex items-center gap-3">
+              <a href="editor.html" class="flex-1 bg-emerald-600 text-white text-center font-medium py-3 rounded-xl hover:bg-emerald-700 transition shadow-sm">
+                Build Course
+              </a>
+            </div>
+            <p class="text-xs text-slate-400 text-center mt-3">AI will generate an outline (~5s), then build all content (~30-60s). You can review and edit everything before publishing.</p>
+          </div>
+        </div>
+
+        <!-- Footer Navigation -->
+        <div class="px-8 py-4 border-t border-slate-100 flex items-center justify-between">
+          <button id="btn-prev" onclick="prevStep()" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 transition disabled:opacity-30" disabled>
+            &larr; Previous
+          </button>
+          <span id="step-label" class="text-xs text-slate-400">Step 1 of 6</span>
+          <button id="btn-next" onclick="nextStep()" class="px-5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm">
+            Next &rarr;
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const stepNames = ['Course Details', 'Item Selection', 'Assessment', 'Assignment', 'Longevity', 'Review & Build'];
+    let current = 1;
+    const total = 6;
+
+    // Build sidebar step list
+    const sidebarSteps = document.getElementById('sidebar-steps');
+    stepNames.forEach((name, i) => {
+      const div = document.createElement('div');
+      div.id = 'sidebar-step-' + (i+1);
+      div.className = 'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ' + (i === 0 ? 'text-white bg-slate-800 font-medium' : 'text-slate-500');
+      div.innerHTML = '<span class="w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ' + (i === 0 ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400') + '">' + (i+1) + '</span> ' + name;
+      sidebarSteps.appendChild(div);
+    });
+
+    function showStep(n) {
+      for (let i = 1; i <= total; i++) {
+        document.getElementById('step-' + i).classList.toggle('hidden', i !== n);
+        const prog = document.getElementById('prog-' + i);
+        prog.className = 'h-1.5 flex-1 rounded-full transition-colors ' + (i <= n ? 'bg-emerald-500' : 'bg-slate-200');
+        const sb = document.getElementById('sidebar-step-' + i);
+        if (i === n) { sb.className = 'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-white bg-slate-800 font-medium'; }
+        else if (i < n) { sb.className = 'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-emerald-400'; }
+        else { sb.className = 'flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500'; }
+        sb.querySelector('span').className = 'w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ' + (i === n ? 'bg-emerald-600 text-white' : i < n ? 'bg-emerald-800 text-emerald-300' : 'bg-slate-700 text-slate-400');
+      }
+      document.getElementById('step-label').textContent = 'Step ' + n + ' of ' + total;
+      document.getElementById('btn-prev').disabled = (n === 1);
+      document.getElementById('btn-next').textContent = n === total ? 'Build Course' : 'Next \u2192';
+    }
+
+    function nextStep() {
+      if (current < total) { current++; showStep(current); }
+      else { window.location.href = 'editor.html'; }
+    }
+    function prevStep() {
+      if (current > 1) { current--; showStep(current); }
+    }
+  </script>
+</body>
+</html>

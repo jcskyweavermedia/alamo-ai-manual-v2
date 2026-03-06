@@ -1,20 +1,88 @@
 /**
- * Course Quiz Generate Edge Function
+ * Course Quiz Generate Edge Function (Rewritten for Phase 5)
  *
- * Generates quiz questions (MC + voice) from section content using AI.
- * If active questions already exist for the section, returns those (shuffled).
- * Persists generated questions to quiz_questions table.
- * Returns client-safe version (MC options have no `correct` field).
+ * Generates a pool of bilingual MC quiz questions from course section content
+ * using AI, persists them to quiz_questions, and creates a quiz_attempt.
  *
- * Auth: verify_jwt=false — manual JWT verification via getClaims()
+ * Three modes:
+ *   - section_quiz      — generates questions for a SINGLE section
+ *   - course_quiz       — generates questions across ALL sections (course-level assessment)
+ *   - generate_pool_only — admin builder mode: generates + persists questions WITHOUT
+ *                          creating a quiz attempt or requiring enrollment
+ *
+ * Content is assembled from course_sections.elements JSONB (new architecture).
+ * Quiz configuration is read from courses.quiz_config JSONB.
+ *
+ * Auth: verify_jwt=false — manual JWT verification via authenticateWithUser()
+ * Deploy: npx supabase functions deploy course-quiz-generate --no-verify-jwt
  */
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
-import type { SupabaseClient } from "../_shared/supabase.ts";
-import { SOURCE_TABLE, CONTENT_SERIALIZERS, loadSectionContent } from "../_shared/content.ts";
+import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
-import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
+import { fetchPromptBySlug } from "../_shared/prompt-helpers.ts";
+import { getCreditCost, trackAndIncrement } from "../_shared/credit-pipeline.ts";
+import { checkUsage, UsageError } from "../_shared/usage.ts";
+// estimateTokens available from course-builder.ts if needed for future use
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+interface QuizConfig {
+  quiz_mode: string;
+  question_count: number;
+  question_pool_size: number;
+  passing_score: number;
+  max_attempts: number | null;
+  cooldown_minutes: number;
+  shuffle_questions: boolean;
+  shuffle_options: boolean;
+  show_feedback_immediately: boolean;
+}
+
+interface CourseElement {
+  type: string;
+  key: string;
+  title_en?: string;
+  title_es?: string;
+  body_en?: string;
+  body_es?: string;
+  caption_en?: string;
+  caption_es?: string;
+  variant?: string;
+  products?: Array<{ name_en?: string; name_es?: string }>;
+  // deno-lint-ignore no-explicit-any
+  [key: string]: any;
+}
+
+interface GeneratedQuestion {
+  question_en: string;
+  question_es: string;
+  explanation_en: string;
+  explanation_es: string;
+  options: Array<{
+    id: string;
+    text_en: string;
+    text_es: string;
+    correct: boolean;
+  }>;
+  difficulty: "easy" | "medium" | "hard";
+  source_element_key: string | null;
+}
+
+// Default quiz config if courses.quiz_config is null/incomplete
+const DEFAULT_QUIZ_CONFIG: QuizConfig = {
+  quiz_mode: "multiple_choice",
+  question_count: 10,
+  question_pool_size: 15,
+  passing_score: 70,
+  max_attempts: null,
+  cooldown_minutes: 0,
+  shuffle_questions: true,
+  shuffle_options: true,
+  show_feedback_immediately: true,
+};
 
 // =============================================================================
 // HELPERS
@@ -29,6 +97,87 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/**
+ * Count words in a string.
+ */
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Extract readable text from a course section's elements JSONB.
+ * Concatenates body_en/body_es (or caption) from content/feature/media elements.
+ */
+function extractTextFromElements(
+  elements: CourseElement[],
+  language: "en" | "es",
+  sectionTitle?: string,
+): string {
+  const parts: string[] = [];
+
+  if (sectionTitle) {
+    parts.push(`=== Section: ${sectionTitle} ===`);
+  }
+
+  for (const el of elements) {
+    const isEs = language === "es";
+    const title =
+      isEs && el.title_es ? el.title_es : el.title_en || "";
+
+    switch (el.type) {
+      case "content":
+      case "feature": {
+        const body = isEs && el.body_es ? el.body_es : el.body_en || "";
+        if (body) {
+          parts.push(title ? `--- ${title} ---\n${body}` : body);
+        }
+        break;
+      }
+      case "media": {
+        const caption =
+          isEs && el.caption_es ? el.caption_es : el.caption_en || "";
+        if (caption) {
+          parts.push(`[Image: ${title}] ${caption}`);
+        }
+        break;
+      }
+      case "product_viewer": {
+        // Include product names only
+        if (el.products && Array.isArray(el.products)) {
+          const names = el.products
+            .map((p) => (isEs && p.name_es ? p.name_es : p.name_en || ""))
+            .filter(Boolean)
+            .join(", ");
+          if (names) {
+            parts.push(`[Products: ${names}]`);
+          }
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Verify user has manager or admin role and return group_id.
+ */
+// deno-lint-ignore no-explicit-any
+async function verifyManagerRole(supabase: any, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("group_memberships")
+    .select("role, group_id")
+    .eq("user_id", userId)
+    .single();
+
+  if (error || !data) return null;
+  if (data.role !== "manager" && data.role !== "admin") return null;
+  return data.group_id;
+}
+
 // =============================================================================
 // OPENAI STRUCTURED OUTPUT SCHEMA
 // =============================================================================
@@ -41,12 +190,10 @@ const quizGenerationSchema = {
       items: {
         type: "object" as const,
         properties: {
-          question_type: {
-            type: "string" as const,
-            enum: ["multiple_choice", "voice"],
-          },
           question_en: { type: "string" as const },
           question_es: { type: "string" as const },
+          explanation_en: { type: "string" as const },
+          explanation_es: { type: "string" as const },
           options: {
             type: "array" as const,
             items: {
@@ -61,35 +208,22 @@ const quizGenerationSchema = {
               additionalProperties: false,
             },
           },
-          explanation_en: { type: "string" as const },
-          explanation_es: { type: "string" as const },
-          rubric: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                criterion: { type: "string" as const },
-                points: { type: "number" as const },
-                description: { type: "string" as const },
-              },
-              required: ["criterion", "points", "description"],
-              additionalProperties: false,
-            },
-          },
           difficulty: {
             type: "string" as const,
             enum: ["easy", "medium", "hard"],
           },
+          source_element_key: {
+            type: ["string", "null"] as unknown as "string",
+          },
         },
         required: [
-          "question_type",
           "question_en",
           "question_es",
-          "options",
           "explanation_en",
           "explanation_es",
-          "rubric",
+          "options",
           "difficulty",
+          "source_element_key",
         ],
         additionalProperties: false,
       },
@@ -98,6 +232,28 @@ const quizGenerationSchema = {
   required: ["questions"],
   additionalProperties: false,
 };
+
+// =============================================================================
+// FALLBACK PROMPT (used when ai_prompts.slug = 'quiz-pool-generator' not found)
+// =============================================================================
+
+const FALLBACK_QUIZ_PROMPT = `You are a bilingual quiz question generator for Alamo Prime, a premium steakhouse training program.
+
+TASK: Generate multiple-choice quiz questions based ONLY on the provided source material.
+
+RULES:
+1. Each question must have exactly 4 options with exactly 1 correct answer.
+2. Generate BOTH English (question_en, explanation_en) and Spanish (question_es, explanation_es) versions. Spanish should be natural hospitality Spanish — not a literal translation.
+3. Distribute difficulty levels: approximately 30% easy, 50% medium, 20% hard.
+4. Include a clear explanation for the correct answer (2-3 sentences) that references specific facts from the source material.
+5. Questions should test UNDERSTANDING and APPLICATION — not memorization of trivial details.
+6. Reference specific facts, procedures, ingredients, or service standards from the source material.
+7. Each option ID should be a short unique string (e.g., "a", "b", "c", "d").
+8. For source_element_key: include the key of the element that the question primarily tests. Use null if the question draws from multiple elements.
+9. Avoid "all of the above" or "none of the above" options.
+10. Make wrong answers plausible — they should be common misconceptions or reasonable-sounding alternatives.
+
+OUTPUT: Return valid JSON matching the provided schema.`;
 
 // =============================================================================
 // MAIN HANDLER
@@ -111,328 +267,59 @@ Deno.serve(async (req) => {
   console.log("[quiz-generate] Request received");
 
   try {
-    // 1. Authenticate
-    const { userId, supabase } = await authenticateWithClaims(req);
+    // ── 1. Authenticate ──────────────────────────────────────────────────
+    const { userId, supabase } = await authenticateWithUser(req);
     console.log("[quiz-generate] User:", userId);
 
-    // 2. Parse request
+    // ── 2. Verify manager/admin role ─────────────────────────────────────
+    const resolvedGroupId = await verifyManagerRole(supabase, userId);
+    if (!resolvedGroupId) {
+      return errorResponse("forbidden", "Manager or admin role required", 403);
+    }
+    const groupId = resolvedGroupId;
+
+    // ── 3. Parse request ─────────────────────────────────────────────────
     const body = await req.json();
     const {
       section_id,
       course_id,
       mode = "section_quiz",
       language = "en",
-      groupId,
-      question_count,
       force_regenerate = false,
     } = body;
 
-    if (mode === "module_test") {
+    if (mode === "generate_pool_only") {
       if (!course_id) {
-        return errorResponse("bad_request", "course_id is required for module_test mode", 400);
+        return errorResponse("bad_request", "course_id is required for generate_pool_only mode", 400);
       }
-      if (!groupId) {
-        return errorResponse("bad_request", "groupId is required", 400);
-      }
-      return await handleModuleTestGenerate(supabase, userId, course_id, language, groupId, question_count, force_regenerate);
+      return await handleGeneratePoolOnly(
+        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate,
+      );
     }
 
+    if (mode === "course_quiz") {
+      if (!course_id) {
+        return errorResponse("bad_request", "course_id is required for course_quiz mode", 400);
+      }
+      return await handleCourseQuiz(
+        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate,
+      );
+    }
+
+    // section_quiz mode
     if (!section_id) {
       return errorResponse("bad_request", "section_id is required", 400);
     }
-    if (!groupId) {
-      return errorResponse("bad_request", "groupId is required", 400);
+    if (!course_id) {
+      return errorResponse("bad_request", "course_id is required", 400);
     }
 
-    // 3. Check usage limits
-    const usage = await checkUsage(supabase, userId, groupId);
-    if (!usage) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
-    }
-    if (!usage.can_ask) {
-      const limitType =
-        usage.daily_count >= usage.daily_limit ? "daily" : "monthly";
-      return errorResponse(
-        "limit_exceeded",
-        limitType === "daily"
-          ? language === "es"
-            ? "Límite diario alcanzado. Intenta mañana."
-            : "Daily question limit reached. Try again tomorrow."
-          : language === "es"
-          ? "Límite mensual alcanzado."
-          : "Monthly question limit reached.",
-        429
-      );
-    }
-
-    // 4. Fetch section config
-    const { data: section, error: sectionError } = await supabase
-      .from("course_sections")
-      .select("id, content_source, content_ids, quiz_enabled, quiz_question_count, quiz_passing_score, title_en, title_es")
-      .eq("id", section_id)
-      .single();
-
-    if (sectionError || !section) {
-      console.error("[quiz-generate] Section not found:", sectionError?.message);
-      return errorResponse("not_found", "Section not found", 404);
-    }
-
-    if (!section.quiz_enabled) {
-      return errorResponse("bad_request", "Quiz is not enabled for this section", 400);
-    }
-
-    const numQuestions = question_count || section.quiz_question_count || 5;
-    const passingScore = section.quiz_passing_score || 70;
-
-    console.log(
-      `[quiz-generate] Section: ${section.title_en} | Source: ${section.content_source} | Questions: ${numQuestions}`
+    return await handleSectionQuiz(
+      supabase, userId, course_id, section_id, language as "en" | "es", groupId, force_regenerate,
     );
-
-    // 5. Check for existing questions
-    if (!force_regenerate) {
-      const { data: existing, error: existingError } = await supabase
-        .from("quiz_questions")
-        .select("*")
-        .eq("section_id", section_id)
-        .eq("is_active", true);
-
-      if (!existingError && existing && existing.length >= numQuestions) {
-        console.log(
-          `[quiz-generate] Found ${existing.length} existing questions, reusing`
-        );
-
-        const { data: enrollment } = await supabase
-          .from("course_enrollments")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("course_id", (
-            await supabase
-              .from("course_sections")
-              .select("course_id")
-              .eq("id", section_id)
-              .single()
-          ).data?.course_id)
-          .single();
-
-        if (!enrollment) {
-          return errorResponse("bad_request", "Not enrolled in this course", 400);
-        }
-
-        const { count: prevAttempts } = await supabase
-          .from("quiz_attempts")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .eq("section_id", section_id);
-
-        const attemptNumber = (prevAttempts || 0) + 1;
-
-        const { data: attempt, error: attemptError } = await supabase
-          .from("quiz_attempts")
-          .insert({
-            user_id: userId,
-            section_id,
-            enrollment_id: enrollment.id,
-            attempt_number: attemptNumber,
-            status: "in_progress",
-          })
-          .select("id")
-          .single();
-
-        if (attemptError) {
-          console.error("[quiz-generate] Attempt create error:", attemptError.message);
-          return errorResponse("server_error", "Failed to create quiz attempt", 500);
-        }
-
-        const selected = shuffle(existing).slice(0, numQuestions);
-
-        return jsonResponse({
-          questions: selected.map((q: Record<string, unknown>) =>
-            toClientQuestion(q, language)
-          ),
-          attempt_id: attempt.id,
-          total_questions: selected.length,
-          passing_score: passingScore,
-        });
-      }
-    }
-
-    // 6. Fetch content for AI generation
-    const contentSource = section.content_source;
-    const contentIds = section.content_ids || [];
-
-    if (contentSource === "custom" || contentIds.length === 0) {
-      return errorResponse(
-        "bad_request",
-        "Cannot generate quiz for sections without content",
-        400
-      );
-    }
-
-    const tableName = SOURCE_TABLE[contentSource];
-    if (!tableName) {
-      return errorResponse("bad_request", `Unknown content source: ${contentSource}`, 400);
-    }
-
-    const { data: contentItems, error: contentError } = await supabase
-      .from(tableName)
-      .select("*")
-      .in("id", contentIds);
-
-    if (contentError || !contentItems || contentItems.length === 0) {
-      console.error("[quiz-generate] Content fetch error:", contentError?.message);
-      return errorResponse("server_error", "Failed to fetch section content", 500);
-    }
-
-    const serializer = CONTENT_SERIALIZERS[contentSource];
-    const contentText = contentItems
-      .map((item: Record<string, unknown>) => serializer(item, language))
-      .join("\n\n---\n\n");
-
-    console.log(
-      `[quiz-generate] Content serialized: ${contentText.length} chars from ${contentItems.length} items`
-    );
-
-    // 7. Fetch quiz generator prompt
-    const { data: promptData, error: promptError } = await supabase
-      .from("ai_prompts")
-      .select("prompt_en, prompt_es")
-      .eq("slug", "quiz-generator")
-      .eq("is_active", true)
-      .single();
-
-    if (promptError || !promptData) {
-      console.error("[quiz-generate] Prompt not found:", promptError?.message);
-      return errorResponse("server_error", "Quiz generator prompt not configured", 500);
-    }
-
-    const systemPrompt =
-      language === "es" && promptData.prompt_es
-        ? promptData.prompt_es
-        : promptData.prompt_en;
-
-    // 8. Call OpenAI
-    const sectionTitle =
-      language === "es" && section.title_es
-        ? section.title_es
-        : section.title_en;
-
-    const userPrompt = `Generate ${numQuestions} quiz questions for the section "${sectionTitle}" using ONLY this training content:\n\n${contentText}`;
-
-    console.log("[quiz-generate] Calling OpenAI...");
-
-    const parsed = await callOpenAI<{ questions: Array<Record<string, unknown>> }>({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      schema: quizGenerationSchema,
-      schemaName: "quiz_generation",
-      temperature: 0.7,
-      maxTokens: 3000,
-    });
-
-    if (!parsed.questions || !Array.isArray(parsed.questions)) {
-      return errorResponse("ai_error", "No questions in AI response", 500);
-    }
-
-    console.log(`[quiz-generate] AI generated ${parsed.questions.length} questions`);
-
-    // Increment usage
-    await incrementUsage(supabase, userId, groupId);
-
-    // 9. Persist questions to DB
-    const insertRows = parsed.questions.map((q) => ({
-      section_id,
-      question_type: q.question_type,
-      question_en: q.question_en,
-      question_es: q.question_es,
-      explanation_en: q.explanation_en || null,
-      explanation_es: q.explanation_es || null,
-      options:
-        q.question_type === "multiple_choice"
-          ? (q.options as Array<Record<string, unknown>>).map((o) => ({
-              id: o.id,
-              text_en: o.text_en,
-              text_es: o.text_es,
-              correct: o.correct,
-            }))
-          : null,
-      rubric:
-        q.question_type === "voice"
-          ? q.rubric
-          : null,
-      difficulty: q.difficulty || "medium",
-      source: "ai",
-      is_active: true,
-    }));
-
-    const { data: insertedQuestions, error: insertError } = await supabase
-      .from("quiz_questions")
-      .insert(insertRows)
-      .select("*");
-
-    if (insertError) {
-      console.error("[quiz-generate] Insert error:", insertError.message);
-      return errorResponse("server_error", "Failed to save quiz questions", 500);
-    }
-
-    console.log(`[quiz-generate] Saved ${insertedQuestions.length} questions to DB`);
-
-    // 10. Create quiz attempt
-    const { data: sectionForCourse } = await supabase
-      .from("course_sections")
-      .select("course_id")
-      .eq("id", section_id)
-      .single();
-
-    const { data: enrollment } = await supabase
-      .from("course_enrollments")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", sectionForCourse?.course_id)
-      .single();
-
-    if (!enrollment) {
-      return errorResponse("bad_request", "Not enrolled in this course", 400);
-    }
-
-    const { count: prevAttempts } = await supabase
-      .from("quiz_attempts")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("section_id", section_id);
-
-    const attemptNumber = (prevAttempts || 0) + 1;
-
-    const { data: attempt, error: attemptError } = await supabase
-      .from("quiz_attempts")
-      .insert({
-        user_id: userId,
-        section_id,
-        enrollment_id: enrollment.id,
-        attempt_number: attemptNumber,
-        status: "in_progress",
-      })
-      .select("id")
-      .single();
-
-    if (attemptError) {
-      console.error("[quiz-generate] Attempt create error:", attemptError.message);
-      return errorResponse("server_error", "Failed to create quiz attempt", 500);
-    }
-
-    // 11. Return client-safe response
-    return jsonResponse({
-      questions: insertedQuestions.map((q: Record<string, unknown>) =>
-        toClientQuestion(q, language)
-      ),
-      attempt_id: attempt.id,
-      total_questions: insertedQuestions.length,
-      passing_score: passingScore,
-    });
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("Unauthorized", err.message, 401);
+      return errorResponse("unauthorized", err.message, 401);
     }
     if (err instanceof OpenAIError) {
       return errorResponse("ai_error", err.message, err.status);
@@ -444,104 +331,273 @@ Deno.serve(async (req) => {
     return errorResponse(
       "server_error",
       err instanceof Error ? err.message : "Internal server error",
-      500
+      500,
     );
   }
 });
 
 // =============================================================================
-// MODULE TEST GENERATION HANDLER
+// SECTION QUIZ HANDLER
 // =============================================================================
 
-const moduleTestSchema = {
-  type: "object" as const,
-  properties: {
-    questions: {
-      type: "array" as const,
-      items: {
-        type: "object" as const,
-        properties: {
-          question_type: {
-            type: "string" as const,
-            enum: ["multiple_choice", "voice"],
-          },
-          question_en: { type: "string" as const },
-          question_es: { type: "string" as const },
-          options: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                id: { type: "string" as const },
-                text_en: { type: "string" as const },
-                text_es: { type: "string" as const },
-                correct: { type: "boolean" as const },
-              },
-              required: ["id", "text_en", "text_es", "correct"],
-              additionalProperties: false,
-            },
-          },
-          explanation_en: { type: "string" as const },
-          explanation_es: { type: "string" as const },
-          rubric: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                criterion: { type: "string" as const },
-                points: { type: "number" as const },
-                description: { type: "string" as const },
-              },
-              required: ["criterion", "points", "description"],
-              additionalProperties: false,
-            },
-          },
-          difficulty: {
-            type: "string" as const,
-            enum: ["easy", "medium", "hard"],
-          },
-          source_section_index: { type: "number" as const },
-        },
-        required: [
-          "question_type",
-          "question_en",
-          "question_es",
-          "options",
-          "explanation_en",
-          "explanation_es",
-          "rubric",
-          "difficulty",
-          "source_section_index",
-        ],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["questions"],
-  additionalProperties: false,
-};
-
-async function handleModuleTestGenerate(
-  supabase: SupabaseClient,
+async function handleSectionQuiz(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   userId: string,
   courseId: string,
-  language: string,
+  sectionId: string,
+  language: "en" | "es",
   groupId: string,
-  questionCount?: number,
-  forceRegenerate = false,
+  forceRegenerate: boolean,
 ) {
-  console.log(`[quiz-generate:module_test] Course: ${courseId}`);
+  console.log(`[quiz-generate:section] Course: ${courseId} | Section: ${sectionId}`);
 
-  // 1. Check usage limits
-  const usage = await checkUsage(supabase, userId, groupId);
-  if (!usage?.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+  // ── 1. Fetch course with quiz_config ─────────────────────────────────
+  const { data: course, error: courseError } = await supabase
+    .from("courses")
+    .select("id, title_en, title_es, quiz_config, group_id")
+    .eq("id", courseId)
+    .single();
+
+  if (courseError || !course) {
+    return errorResponse("not_found", "Course not found", 404);
+  }
+  if (course.group_id !== groupId) {
+    return errorResponse("forbidden", "Course does not belong to your group", 403);
   }
 
-  // 2. Fetch ALL published sections for this course
+  const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
+  const poolSize = quizConfig.question_pool_size || 15;
+  const questionCount = quizConfig.question_count || 10;
+
+  // ── 2. Fetch section ─────────────────────────────────────────────────
+  const { data: section, error: sectionError } = await supabase
+    .from("course_sections")
+    .select("id, title_en, title_es, elements, course_id")
+    .eq("id", sectionId)
+    .eq("course_id", courseId)
+    .single();
+
+  if (sectionError || !section) {
+    return errorResponse("not_found", "Section not found", 404);
+  }
+
+  const sectionTitle = language === "es" && section.title_es
+    ? section.title_es
+    : section.title_en;
+
+  // ── 3. Check for existing questions ──────────────────────────────────
+  if (!forceRegenerate) {
+    const { data: existing } = await supabase
+      .from("quiz_questions")
+      .select("*")
+      .eq("course_id", courseId)
+      .eq("section_id", sectionId)
+      .eq("is_active", true);
+
+    if (existing && existing.length >= questionCount) {
+      console.log(`[quiz-generate:section] Reusing ${existing.length} existing questions`);
+      return await createAttemptAndRespond(
+        supabase, userId, courseId, sectionId, existing, language, quizConfig,
+      );
+    }
+  }
+
+  // ── 4. Extract content from elements JSONB ───────────────────────────
+  const elements: CourseElement[] = section.elements || [];
+  const contentText = extractTextFromElements(elements, language, sectionTitle);
+
+  const words = wordCount(contentText);
+  console.log(`[quiz-generate:section] Content: ${contentText.length} chars, ~${words} words from ${elements.length} elements`);
+
+  if (words < 200) {
+    return errorResponse(
+      "bad_request",
+      "Not enough content to generate quiz questions. Section needs at least 200 words of content.",
+      400,
+    );
+  }
+
+  // Truncate if too long (~50K tokens = ~37K words)
+  const maxWords = 37000;
+  let truncatedContent = contentText;
+  if (words > maxWords) {
+    const wordsArr = contentText.split(/\s+/);
+    truncatedContent = wordsArr.slice(0, maxWords).join(" ");
+    console.log(`[quiz-generate:section] Content truncated from ${words} to ${maxWords} words`);
+  }
+
+  // ── 5. Check credits and usage ───────────────────────────────────────
+  const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
+  const usageInfo = await checkUsage(supabase, userId, groupId);
+  if (!usageInfo) {
+    return errorResponse("forbidden", "Not a member of this group", 403);
+  }
+  if (!usageInfo.can_ask) {
+    return errorResponse(
+      "limit_exceeded",
+      language === "es"
+        ? "Limite de uso alcanzado. Intenta mas tarde."
+        : "Usage limit reached. Try again later.",
+      429,
+    );
+  }
+
+  // ── 6. Fetch quiz generator prompt ───────────────────────────────────
+  let systemPrompt = await fetchPromptBySlug(supabase, "quiz-pool-generator", language);
+  if (!systemPrompt) {
+    console.log("[quiz-generate:section] Prompt not found in ai_prompts, using fallback");
+    systemPrompt = FALLBACK_QUIZ_PROMPT;
+  }
+
+  // ── 7. Build element key list for source_element_key targeting ───────
+  const elementKeys = elements
+    .filter((el) => el.type === "content" || el.type === "feature")
+    .map((el) => el.key)
+    .join(", ");
+
+  // ── 8. Call OpenAI ───────────────────────────────────────────────────
+  const courseTitle = language === "es" && course.title_es
+    ? course.title_es
+    : course.title_en;
+
+  const userPrompt = `Generate ${poolSize} multiple-choice quiz questions for the section "${sectionTitle}" from the course "${courseTitle}".
+
+Difficulty distribution: approximately ${Math.round(poolSize * 0.3)} easy, ${Math.round(poolSize * 0.5)} medium, ${Math.round(poolSize * 0.2)} hard.
+
+Available element keys for source_element_key: ${elementKeys || "none"}
+
+Use ONLY this training content:
+
+${truncatedContent}`;
+
+  console.log("[quiz-generate:section] Calling OpenAI...");
+
+  const parsed = await callOpenAI<{ questions: GeneratedQuestion[] }>({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    schema: quizGenerationSchema,
+    schemaName: "quiz_pool_generation",
+    maxTokens: 8000,
+  });
+
+  if (!parsed.questions || !Array.isArray(parsed.questions)) {
+    return errorResponse("ai_error", "No questions in AI response", 500);
+  }
+
+  console.log(`[quiz-generate:section] AI generated ${parsed.questions.length} questions`);
+
+  // ── 9. Track credits ─────────────────────────────────────────────────
+  await trackAndIncrement(supabase, userId, groupId, credits, {
+    domain: "course_builder",
+    action: "quiz_pool",
+    edge_function: "course-quiz-generate",
+    model: "gpt-5.2",
+    metadata: {
+      course_id: courseId,
+      section_id: sectionId,
+      mode: "section_quiz",
+      questions_generated: parsed.questions.length,
+    },
+  });
+
+  // ── 10. Deactivate old questions for this section (if force regenerate) ──
+  if (forceRegenerate) {
+    const { error: deactivateError } = await supabase
+      .from("quiz_questions")
+      .update({ is_active: false, is_archived: true })
+      .eq("section_id", sectionId)
+      .eq("is_active", true);
+
+    if (deactivateError) {
+      console.error("[quiz-generate:section] Deactivate old questions error:", deactivateError.message);
+    }
+  }
+
+  // ── 11. Persist questions to quiz_questions ──────────────────────────
+  const groupIdForQuestions = await getGroupIdForQuiz(supabase, courseId);
+
+  const insertRows = parsed.questions.map((q) => ({
+    course_id: courseId,
+    section_id: sectionId,
+    group_id: groupIdForQuestions,
+    question_type: "multiple_choice" as const,
+    question_en: q.question_en,
+    question_es: q.question_es,
+    explanation_en: q.explanation_en || null,
+    explanation_es: q.explanation_es || null,
+    options: q.options.map((o) => ({
+      id: o.id,
+      text_en: o.text_en,
+      text_es: o.text_es,
+      correct: o.correct,
+    })),
+    rubric: null,
+    difficulty: q.difficulty || "medium",
+    source_element_key: q.source_element_key || null,
+    source_refs: [],
+    is_active: true,
+    is_archived: false,
+    source: "ai",
+  }));
+
+  const { data: insertedQuestions, error: insertError } = await supabase
+    .from("quiz_questions")
+    .insert(insertRows)
+    .select("*");
+
+  if (insertError) {
+    console.error("[quiz-generate:section] Insert error:", insertError.message);
+    return errorResponse("server_error", "Failed to save quiz questions", 500);
+  }
+
+  console.log(`[quiz-generate:section] Saved ${insertedQuestions.length} questions to DB`);
+
+  // ── 12. Create attempt and respond ───────────────────────────────────
+  return await createAttemptAndRespond(
+    supabase, userId, courseId, sectionId, insertedQuestions, language, quizConfig,
+  );
+}
+
+// =============================================================================
+// COURSE QUIZ HANDLER
+// =============================================================================
+
+async function handleCourseQuiz(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  courseId: string,
+  language: "en" | "es",
+  groupId: string,
+  forceRegenerate: boolean,
+) {
+  console.log(`[quiz-generate:course] Course: ${courseId}`);
+
+  // ── 1. Fetch course with quiz_config ─────────────────────────────────
+  const { data: course, error: courseError } = await supabase
+    .from("courses")
+    .select("id, title_en, title_es, quiz_config, group_id")
+    .eq("id", courseId)
+    .single();
+
+  if (courseError || !course) {
+    return errorResponse("not_found", "Course not found", 404);
+  }
+  if (course.group_id !== groupId) {
+    return errorResponse("forbidden", "Course does not belong to your group", 403);
+  }
+
+  const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
+  const poolSize = quizConfig.question_pool_size || 30;
+  const questionCount = quizConfig.question_count || 10;
+
+  // ── 2. Fetch ALL sections for this course ────────────────────────────
   const { data: sections, error: sectionsError } = await supabase
     .from("course_sections")
-    .select("id, content_source, content_ids, title_en, title_es, sort_order")
+    .select("id, title_en, title_es, elements, sort_order")
     .eq("course_id", courseId)
     .eq("status", "published")
     .order("sort_order", { ascending: true });
@@ -550,117 +606,177 @@ async function handleModuleTestGenerate(
     return errorResponse("not_found", "No published sections found for this course", 404);
   }
 
-  const numQuestions = questionCount || Math.max(10, sections.length * 2);
-
-  // 3. Check for existing module-test questions
+  // ── 3. Check for existing course-level questions ─────────────────────
   if (!forceRegenerate) {
     const { data: existing } = await supabase
       .from("quiz_questions")
       .select("*")
       .eq("course_id", courseId)
+      .is("section_id", null)  // course-level questions have null section_id
       .eq("is_active", true);
 
-    if (existing && existing.length >= numQuestions) {
-      console.log(`[quiz-generate:module_test] Reusing ${existing.length} existing questions`);
-      return await createModuleTestAttemptAndRespond(
-        supabase, userId, courseId, shuffle(existing).slice(0, numQuestions), sections, language, numQuestions
+    if (existing && existing.length >= questionCount) {
+      console.log(`[quiz-generate:course] Reusing ${existing.length} existing course-level questions`);
+      return await createAttemptAndRespond(
+        supabase, userId, courseId, null, existing, language, quizConfig,
       );
     }
   }
 
-  // 4. Fetch and serialize content from all sections
-  const contentText = await loadSectionContent(supabase, sections, language, true);
-  console.log(`[quiz-generate:module_test] Content: ${contentText.length} chars from ${sections.length} sections`);
+  // ── 4. Extract content from ALL sections ─────────────────────────────
+  const contentParts: string[] = [];
+  const allElementKeys: string[] = [];
+  // deno-lint-ignore no-explicit-any
+  const sectionMap: Array<{ id: string; title_en: string; index: number }> = [];
 
-  // 5. Fetch module-test-generator prompt
-  const { data: promptData } = await supabase
-    .from("ai_prompts")
-    .select("prompt_en, prompt_es")
-    .eq("slug", "module-test-generator")
-    .eq("is_active", true)
-    .single();
+  for (let i = 0; i < sections.length; i++) {
+    const sec = sections[i];
+    const elements: CourseElement[] = sec.elements || [];
+    const title = language === "es" && sec.title_es ? sec.title_es : sec.title_en;
+    const text = extractTextFromElements(elements, language, title);
+    if (text) {
+      contentParts.push(text);
+    }
 
-  if (!promptData) {
-    return errorResponse("server_error", "Module test generator prompt not configured", 500);
+    // Collect element keys
+    elements
+      .filter((el: CourseElement) => el.type === "content" || el.type === "feature")
+      .forEach((el: CourseElement) => allElementKeys.push(el.key));
+
+    sectionMap.push({ id: sec.id, title_en: sec.title_en, index: i });
   }
 
-  const systemPrompt = language === "es" && promptData.prompt_es
-    ? promptData.prompt_es
-    : promptData.prompt_en;
+  const contentText = contentParts.join("\n\n");
+  const words = wordCount(contentText);
 
-  // 6. Fetch course title
-  const { data: course } = await supabase
-    .from("courses")
-    .select("title_en, title_es, passing_score")
-    .eq("id", courseId)
-    .single();
+  console.log(`[quiz-generate:course] Content: ${contentText.length} chars, ~${words} words from ${sections.length} sections`);
 
-  const courseTitle = course
-    ? (language === "es" && course.title_es ? course.title_es : course.title_en)
-    : "Unknown Course";
-  const passingScore = course?.passing_score || 70;
+  if (words < 200) {
+    return errorResponse(
+      "bad_request",
+      "Not enough content to generate quiz questions. Course needs at least 200 words of content across its sections.",
+      400,
+    );
+  }
 
-  // 7. Call OpenAI
-  const sectionList = sections.map((s, i) => `${i}. ${s.title_en}`).join(", ");
-  const userPrompt = `Generate ${numQuestions} certification test questions for the course "${courseTitle}".
+  // Truncate if too long
+  const maxWords = 37000;
+  let truncatedContent = contentText;
+  if (words > maxWords) {
+    const wordsArr = contentText.split(/\s+/);
+    truncatedContent = wordsArr.slice(0, maxWords).join(" ");
+    console.log(`[quiz-generate:course] Content truncated from ${words} to ${maxWords} words`);
+  }
 
-Sections (use source_section_index to reference): ${sectionList}
+  // ── 5. Check credits and usage ───────────────────────────────────────
+  const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
+  const usageInfo = await checkUsage(supabase, userId, groupId);
+  if (!usageInfo) {
+    return errorResponse("forbidden", "Not a member of this group", 403);
+  }
+  if (!usageInfo.can_ask) {
+    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+  }
 
-Distribute questions across all sections (minimum 1 per section). Use ONLY this training content:
+  // ── 6. Fetch quiz generator prompt ───────────────────────────────────
+  let systemPrompt = await fetchPromptBySlug(supabase, "quiz-pool-generator", language);
+  if (!systemPrompt) {
+    console.log("[quiz-generate:course] Prompt not found, using fallback");
+    systemPrompt = FALLBACK_QUIZ_PROMPT;
+  }
 
-${contentText}`;
+  // ── 7. Call OpenAI ───────────────────────────────────────────────────
+  const courseTitle = language === "es" && course.title_es
+    ? course.title_es
+    : course.title_en;
 
-  console.log("[quiz-generate:module_test] Calling OpenAI...");
+  const sectionList = sectionMap.map((s) => s.title_en).join(", ");
 
-  const parsed = await callOpenAI<{ questions: Array<Record<string, unknown>> }>({
+  const userPrompt = `Generate ${poolSize} multiple-choice quiz questions for the ENTIRE course "${courseTitle}".
+
+This is a course-level assessment covering ALL sections: ${sectionList}
+
+Distribute questions across all sections (at least 1 question per section).
+Difficulty distribution: approximately ${Math.round(poolSize * 0.3)} easy, ${Math.round(poolSize * 0.5)} medium, ${Math.round(poolSize * 0.2)} hard.
+
+Available element keys for source_element_key: ${allElementKeys.join(", ") || "none"}
+
+Use ONLY this training content:
+
+${truncatedContent}`;
+
+  console.log("[quiz-generate:course] Calling OpenAI...");
+
+  const parsed = await callOpenAI<{ questions: GeneratedQuestion[] }>({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    schema: moduleTestSchema,
-    schemaName: "module_test_generation",
-    temperature: 0.7,
-    maxTokens: 5000,
+    schema: quizGenerationSchema,
+    schemaName: "quiz_pool_generation",
+    maxTokens: 12000,
   });
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
     return errorResponse("ai_error", "No questions in AI response", 500);
   }
 
-  console.log(`[quiz-generate:module_test] AI generated ${parsed.questions.length} questions`);
+  console.log(`[quiz-generate:course] AI generated ${parsed.questions.length} questions`);
 
-  // Increment usage
-  await incrementUsage(supabase, userId, groupId);
-
-  // 8. Persist questions with both section_id and course_id
-  const insertRows = parsed.questions.map((q) => {
-    const sectionIdx = Math.min(
-      Math.max(0, (q.source_section_index as number) || 0),
-      sections.length - 1
-    );
-    return {
-      section_id: sections[sectionIdx].id,
+  // ── 8. Track credits ─────────────────────────────────────────────────
+  await trackAndIncrement(supabase, userId, groupId, credits, {
+    domain: "course_builder",
+    action: "quiz_pool",
+    edge_function: "course-quiz-generate",
+    model: "gpt-5.2",
+    metadata: {
       course_id: courseId,
-      question_type: q.question_type,
-      question_en: q.question_en,
-      question_es: q.question_es,
-      explanation_en: q.explanation_en || null,
-      explanation_es: q.explanation_es || null,
-      options:
-        q.question_type === "multiple_choice"
-          ? (q.options as Array<Record<string, unknown>>).map((o) => ({
-              id: o.id,
-              text_en: o.text_en,
-              text_es: o.text_es,
-              correct: o.correct,
-            }))
-          : null,
-      rubric: q.question_type === "voice" ? q.rubric : null,
-      difficulty: q.difficulty || "medium",
-      source: "ai",
-      is_active: true,
-    };
+      mode: "course_quiz",
+      sections_count: sections.length,
+      questions_generated: parsed.questions.length,
+    },
   });
+
+  // ── 9. Deactivate old course-level questions if force regenerate ─────
+  if (forceRegenerate) {
+    const { error: deactivateError } = await supabase
+      .from("quiz_questions")
+      .update({ is_active: false, is_archived: true })
+      .eq("course_id", courseId)
+      .is("section_id", null)
+      .eq("is_active", true);
+
+    if (deactivateError) {
+      console.error("[quiz-generate:course] Deactivate old questions error:", deactivateError.message);
+    }
+  }
+
+  // ── 10. Persist questions ────────────────────────────────────────────
+  const groupIdForQuestions = await getGroupIdForQuiz(supabase, courseId);
+
+  const insertRows = parsed.questions.map((q) => ({
+    course_id: courseId,
+    section_id: null, // course-level — not tied to a specific section
+    group_id: groupIdForQuestions,
+    question_type: "multiple_choice" as const,
+    question_en: q.question_en,
+    question_es: q.question_es,
+    explanation_en: q.explanation_en || null,
+    explanation_es: q.explanation_es || null,
+    options: q.options.map((o) => ({
+      id: o.id,
+      text_en: o.text_en,
+      text_es: o.text_es,
+      correct: o.correct,
+    })),
+    rubric: null,
+    difficulty: q.difficulty || "medium",
+    source_element_key: q.source_element_key || null,
+    source_refs: [],
+    is_active: true,
+    is_archived: false,
+    source: "ai",
+  }));
 
   const { data: insertedQuestions, error: insertError } = await supabase
     .from("quiz_questions")
@@ -668,26 +784,254 @@ ${contentText}`;
     .select("*");
 
   if (insertError) {
-    console.error("[quiz-generate:module_test] Insert error:", insertError.message);
-    return errorResponse("server_error", "Failed to save test questions", 500);
+    console.error("[quiz-generate:course] Insert error:", insertError.message);
+    return errorResponse("server_error", "Failed to save quiz questions", 500);
   }
 
-  // 9. Create module_test_attempts row and respond
-  return await createModuleTestAttemptAndRespond(
-    supabase, userId, courseId, insertedQuestions, sections, language, passingScore
+  console.log(`[quiz-generate:course] Saved ${insertedQuestions.length} questions to DB`);
+
+  // ── 11. Create attempt and respond ───────────────────────────────────
+  return await createAttemptAndRespond(
+    supabase, userId, courseId, null, insertedQuestions, language, quizConfig,
   );
 }
 
-async function createModuleTestAttemptAndRespond(
-  supabase: SupabaseClient,
+// =============================================================================
+// GENERATE POOL ONLY HANDLER (admin builder — no enrollment or attempt)
+// =============================================================================
+
+async function handleGeneratePoolOnly(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   userId: string,
   courseId: string,
-  questions: Array<Record<string, unknown>>,
-  sections: Array<Record<string, unknown>>,
-  language: string,
-  passingScore: number,
+  language: "en" | "es",
+  groupId: string,
+  forceRegenerate: boolean,
 ) {
-  // Fetch enrollment
+  console.log(`[quiz-generate:pool-only] Course: ${courseId}`);
+
+  // ── 1. Fetch course with quiz_config ─────────────────────────────────
+  const { data: course, error: courseError } = await supabase
+    .from("courses")
+    .select("id, title_en, title_es, quiz_config, group_id")
+    .eq("id", courseId)
+    .single();
+
+  if (courseError || !course) {
+    return errorResponse("not_found", "Course not found", 404);
+  }
+  if (course.group_id !== groupId) {
+    return errorResponse("forbidden", "Course does not belong to your group", 403);
+  }
+
+  const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
+  const poolSize = quizConfig.question_pool_size || 30;
+
+  // ── 2. Fetch ALL sections for this course ────────────────────────────
+  const { data: sections, error: sectionsError } = await supabase
+    .from("course_sections")
+    .select("id, title_en, title_es, elements, sort_order")
+    .eq("course_id", courseId)
+    .order("sort_order", { ascending: true });
+
+  if (sectionsError || !sections || sections.length === 0) {
+    return errorResponse("not_found", "No sections found for this course", 404);
+  }
+
+  // ── 3. Extract content from ALL sections ─────────────────────────────
+  const contentParts: string[] = [];
+  const allElementKeys: string[] = [];
+
+  for (const sec of sections) {
+    const elements: CourseElement[] = sec.elements || [];
+    const title = language === "es" && sec.title_es ? sec.title_es : sec.title_en;
+    const text = extractTextFromElements(elements, language, title);
+    if (text) {
+      contentParts.push(text);
+    }
+
+    elements
+      .filter((el: CourseElement) => el.type === "content" || el.type === "feature")
+      .forEach((el: CourseElement) => allElementKeys.push(el.key));
+  }
+
+  const contentText = contentParts.join("\n\n");
+  const words = wordCount(contentText);
+
+  console.log(`[quiz-generate:pool-only] Content: ${contentText.length} chars, ~${words} words from ${sections.length} sections`);
+
+  if (words < 200) {
+    return errorResponse(
+      "bad_request",
+      "Not enough content to generate quiz questions. Course needs at least 200 words of content across its sections.",
+      400,
+    );
+  }
+
+  // Truncate if too long
+  const maxWords = 37000;
+  let truncatedContent = contentText;
+  if (words > maxWords) {
+    const wordsArr = contentText.split(/\s+/);
+    truncatedContent = wordsArr.slice(0, maxWords).join(" ");
+    console.log(`[quiz-generate:pool-only] Content truncated from ${words} to ${maxWords} words`);
+  }
+
+  // ── 4. Check credits and usage ───────────────────────────────────────
+  const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
+  const usageInfo = await checkUsage(supabase, userId, groupId);
+  if (!usageInfo) {
+    return errorResponse("forbidden", "Not a member of this group", 403);
+  }
+  if (!usageInfo.can_ask) {
+    return errorResponse(
+      "limit_exceeded",
+      language === "es"
+        ? "Limite de uso alcanzado. Intenta mas tarde."
+        : "Usage limit reached. Try again later.",
+      429,
+    );
+  }
+
+  // ── 5. Fetch quiz generator prompt ───────────────────────────────────
+  let systemPrompt = await fetchPromptBySlug(supabase, "quiz-pool-generator", language);
+  if (!systemPrompt) {
+    console.log("[quiz-generate:pool-only] Prompt not found, using fallback");
+    systemPrompt = FALLBACK_QUIZ_PROMPT;
+  }
+
+  // ── 6. Call OpenAI ───────────────────────────────────────────────────
+  const courseTitle = language === "es" && course.title_es
+    ? course.title_es
+    : course.title_en;
+
+  const sectionList = sections.map((s: { title_en: string }) => s.title_en).join(", ");
+
+  const userPrompt = `Generate ${poolSize} multiple-choice quiz questions for the ENTIRE course "${courseTitle}".
+
+This is a question pool covering ALL sections: ${sectionList}
+
+Distribute questions across all sections (at least 1 question per section).
+Difficulty distribution: approximately ${Math.round(poolSize * 0.3)} easy, ${Math.round(poolSize * 0.5)} medium, ${Math.round(poolSize * 0.2)} hard.
+
+Available element keys for source_element_key: ${allElementKeys.join(", ") || "none"}
+
+Use ONLY this training content:
+
+${truncatedContent}`;
+
+  console.log("[quiz-generate:pool-only] Calling OpenAI...");
+
+  const parsed = await callOpenAI<{ questions: GeneratedQuestion[] }>({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    schema: quizGenerationSchema,
+    schemaName: "quiz_pool_generation",
+    maxTokens: 12000,
+  });
+
+  if (!parsed.questions || !Array.isArray(parsed.questions)) {
+    return errorResponse("ai_error", "No questions in AI response", 500);
+  }
+
+  console.log(`[quiz-generate:pool-only] AI generated ${parsed.questions.length} questions`);
+
+  // ── 7. Track credits ─────────────────────────────────────────────────
+  await trackAndIncrement(supabase, userId, groupId, credits, {
+    domain: "course_builder",
+    action: "quiz_pool",
+    edge_function: "course-quiz-generate",
+    model: "gpt-5.2",
+    metadata: {
+      course_id: courseId,
+      mode: "generate_pool_only",
+      sections_count: sections.length,
+      questions_generated: parsed.questions.length,
+    },
+  });
+
+  // ── 8. Deactivate old questions if force regenerate ──────────────────
+  if (forceRegenerate) {
+    const { error: deactivateError } = await supabase
+      .from("quiz_questions")
+      .update({ is_active: false, is_archived: true })
+      .eq("course_id", courseId)
+      .is("section_id", null)
+      .eq("is_active", true);
+
+    if (deactivateError) {
+      console.error("[quiz-generate:pool-only] Deactivate old questions error:", deactivateError.message);
+    }
+  }
+
+  // ── 9. Persist questions to quiz_questions ──────────────────────────
+  const groupIdForQuestions = await getGroupIdForQuiz(supabase, courseId);
+
+  const insertRows = parsed.questions.map((q) => ({
+    course_id: courseId,
+    section_id: null,
+    group_id: groupIdForQuestions,
+    question_type: "multiple_choice" as const,
+    question_en: q.question_en,
+    question_es: q.question_es,
+    explanation_en: q.explanation_en || null,
+    explanation_es: q.explanation_es || null,
+    options: q.options.map((o) => ({
+      id: o.id,
+      text_en: o.text_en,
+      text_es: o.text_es,
+      correct: o.correct,
+    })),
+    rubric: null,
+    difficulty: q.difficulty || "medium",
+    source_element_key: q.source_element_key || null,
+    source_refs: [],
+    is_active: true,
+    is_archived: false,
+    source: "ai",
+  }));
+
+  const { data: insertedQuestions, error: insertError } = await supabase
+    .from("quiz_questions")
+    .insert(insertRows)
+    .select("*");
+
+  if (insertError) {
+    console.error("[quiz-generate:pool-only] Insert error:", insertError.message);
+    return errorResponse("server_error", "Failed to save quiz questions", 500);
+  }
+
+  console.log(`[quiz-generate:pool-only] Saved ${insertedQuestions.length} questions to DB`);
+
+  // ── 10. Return questions directly (no attempt, no enrollment) ────────
+  return jsonResponse({
+    questions: insertedQuestions,
+    total_generated: insertedQuestions.length,
+  });
+}
+
+// =============================================================================
+// SHARED: Create quiz attempt and build response
+// =============================================================================
+
+async function createAttemptAndRespond(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  userId: string,
+  courseId: string,
+  sectionId: string | null,
+  // deno-lint-ignore no-explicit-any
+  questionPool: Array<Record<string, any>>,
+  language: "en" | "es",
+  quizConfig: QuizConfig,
+) {
+  const questionCount = quizConfig.question_count || 10;
+  const passingScore = quizConfig.passing_score || 70;
+
+  // ── 1. Fetch enrollment ────────────────────────────────────────────────
   const { data: enrollment } = await supabase
     .from("course_enrollments")
     .select("id")
@@ -699,48 +1043,112 @@ async function createModuleTestAttemptAndRespond(
     return errorResponse("bad_request", "Not enrolled in this course", 400);
   }
 
-  // Get next attempt number
-  const { count: prevAttempts } = await supabase
-    .from("module_test_attempts")
+  // ── 2. Check max attempts ─────────────────────────────────────────────
+  if (quizConfig.max_attempts) {
+    const attemptFilter = supabase
+      .from("quiz_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("course_id", courseId);
+
+    if (sectionId) {
+      attemptFilter.eq("section_id", sectionId);
+    } else {
+      attemptFilter.is("section_id", null);
+    }
+
+    const { count: prevAttempts } = await attemptFilter;
+
+    if ((prevAttempts || 0) >= quizConfig.max_attempts) {
+      return errorResponse(
+        "limit_exceeded",
+        language === "es"
+          ? `Has alcanzado el maximo de ${quizConfig.max_attempts} intentos.`
+          : `Maximum of ${quizConfig.max_attempts} attempts reached.`,
+        429,
+      );
+    }
+  }
+
+  // ── 3. Get next attempt number ─────────────────────────────────────────
+  const attemptCountFilter = supabase
+    .from("quiz_attempts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("course_id", courseId);
 
-  const attemptNumber = (prevAttempts || 0) + 1;
+  if (sectionId) {
+    attemptCountFilter.eq("section_id", sectionId);
+  } else {
+    attemptCountFilter.is("section_id", null);
+  }
 
-  // Create module_test_attempts row
+  const { count: prevAttemptCount } = await attemptCountFilter;
+  const attemptNumber = (prevAttemptCount || 0) + 1;
+
+  // ── 4. Select questions for this attempt ───────────────────────────────
+  let selected = [...questionPool];
+  if (quizConfig.shuffle_questions) {
+    selected = shuffle(selected);
+  }
+  selected = selected.slice(0, questionCount);
+
+  const questionIds = selected.map((q) => q.id);
+
+  // ── 5. Create quiz_attempt ─────────────────────────────────────────────
+  const quizMode = "multiple_choice";
+
   const { data: attempt, error: attemptError } = await supabase
-    .from("module_test_attempts")
+    .from("quiz_attempts")
     .insert({
       user_id: userId,
       course_id: courseId,
+      section_id: sectionId,
       enrollment_id: enrollment.id,
       attempt_number: attemptNumber,
-      total_questions: questions.length,
+      quiz_mode: quizMode,
       status: "in_progress",
+      questions_covered: questionIds,
     })
     .select("id")
     .single();
 
   if (attemptError) {
-    console.error("[quiz-generate:module_test] Attempt error:", attemptError.message);
-    return errorResponse("server_error", "Failed to create test attempt", 500);
+    console.error("[quiz-generate] Attempt create error:", attemptError.message);
+    return errorResponse("server_error", "Failed to create quiz attempt", 500);
   }
 
-  // Build section map: questionId → sectionId
-  const sectionMap: Record<string, string> = {};
-  for (const q of questions) {
-    sectionMap[q.id as string] = q.section_id as string;
-  }
+  // ── 6. Increment times_shown on selected questions ─────────────────────
+  // Note: times_shown and times_correct are updated by course-quiz-submit
+  // when the attempt is completed. The questions_covered UUID[] on the attempt
+  // row tracks which questions were shown for this attempt.
 
+  // ── 7. Build client-safe response ──────────────────────────────────────
   return jsonResponse({
-    questions: questions.map((q) => toClientQuestion(q, language)),
+    questions: selected.map((q) => toClientQuestion(q, language, quizConfig.shuffle_options)),
     attempt_id: attempt.id,
-    total_questions: questions.length,
+    total_questions: selected.length,
     passing_score: passingScore,
-    section_map: sectionMap,
-    mode: "module_test",
+    mode: quizMode,
+    quiz_config: {
+      show_feedback_immediately: quizConfig.show_feedback_immediately,
+      max_attempts: quizConfig.max_attempts,
+    },
   });
+}
+
+// =============================================================================
+// HELPER: Get group_id from course for quiz_questions insert
+// =============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function getGroupIdForQuiz(supabase: any, courseId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("courses")
+    .select("group_id")
+    .eq("id", courseId)
+    .single();
+  return data?.group_id || null;
 }
 
 // =============================================================================
@@ -748,10 +1156,13 @@ async function createModuleTestAttemptAndRespond(
 // =============================================================================
 
 function toClientQuestion(
-  q: Record<string, unknown>,
-  language: string
+  // deno-lint-ignore no-explicit-any
+  q: Record<string, any>,
+  language: string,
+  shuffleOptions = true,
 ): Record<string, unknown> {
   const isEs = language === "es";
+
   const base: Record<string, unknown> = {
     id: q.id,
     question_type: q.question_type,
@@ -760,17 +1171,15 @@ function toClientQuestion(
   };
 
   if (q.question_type === "multiple_choice" && q.options) {
-    base.options = (q.options as Array<Record<string, unknown>>).map((o) => ({
+    // deno-lint-ignore no-explicit-any
+    let opts = (q.options as Array<Record<string, any>>).map((o) => ({
       id: o.id,
       text: isEs && o.text_es ? o.text_es : o.text_en,
     }));
-  }
-
-  if (q.question_type === "voice" && q.rubric) {
-    const criteria = q.rubric as Array<Record<string, unknown>>;
-    base.rubric_summary = criteria
-      .map((c) => c.criterion || c.description)
-      .join(", ");
+    if (shuffleOptions) {
+      opts = shuffle(opts);
+    }
+    base.options = opts;
   }
 
   return base;

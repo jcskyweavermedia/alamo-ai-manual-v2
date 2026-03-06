@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Change Alerts - Course Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex">
+  <!-- Dark Sidebar -->
+  <aside class="w-60 bg-slate-900 text-white flex flex-col shrink-0 min-h-screen">
+    <div class="px-5 py-5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-sm font-bold">A</div>
+        <span class="font-semibold text-sm">Alamo Prime</span>
+      </div>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Dashboard
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+        Manual
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-800 text-white font-medium">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Training
+        <span class="ml-auto w-5 h-5 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">2</span>
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        Team
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </a>
+    </nav>
+    <div class="px-5 py-4 border-t border-slate-700 text-xs text-slate-500">
+      <a href="index.html" class="hover:text-slate-300 transition">&larr; Back to mockup index</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto">
+
+    <!-- FULL-WIDTH ALERT BANNER #1 (Pending Review) -->
+    <div id="alert-1" class="bg-amber-50 border-b-2 border-amber-300">
+      <div class="max-w-6xl mx-auto px-8 py-5">
+        <div class="flex items-start gap-4">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <h3 class="font-semibold text-amber-900">Course Updated Automatically</h3>
+              <span class="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Pending Review</span>
+            </div>
+            <p class="text-sm text-amber-800 mb-3">
+              <strong>"Server Wine Training"</strong> has been rebuilt because the following source material changed:
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div class="bg-white/60 rounded-lg border border-amber-200 px-3 py-2.5">
+                <div class="text-xs font-medium text-amber-700 uppercase tracking-wider mb-1.5">Source Changes</div>
+                <ul class="text-sm text-amber-900 space-y-1">
+                  <li class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>
+                    Veuve Clicquot Yellow Label &mdash; description updated
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/></svg>
+                    Pinot Noir food pairings &mdash; new pairings added
+                  </li>
+                </ul>
+              </div>
+              <div class="bg-white/60 rounded-lg border border-amber-200 px-3 py-2.5">
+                <div class="text-xs font-medium text-amber-700 uppercase tracking-wider mb-1.5">What Was Rebuilt</div>
+                <ul class="text-sm text-amber-900 space-y-1">
+                  <li class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                    3 content elements regenerated
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    1 allergen warning updated
+                  </li>
+                  <li class="flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg>
+                    8 quiz questions regenerated (old archived)
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="px-4 py-2 text-sm font-medium bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition shadow-sm">Review Changes</button>
+              <button class="px-4 py-2 text-sm font-medium bg-white text-amber-700 border border-amber-300 rounded-xl hover:bg-amber-50 transition">View Course</button>
+              <button onclick="document.getElementById('alert-1').style.display='none'" class="px-4 py-2 text-sm text-amber-600 hover:text-amber-800 transition">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FULL-WIDTH ALERT BANNER #2 (Reviewed) -->
+    <div id="alert-2" class="bg-blue-50 border-b border-blue-200">
+      <div class="max-w-6xl mx-auto px-8 py-4">
+        <div class="flex items-center gap-4">
+          <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="flex-1">
+            <span class="text-sm text-blue-800"><strong>"Menu Rollout Q1"</strong> was automatically rebuilt on Mar 3 &mdash; 5 elements, 12 quiz questions regenerated.</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Reviewed</span>
+            <button onclick="document.getElementById('alert-2').style.display='none'" class="text-blue-400 hover:text-blue-600 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="max-w-6xl mx-auto px-8 py-10">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Course Change Log</h1>
+          <p class="text-slate-500 mt-1">Automatic course rebuilds triggered by source material updates.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option>All Courses</option>
+            <option>Wine Training</option>
+            <option>Menu Rollout Q1</option>
+            <option>SOP Review</option>
+          </select>
+          <select class="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option>All Status</option>
+            <option>Pending Review</option>
+            <option>Reviewed</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="text-2xl font-bold text-slate-900">7</div>
+          <div class="text-sm text-slate-500 mt-1">Total Rebuilds</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="text-2xl font-bold text-amber-600">2</div>
+          <div class="text-sm text-slate-500 mt-1">Pending Review</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="text-2xl font-bold text-slate-900">18</div>
+          <div class="text-sm text-slate-500 mt-1">Elements Rebuilt</div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div class="text-2xl font-bold text-slate-900">42</div>
+          <div class="text-sm text-slate-500 mt-1">Questions Regenerated</div>
+        </div>
+      </div>
+
+      <!-- Change Log Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <table class="w-full">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Course</th>
+              <th class="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Trigger</th>
+              <th class="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Elements</th>
+              <th class="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Questions</th>
+              <th class="text-center px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+              <th class="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <!-- Row 1 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Mar 5, 2026</div>
+                <div class="text-xs text-slate-400">10:24 AM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Server Wine Training</div>
+                <div class="text-xs text-slate-400">v3 &rarr; v4</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">Veuve Clicquot description updated</div>
+                <div class="text-xs text-slate-400">Pinot Noir pairings added</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">3</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">8</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Pending Review</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition">Review</button>
+              </td>
+            </tr>
+            <!-- Row 2 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Mar 3, 2026</div>
+                <div class="text-xs text-slate-400">2:15 PM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Menu Rollout Q1</div>
+                <div class="text-xs text-slate-400">v2 &rarr; v3</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">NY Strip removed from menu</div>
+                <div class="text-xs text-slate-400">Wagyu Burger added</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">5</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">12</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Pending Review</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition">Review</button>
+              </td>
+            </tr>
+            <!-- Row 3 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Feb 28, 2026</div>
+                <div class="text-xs text-slate-400">8:30 AM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">SOP Review: Food Safety</div>
+                <div class="text-xs text-slate-400">v1 &rarr; v2</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">Handwashing section updated</div>
+                <div class="text-xs text-slate-400">New CDC guidelines added</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">2</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">4</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Reviewed</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-slate-400 hover:text-slate-600 transition">View</button>
+              </td>
+            </tr>
+            <!-- Row 4 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Feb 21, 2026</div>
+                <div class="text-xs text-slate-400">11:45 AM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Server Wine Training</div>
+                <div class="text-xs text-slate-400">v2 &rarr; v3</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">Caymus Cab vintage changed to 2022</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">2</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">6</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Reviewed</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-slate-400 hover:text-slate-600 transition">View</button>
+              </td>
+            </tr>
+            <!-- Row 5 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Feb 15, 2026</div>
+                <div class="text-xs text-slate-400">3:20 PM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Steps of Service: Server</div>
+                <div class="text-xs text-slate-400">v1 &rarr; v2</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">Greeting script updated</div>
+                <div class="text-xs text-slate-400">New farewell step added</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">4</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">8</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Reviewed</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-slate-400 hover:text-slate-600 transition">View</button>
+              </td>
+            </tr>
+            <!-- Row 6 -->
+            <tr class="hover:bg-slate-50/50 transition">
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Feb 10, 2026</div>
+                <div class="text-xs text-slate-400">9:00 AM</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm font-medium text-slate-900">Line Cook: Grill Station</div>
+                <div class="text-xs text-slate-400">v1 &rarr; v2</div>
+              </td>
+              <td class="px-5 py-4">
+                <div class="text-sm text-slate-700">Ribeye cook temp adjusted</div>
+                <div class="text-xs text-slate-400">New plating spec for filet</div>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">2</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-sm font-medium text-slate-900">4</span>
+              </td>
+              <td class="px-5 py-4 text-center">
+                <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">Reviewed</span>
+              </td>
+              <td class="px-5 py-4 text-right">
+                <button class="text-sm text-slate-400 hover:text-slate-600 transition">View</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-sm text-slate-500">Showing 6 of 7 entries</span>
+        <div class="flex items-center gap-1">
+          <button class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-400">Previous</button>
+          <button class="px-3 py-1.5 text-sm border border-emerald-300 bg-emerald-50 rounded-lg text-emerald-700 font-medium">1</button>
+          <button class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition">2</button>
+          <button class="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 transition">Next</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>

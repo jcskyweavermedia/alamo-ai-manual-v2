@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Course Editor - Course Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .element-card:hover .element-controls { opacity: 1; }
+    .element-controls { opacity: 0; transition: opacity 150ms; }
+    .move-btn { transition: all 150ms; }
+    .move-btn:hover { transform: scale(1.1); }
+    .element-row:first-child .move-up { opacity: 0.3; pointer-events: none; }
+    .element-row:last-child .move-down { opacity: 0.3; pointer-events: none; }
+  </style>
+</head>
+<body class="bg-slate-50 h-screen flex overflow-hidden">
+
+  <!-- Dark Sidebar Nav -->
+  <aside class="w-14 bg-slate-900 flex flex-col items-center py-4 gap-4 shrink-0">
+    <div class="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white text-sm font-bold">A</div>
+    <div class="flex-1 flex flex-col items-center gap-2 mt-2">
+      <a href="#" class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition" title="Dashboard">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      </a>
+      <a href="#" class="w-9 h-9 rounded-lg flex items-center justify-center text-white bg-slate-800" title="Training">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      </a>
+      <a href="#" class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition" title="Settings">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </a>
+    </div>
+    <a href="index.html" class="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 hover:text-white hover:bg-slate-800 transition" title="Back to mockup index">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+  </aside>
+
+  <!-- Main Editor Area -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- Top Bar -->
+    <header class="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-3">
+        <a href="wizard-selector.html" class="text-slate-400 hover:text-slate-700 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </a>
+        <div>
+          <h1 class="text-base font-semibold text-slate-900">Spring 2026 Menu Launch</h1>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span>Menu Rollout</span>
+            <span>&middot;</span>
+            <span class="text-amber-600 font-medium">Draft</span>
+            <span>&middot;</span>
+            <span>Auto-saved 2s ago</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Save Draft</button>
+        <button class="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm">Publish</button>
+      </div>
+    </header>
+
+    <!-- Tab Bar -->
+    <div class="bg-white border-b border-slate-200 px-5 flex gap-1 shrink-0">
+      <button onclick="switchTab('content')" id="tab-content" class="px-4 py-2.5 text-sm font-medium border-b-2 border-emerald-600 text-emerald-700">Content</button>
+      <button onclick="switchTab('settings')" id="tab-settings" class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition">Settings</button>
+      <button onclick="switchTab('quiz')" id="tab-quiz" class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition">
+        <a href="quiz-builder.html" class="text-inherit no-underline">Quiz</a>
+      </button>
+      <button class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition">Preview</button>
+    </div>
+
+    <!-- Three-Column Layout -->
+    <div class="flex-1 flex overflow-hidden">
+
+      <!-- LEFT: Element Palette + Section Navigator -->
+      <div class="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto">
+        <!-- Element Palette -->
+        <div class="p-4 border-b border-slate-100">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Add Element</div>
+          <div class="space-y-1.5">
+            <button class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Content
+            </button>
+            <button class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Feature
+            </button>
+            <button class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="22" y2="7"/><line x1="2" y1="17" x2="22" y2="17"/></svg>
+              Media
+            </button>
+          </div>
+        </div>
+
+        <!-- Section Navigator -->
+        <div class="p-4 flex-1">
+          <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">Sections</div>
+          <div class="space-y-0.5">
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition text-left">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              Overview
+            </button>
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg text-left">
+              <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/></svg>
+              Lesson 1: Ribeye
+            </button>
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition text-left">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/></svg>
+              Lesson 2: Sea Bass
+            </button>
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition text-left">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/></svg>
+              Lesson 3: Wine Pairing
+            </button>
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition text-left">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/></svg>
+              Lesson 4: Cocktail
+            </button>
+            <button class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50 transition text-left">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Quiz Settings
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: Canvas -->
+      <div class="flex-1 overflow-y-auto bg-slate-100/70 p-6">
+        <div class="max-w-2xl mx-auto space-y-4">
+
+          <!-- Section Header -->
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Lesson 1: Prime Dry-Aged Ribeye</h2>
+              <p class="text-sm text-slate-500">4 elements &middot; 2 generated, 1 outline, 1 reviewed</p>
+            </div>
+            <button class="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition">+ Add Element</button>
+          </div>
+
+          <!-- ELEMENT 1: Content (status: generated) -->
+          <div class="element-row flex gap-2 items-start">
+            <!-- Move Arrows -->
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Introduction to the Ribeye</span>
+              <span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Generated</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg>
+                </button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="px-5 py-4 text-sm text-slate-700 leading-relaxed">
+              <p class="mb-3">Our <strong>Prime Dry-Aged Ribeye (16oz)</strong> is the crown jewel of the Alamo Prime menu. Sourced from USDA Prime-grade cattle and dry-aged for a minimum of 28 days in-house, this cut delivers an intensely beefy, nutty flavor profile that distinguishes it from wet-aged alternatives.</p>
+
+              <!-- Markdown Table -->
+              <div class="overflow-x-auto my-4">
+                <table class="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="text-left px-3 py-2 font-medium text-slate-700 border-b border-slate-200">Characteristic</th>
+                      <th class="text-left px-3 py-2 font-medium text-slate-700 border-b border-slate-200">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="px-3 py-2 border-b border-slate-100">Cut</td><td class="px-3 py-2 border-b border-slate-100">Bone-in Ribeye, USDA Prime</td></tr>
+                    <tr><td class="px-3 py-2 border-b border-slate-100">Weight</td><td class="px-3 py-2 border-b border-slate-100">16 oz (pre-cook)</td></tr>
+                    <tr><td class="px-3 py-2 border-b border-slate-100">Aging</td><td class="px-3 py-2 border-b border-slate-100">28-day minimum dry-age</td></tr>
+                    <tr><td class="px-3 py-2 border-b border-slate-100">Cooking Method</td><td class="px-3 py-2 border-b border-slate-100">1200&deg;F broiler, finished with herb butter</td></tr>
+                    <tr><td class="px-3 py-2">Price</td><td class="px-3 py-2">$62</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p>When describing this cut to guests, emphasize the <em>dry-aging process</em> and the concentration of flavor it produces. A great talking point: "Each day of aging concentrates the beef flavor and tenderizes the meat naturally through enzymatic breakdown."</p>
+            </div>
+          </div>
+          </div>
+
+          <!-- ELEMENT 2: Feature - Tip (status: generated) -->
+          <div class="element-row flex gap-2 items-start">
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+              <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 0-4 4c0 2 2 3 2 3h4s2-1 2-3a4 4 0 0 0-4-4z"/><line x1="10" y1="14" x2="14" y2="14"/><line x1="11" y1="17" x2="13" y2="17"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Tip: Upselling the Ribeye</span>
+              <span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Generated</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+            <!-- Tip Callout: blue-50/blue-600 -->
+            <div class="mx-4 my-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 0-4 4c0 2 2 3 2 3h4s2-1 2-3a4 4 0 0 0-4-4z"/><line x1="10" y1="14" x2="14" y2="14"/><line x1="11" y1="17" x2="13" y2="17"/></svg>
+                <div>
+                  <div class="text-sm font-semibold text-blue-700 mb-1">Upselling the Ribeye</div>
+                  <div class="text-sm text-blue-800 leading-relaxed">When a guest is deciding between the NY Strip and the Ribeye, highlight the dry-aging difference: <em>"The ribeye has been aging in our cooler for 28 days &mdash; it develops this incredible nutty, concentrated beef flavor you can't get from a standard steak."</em> This often closes the upsell.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <!-- ELEMENT 3: Feature - Warning (status: generated) -->
+          <div class="element-row flex gap-2 items-start">
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+              <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Warning: Allergen Info</span>
+              <span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Generated</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+            <!-- Warning Callout: red-50/red-600 -->
+            <div class="mx-4 my-4 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <div>
+                  <div class="text-sm font-semibold text-red-700 mb-1">Allergen Alert</div>
+                  <div class="text-sm text-red-800 leading-relaxed">The herb butter contains <strong>dairy</strong>. Always ask guests about dairy allergies before serving. For dairy-free guests, substitute with olive oil and sea salt finish. The dry-rub also contains <strong>mustard powder</strong> &mdash; confirm no mustard allergy.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <!-- ELEMENT 4: Media (status: generated) -->
+          <div class="element-row flex gap-2 items-start">
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Ribeye Plating Photo</span>
+              <span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Generated</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+            <!-- Image Placeholder -->
+            <div class="px-5 py-5">
+              <div class="bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl h-48 flex flex-col items-center justify-center text-slate-400">
+                <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.18"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span class="text-sm font-medium">Product image from database</span>
+                <span class="text-xs mt-1">Prime Dry-Aged Ribeye 16oz</span>
+              </div>
+              <p class="text-xs text-slate-500 text-center mt-2 italic">Caption: Our signature 16oz bone-in dry-aged ribeye, finished with herb butter</p>
+            </div>
+          </div>
+          </div>
+
+          <!-- ELEMENT 5: Content (status: outline) -->
+          <div class="element-row flex gap-2 items-start">
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border-2 border-dashed border-amber-300 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200 bg-amber-50/50">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Cooking Temperatures &amp; Doneness</span>
+              <span class="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Outline</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+            <div class="px-5 py-4">
+              <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                <div class="text-xs font-medium text-amber-700 mb-1">AI Instructions (editable)</div>
+                <p class="text-sm text-amber-800">Write a detailed guide to cooking temperatures for the ribeye. Include a table with doneness levels (rare through well-done), internal temperatures in Fahrenheit, visual cues for each level, and our recommended doneness for this cut. Mention that we recommend medium-rare to medium for optimal flavor with dry-aged beef.</p>
+              </div>
+              <button class="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition">
+                Generate Content
+              </button>
+            </div>
+          </div>
+          </div>
+
+          <!-- ELEMENT 6: Feature - Best Practice (status: generated) -->
+          <div class="element-row flex gap-2 items-start">
+            <div class="flex flex-col gap-1 pt-3">
+              <button class="move-btn move-up w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move up">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <button class="move-btn move-down w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 bg-white transition" title="Move down">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
+          <div class="element-card flex-1 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition group">
+            <div class="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100">
+              <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span class="text-sm font-medium text-slate-700 flex-1">Best Practice: Tableside Presentation</span>
+              <span class="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Generated</span>
+              <div class="element-controls flex items-center gap-1">
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition" title="AI Assist"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" title="Edit"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                <button class="w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition" title="Delete"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              </div>
+            </div>
+            <!-- Best Practice Callout: green-50/green-600 -->
+            <div class="mx-4 my-4 bg-green-50 border border-green-200 rounded-lg p-4">
+              <div class="flex items-start gap-3">
+                <svg class="w-5 h-5 text-green-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <div>
+                  <div class="text-sm font-semibold text-green-700 mb-1">Tableside Presentation</div>
+                  <div class="text-sm text-green-800 leading-relaxed">Present the ribeye on the sizzle plate, bone facing the guest. Allow 10 seconds for the visual and aroma impact before describing the cut. Say: <em>"This is our 16-ounce dry-aged bone-in ribeye, aged 28 days. The herb butter is melting into the char right now &mdash; that's the best part."</em> Then step back and let them enjoy.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <!-- Additional Callout Variants (show all 6) -->
+          <div class="mt-8 mb-2">
+            <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Additional Callout Variants</div>
+          </div>
+
+          <!-- Caution: amber-50/amber-600 -->
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div>
+                <div class="text-sm font-semibold text-amber-700 mb-1">Caution: Resting Time</div>
+                <div class="text-sm text-amber-800 leading-relaxed">Never rush a ribeye to the table. It must rest 3-5 minutes after coming off the broiler. Cutting into it immediately releases all the juices and results in a dry steak. If a guest complains about wait time, explain that resting is part of the cooking process.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Did You Know: purple-50/purple-600 -->
+          <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mt-4">
+            <div class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-purple-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l1.09 3.36h3.53l-2.86 2.08 1.09 3.36L12 8.72l-2.85 2.08 1.09-3.36L7.38 5.36h3.53z"/></svg>
+              <div>
+                <div class="text-sm font-semibold text-purple-700 mb-1">Did You Know?</div>
+                <div class="text-sm text-purple-800 leading-relaxed">Dry-aging reduces the weight of a steak by 15-20% through moisture evaporation. That's why our dry-aged cuts cost more &mdash; we're paying for beef that literally shrinks. This is a great talking point when guests ask about the price premium.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Key Point: indigo-50/indigo-600 -->
+          <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mt-4">
+            <div class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-indigo-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              <div>
+                <div class="text-sm font-semibold text-indigo-700 mb-1">Key Point: Wine Pairing</div>
+                <div class="text-sm text-indigo-800 leading-relaxed">The ribeye pairs best with full-bodied reds. Our top recommendation is the <strong>Caymus Cabernet Sauvignon</strong> &mdash; the bold tannins cut through the fat and complement the char. Second choice: the <strong>Stag's Leap Artemis</strong> for a softer, more approachable pairing.</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT: AI Chat Panel -->
+      <div class="w-80 bg-white border-l border-slate-200 flex flex-col shrink-0">
+        <!-- Panel Header -->
+        <div class="px-4 py-3 border-b border-slate-200">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg class="w-3.5 h-3.5 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/><path d="M10 9v1a2 2 0 0 0 4 0V9"/><circle cx="12" cy="16" r="4"/><path d="M12 20v2"/></svg>
+              </div>
+              <span class="text-sm font-semibold text-slate-900">AI Assistant</span>
+            </div>
+            <button class="text-xs text-slate-400 hover:text-slate-600 transition">Clear</button>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <!-- AI Message -->
+          <div class="flex gap-2.5">
+            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/></svg>
+            </div>
+            <div class="bg-slate-50 rounded-xl rounded-tl-sm px-3 py-2.5 text-sm text-slate-700 leading-relaxed">
+              I've built the outline for <strong>Lesson 1: Ribeye</strong> with 5 elements. 4 are generated, 1 is still in outline state (Cooking Temperatures). Want me to generate it now, or would you like to edit the instructions first?
+            </div>
+          </div>
+
+          <!-- User Message -->
+          <div class="flex gap-2.5 justify-end">
+            <div class="bg-emerald-600 text-white rounded-xl rounded-tr-sm px-3 py-2.5 text-sm leading-relaxed max-w-[85%]">
+              Generate the cooking temps section, and add a "did you know" callout about the Maillard reaction after it.
+            </div>
+          </div>
+
+          <!-- AI Message -->
+          <div class="flex gap-2.5">
+            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/></svg>
+            </div>
+            <div class="bg-slate-50 rounded-xl rounded-tl-sm px-3 py-2.5 text-sm text-slate-700 leading-relaxed">
+              Done! I've generated the cooking temperatures table and added a "Did You Know" callout about the Maillard reaction. The ribeye hits peak Maillard at our 1200&deg;F broiler temp &mdash; I included that detail. Check the canvas to review.
+            </div>
+          </div>
+
+          <!-- User Message -->
+          <div class="flex gap-2.5 justify-end">
+            <div class="bg-emerald-600 text-white rounded-xl rounded-tr-sm px-3 py-2.5 text-sm leading-relaxed max-w-[85%]">
+              Add a wine pairing key point after the allergen warning. Recommend the Caymus Cab.
+            </div>
+          </div>
+
+          <!-- AI Message -->
+          <div class="flex gap-2.5">
+            <div class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-3 h-3 text-emerald-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 3H10s-2-1.05-2-3a4 4 0 0 1 4-4z"/></svg>
+            </div>
+            <div class="bg-slate-50 rounded-xl rounded-tl-sm px-3 py-2.5 text-sm text-slate-700 leading-relaxed">
+              Added a Key Point element with the Caymus Cabernet pairing recommendation. I also included the Stag's Leap Artemis as a backup suggestion since I found it in your wine list. The element is placed after the allergen warning.
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="px-4 py-2 border-t border-slate-100">
+          <div class="flex gap-1.5 overflow-x-auto pb-1">
+            <button class="shrink-0 text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full hover:bg-slate-200 transition">Build All</button>
+            <button class="shrink-0 text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full hover:bg-slate-200 transition">Add images</button>
+            <button class="shrink-0 text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full hover:bg-slate-200 transition">Translate to ES</button>
+          </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="px-4 py-3 border-t border-slate-200">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 relative">
+              <input type="text" placeholder="Ask AI to make changes..." class="w-full border border-slate-200 rounded-xl px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+              <button class="absolute right-2 top-2 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition" title="Voice input">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+              </button>
+            </div>
+            <button class="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-700 transition shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      document.querySelectorAll('[id^="tab-"]').forEach(t => {
+        t.className = 'px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 transition';
+      });
+      const active = document.getElementById('tab-' + tab);
+      if (active) active.className = 'px-4 py-2.5 text-sm font-medium border-b-2 border-emerald-600 text-emerald-700';
+    }
+  </script>
+</body>
+</html>

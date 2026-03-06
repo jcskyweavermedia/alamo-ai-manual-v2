@@ -4,21 +4,130 @@
  * Conversational assessment — AI-led conversation to evaluate a trainee's
  * knowledge of a course section. Uses quiz_questions as topic guides,
  * stores messages in conversation_messages child table, and tracks
- * running competency on quiz_attempts (quiz_mode='conversation').
+ * running competency on quiz_attempts (quiz_mode='interactive_ai').
  *
  * Two actions:
  *   1. start   — Creates a new quiz_attempt + sends the AI's opening question
  *   2. message — Continues the conversation, persists messages, returns AI reply
  *
  * Auth: verify_jwt=false — manual JWT verification via getUser()
+ *
+ * Schema (Phase 2):
+ *   - course_sections.elements JSONB[] — content stored as element objects
+ *   - quiz_attempts, quiz_questions, conversation_messages — Phase 9 tables
+ *     (not yet created as of Phase 5A; this function will return a clear error
+ *      until those tables are migrated)
+ *
+ * Phase 9 TODO: Interactive AI quiz is a Phase 9 feature. This function
+ * provides a minimal working implementation that will activate once the
+ * quiz tables are rebuilt. Until then, it returns a helpful error message
+ * directing clients to use MC quizzes instead.
  */
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import type { SupabaseClient } from "../_shared/supabase.ts";
-import { loadSectionContent } from "../_shared/content.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
-import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
+import { checkUsage, UsageError } from "../_shared/usage.ts";
+import { getCreditCost, trackAndIncrement } from "../_shared/credit-pipeline.ts";
+
+// =============================================================================
+// ELEMENT CONTENT EXTRACTOR (same as course-tutor)
+// =============================================================================
+
+interface CourseElement {
+  type: string;
+  key?: string;
+  title_en?: string;
+  title_es?: string;
+  body_en?: string;
+  body_es?: string;
+  caption_en?: string;
+  caption_es?: string;
+  items?: Array<{
+    title_en?: string;
+    title_es?: string;
+    body_en?: string;
+    body_es?: string;
+  }>;
+}
+
+/**
+ * Extract readable text content from a section's elements JSONB array.
+ */
+function extractElementsContent(
+  elements: CourseElement[],
+  language: "en" | "es",
+): string {
+  if (!elements || !Array.isArray(elements) || elements.length === 0) {
+    return "";
+  }
+
+  const parts: string[] = [];
+
+  for (const el of elements) {
+    const isEs = language === "es";
+
+    switch (el.type) {
+      case "content": {
+        const body = (isEs && el.body_es) ? el.body_es : el.body_en;
+        if (body) {
+          const title = (isEs && el.title_es) ? el.title_es : el.title_en;
+          if (title) {
+            parts.push(`### ${title}\n${body}`);
+          } else {
+            parts.push(body);
+          }
+        }
+        break;
+      }
+
+      case "feature": {
+        const title = (isEs && el.title_es) ? el.title_es : el.title_en;
+        const body = (isEs && el.body_es) ? el.body_es : el.body_en;
+
+        const featureParts: string[] = [];
+        if (title) featureParts.push(`**${title}**`);
+        if (body) featureParts.push(body);
+
+        if (el.items && Array.isArray(el.items)) {
+          for (const item of el.items) {
+            const itemTitle = (isEs && item.title_es) ? item.title_es : item.title_en;
+            const itemBody = (isEs && item.body_es) ? item.body_es : item.body_en;
+            if (itemTitle && itemBody) {
+              featureParts.push(`- ${itemTitle}: ${itemBody}`);
+            } else if (itemTitle) {
+              featureParts.push(`- ${itemTitle}`);
+            } else if (itemBody) {
+              featureParts.push(`- ${itemBody}`);
+            }
+          }
+        }
+
+        if (featureParts.length > 0) {
+          parts.push(featureParts.join("\n"));
+        }
+        break;
+      }
+
+      case "media": {
+        const caption = (isEs && el.caption_es) ? el.caption_es : el.caption_en;
+        if (caption) {
+          parts.push(`[Image/Media: ${caption}]`);
+        }
+        break;
+      }
+
+      default: {
+        const body = (isEs && el.body_es) ? el.body_es : el.body_en;
+        if (body) parts.push(body);
+        break;
+      }
+    }
+  }
+
+  return parts.join("\n\n");
+}
 
 // =============================================================================
 // TYPES
@@ -93,6 +202,31 @@ async function callOpenAIWithRetry<T>(params: Parameters<typeof callOpenAI<T>>[0
 }
 
 // =============================================================================
+// TABLE AVAILABILITY CHECK
+// =============================================================================
+
+/**
+ * Check if a table exists and is accessible. Returns true if the table
+ * is available, false if it's not (e.g., dropped and not yet recreated).
+ */
+async function tableExists(supabase: SupabaseClient, tableName: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from(tableName)
+      .select("id", { count: "exact", head: true })
+      .limit(0);
+
+    // If error contains "relation ... does not exist", table is not available
+    if (error && (error.message?.includes("does not exist") || error.code === "42P01")) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -141,12 +275,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // M4: Message length validation
+    // Message length validation
     if (action === "message" && typeof message === "string" && message.length > 4000) {
       return errorResponse("bad_request", "Message too long (max 4000 characters)", 400);
     }
 
     console.log(`[course-assess] Action: ${action} | Section: ${section_id} | Lang: ${language}`);
+
+    // Step 3b: CHECK TABLE AVAILABILITY
+    // quiz_attempts, quiz_questions, and conversation_messages were dropped in
+    // Phase 2 teardown. They will be rebuilt in Phase 9 (Interactive AI Quiz).
+    // Until then, return a clear error directing clients to MC quizzes.
+    const quizTablesReady = await tableExists(supabase, "quiz_attempts");
+    if (!quizTablesReady) {
+      console.warn("[course-assess] quiz_attempts table not available — Phase 9 tables not yet migrated");
+      return errorResponse(
+        "not_available",
+        language === "es"
+          ? "La evaluacion interactiva con IA aun no esta disponible. Usa el quiz de opcion multiple."
+          : "Interactive AI assessment is not yet available. Please use the multiple choice quiz.",
+        503,
+      );
+    }
 
     // Step 4: CHECK USAGE QUOTA
     const usage = await checkUsage(supabase, userId, groupId);
@@ -212,7 +362,7 @@ async function handleStart(
   language: string,
   groupId: string,
 ): Promise<Response> {
-  // M5: Verify enrollment belongs to this user
+  // Verify enrollment belongs to this user
   const { data: enrollment } = await supabase
     .from("course_enrollments")
     .select("id")
@@ -224,13 +374,13 @@ async function handleStart(
     return errorResponse("forbidden", "Enrollment not found or not yours", 403);
   }
 
-  // m1: Prevent concurrent in-progress conversation assessments for same section
+  // Prevent concurrent in-progress conversation assessments for same section
   const { count: inProgressCount } = await supabase
     .from("quiz_attempts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("section_id", sectionId)
-    .eq("quiz_mode", "conversation")
+    .eq("quiz_mode", "interactive_ai")
     .eq("status", "in_progress");
 
   if ((inProgressCount || 0) > 0) {
@@ -241,7 +391,7 @@ async function handleStart(
     );
   }
 
-  // Step 5a: Load active quiz questions for the section
+  // Load active quiz questions for the section (topic guides for the AI)
   const { data: questions, error: questionsError } = await supabase
     .from("quiz_questions")
     .select(
@@ -261,7 +411,7 @@ async function handleStart(
 
   console.log(`[course-assess:start] Found ${questions.length} questions`);
 
-  // Create quiz_attempt
+  // Create quiz_attempt (quiz_mode = 'interactive_ai' for Phase 9)
   const { count } = await supabase
     .from("quiz_attempts")
     .select("id", { count: "exact", head: true })
@@ -270,14 +420,26 @@ async function handleStart(
 
   const attemptNumber = (count || 0) + 1;
 
+  // Resolve course_id from the enrollment
+  const { data: enrollData } = await supabase
+    .from("course_enrollments")
+    .select("course_id")
+    .eq("id", enrollmentId)
+    .single();
+
+  if (!enrollData?.course_id) {
+    return errorResponse("not_found", "Enrollment not found", 404);
+  }
+
   const { data: newAttempt, error: attemptError } = await supabase
     .from("quiz_attempts")
     .insert({
       user_id: userId,
+      course_id: enrollData.course_id,
       section_id: sectionId,
       enrollment_id: enrollmentId,
       attempt_number: attemptNumber,
-      quiz_mode: "conversation",
+      quiz_mode: "interactive_ai",
       status: "in_progress",
       transcript_expires_at: new Date(
         Date.now() + 90 * 24 * 60 * 60 * 1000,
@@ -294,19 +456,26 @@ async function handleStart(
   const attemptId = newAttempt.id as string;
   console.log(`[course-assess:start] Created attempt: ${attemptId} (attempt #${attemptNumber})`);
 
-  // Load section content
+  // Load section content from elements JSONB (new schema)
   const { data: sections } = await supabase
     .from("course_sections")
-    .select("id, content_source, content_ids, title_en, title_es")
+    .select("id, elements, title_en, title_es")
     .eq("id", sectionId)
     .eq("status", "published");
 
-  const contentContext =
-    sections && sections.length > 0
-      ? await loadSectionContent(supabase, sections, language)
-      : "";
+  let contentContext = "";
+  if (sections && sections.length > 0) {
+    const sec = sections[0];
+    const lang = language as "en" | "es";
+    const elements = (sec.elements || []) as CourseElement[];
+    const title = (lang === "es" && sec.title_es) ? sec.title_es : sec.title_en;
+    const content = extractElementsContent(elements, lang);
+    if (content) {
+      contentContext = `=== ${title} ===\n${content}`;
+    }
+  }
 
-  // Step 6: BUILD SYSTEM PROMPT
+  // BUILD SYSTEM PROMPT
   const systemPrompt = await buildSystemPrompt(
     supabase,
     questions,
@@ -317,7 +486,7 @@ async function handleStart(
     return errorResponse("server_error", "Assessment prompt not configured", 500);
   }
 
-  // Step 7: BUILD MESSAGES + CALL OPENAI
+  // BUILD MESSAGES + CALL OPENAI
   const syntheticStart =
     language === "es"
       ? "Estoy listo para comenzar la evaluacion."
@@ -338,7 +507,7 @@ async function handleStart(
     maxTokens: 1000,
   });
 
-  // Step 8: VALIDATE AI RESPONSE
+  // VALIDATE AI RESPONSE
   const competencyScore = Math.min(100, Math.max(0, Math.round(aiResponse.competency_score)));
   const validQuestionIds = new Set(questions.map((q: Record<string, unknown>) => q.id as string));
   const coveredIds = (aiResponse.questions_covered || []).filter((id) =>
@@ -352,7 +521,7 @@ async function handleStart(
 
   const teachingMoment = aiResponse.teaching_moment || false;
 
-  // Step 9: PERSIST (M1: check for errors)
+  // PERSIST messages to conversation_messages
   const { error: msgInsertError } = await supabase.from("conversation_messages").insert([
     {
       attempt_id: attemptId,
@@ -394,14 +563,21 @@ async function handleStart(
     console.error("[course-assess:start] Attempt update error:", attemptUpdateError.message);
   }
 
-  // Step 10: INCREMENT USAGE
-  await incrementUsage(supabase, userId, groupId);
+  // Track credits (course_player/quiz_interactive)
+  const startCredits = await getCreditCost(supabase, groupId, "course_player", "quiz_interactive");
+  await trackAndIncrement(supabase, userId, groupId, startCredits, {
+    domain: "course_player",
+    action: "quiz_interactive",
+    edge_function: "course-assess",
+    model: "gpt-5.2",
+    metadata: { attempt_id: attemptId, section_id: sectionId },
+  });
 
   console.log(
     `[course-assess:start] Reply ready | Score: ${competencyScore} | Topics: ${coveredIds.length}/${questions.length} | WrapUp: ${shouldWrapUp}`,
   );
 
-  // Step 11: RETURN CLIENT-SAFE RESPONSE
+  // RETURN CLIENT-SAFE RESPONSE
   return jsonResponse({
     reply: aiResponse.reply,
     topics_covered: coveredIds.length,
@@ -424,7 +600,7 @@ async function handleMessage(
   language: string,
   groupId: string,
 ): Promise<Response> {
-  // Step 5b-a: Load attempt and verify ownership
+  // Load attempt and verify ownership
   const { data: attempt, error: attemptError } = await supabase
     .from("quiz_attempts")
     .select(
@@ -442,15 +618,15 @@ async function handleMessage(
   if (attempt.status !== "in_progress") {
     return errorResponse("bad_request", "Attempt not in progress", 400);
   }
-  if (attempt.quiz_mode !== "conversation") {
-    return errorResponse("bad_request", "Not a conversation attempt", 400);
+  if (attempt.quiz_mode !== "interactive_ai") {
+    return errorResponse("bad_request", "Not an interactive AI attempt", 400);
   }
 
   const sectionId = attempt.section_id as string;
   const currentTeachingMoments = (attempt.teaching_moments as number) || 0;
   const currentAdditionalAsked = (attempt.additional_questions_asked as number) || 0;
 
-  // Step 5b-b: Load active questions for topics_total (needed for force-wrap-up response)
+  // Load active questions for topics_total
   const { data: questions } = await supabase
     .from("quiz_questions")
     .select(
@@ -478,7 +654,6 @@ async function handleMessage(
         ? "Hemos cubierto mucho material. Permiteme preparar tu evaluacion."
         : "We've covered a lot of ground. Let me put together your evaluation!";
 
-    // Insert the user message and a wrap-up assistant message (M1: check errors)
     const { error: wrapMsgErr } = await supabase.from("conversation_messages").insert([
       { attempt_id: attemptId, role: "user", content: message },
       {
@@ -492,7 +667,6 @@ async function handleMessage(
       console.error("[course-assess:message] Wrap-up message insert error:", wrapMsgErr.message);
     }
 
-    // Update attempt status
     const { error: wrapUpdateErr } = await supabase
       .from("quiz_attempts")
       .update({ status: "awaiting_evaluation" })
@@ -515,19 +689,26 @@ async function handleMessage(
     });
   }
 
-  // Step 5b-c: Load section content
+  // Load section content from elements JSONB (new schema)
   const { data: sections } = await supabase
     .from("course_sections")
-    .select("id, content_source, content_ids, title_en, title_es")
+    .select("id, elements, title_en, title_es")
     .eq("id", sectionId)
     .eq("status", "published");
 
-  const contentContext =
-    sections && sections.length > 0
-      ? await loadSectionContent(supabase, sections, language)
-      : "";
+  let contentContext = "";
+  if (sections && sections.length > 0) {
+    const sec = sections[0];
+    const lang = language as "en" | "es";
+    const elements = (sec.elements || []) as CourseElement[];
+    const title = (lang === "es" && sec.title_es) ? sec.title_es : sec.title_en;
+    const content = extractElementsContent(elements, lang);
+    if (content) {
+      contentContext = `=== ${title} ===\n${content}`;
+    }
+  }
 
-  // Step 5b-d: Load conversation history (last 20 messages)
+  // Load conversation history (last 20 messages)
   const { data: messages } = await supabase
     .from("conversation_messages")
     .select("role, content")
@@ -536,7 +717,7 @@ async function handleMessage(
 
   const historySlice = (messages || []).slice(-20);
 
-  // Step 6: BUILD SYSTEM PROMPT
+  // BUILD SYSTEM PROMPT
   const systemPrompt = await buildSystemPrompt(
     supabase,
     questions || [],
@@ -547,7 +728,7 @@ async function handleMessage(
     return errorResponse("server_error", "Assessment prompt not configured", 500);
   }
 
-  // Step 7: BUILD MESSAGES + CALL OPENAI
+  // BUILD MESSAGES + CALL OPENAI
   const aiMessages: Array<{ role: string; content: string }> = [
     { role: "system", content: systemPrompt },
   ];
@@ -569,7 +750,7 @@ async function handleMessage(
     maxTokens: 1000,
   });
 
-  // Step 8: VALIDATE AI RESPONSE
+  // VALIDATE AI RESPONSE
   const competencyScore = Math.min(100, Math.max(0, Math.round(aiResponse.competency_score)));
   const validQuestionIds = new Set(
     (questions || []).map((q: Record<string, unknown>) => q.id as string),
@@ -589,7 +770,7 @@ async function handleMessage(
 
   const teachingMoment = aiResponse.teaching_moment || false;
 
-  // Step 9: PERSIST (M1: check for errors)
+  // PERSIST messages to conversation_messages
   const messagesToInsert: Array<Record<string, unknown>> = [
     {
       attempt_id: attemptId,
@@ -626,8 +807,7 @@ async function handleMessage(
     attemptUpdate.teaching_moments = currentTeachingMoments + 1;
   }
 
-  // M3: Count additional topics beyond preloaded question set using topics_assessed text
-  // topics_assessed are human-readable labels, not UUIDs — count topics that are genuinely new
+  // Count additional topics beyond preloaded question set
   const coveredTopicCount = allCoveredIds.length;
   const assessedTopicCount = (aiResponse.topics_assessed || []).length;
   const newAdditional = Math.max(0, assessedTopicCount - coveredTopicCount);
@@ -647,14 +827,21 @@ async function handleMessage(
     console.error("[course-assess:message] Attempt update error:", attemptUpdateErr.message);
   }
 
-  // Step 10: INCREMENT USAGE
-  await incrementUsage(supabase, userId, groupId);
+  // Track credits (course_player/quiz_interactive)
+  const msgCredits = await getCreditCost(supabase, groupId, "course_player", "quiz_interactive");
+  await trackAndIncrement(supabase, userId, groupId, msgCredits, {
+    domain: "course_player",
+    action: "quiz_interactive",
+    edge_function: "course-assess",
+    model: "gpt-5.2",
+    metadata: { attempt_id: attemptId, section_id: sectionId },
+  });
 
   console.log(
     `[course-assess:message] Reply ready | Score: ${competencyScore} | Topics: ${allCoveredIds.length}/${topicsTotal} | Teaching: ${teachingMoment} | WrapUp: ${shouldWrapUp}`,
   );
 
-  // Step 11: RETURN CLIENT-SAFE RESPONSE
+  // RETURN CLIENT-SAFE RESPONSE
   return jsonResponse({
     reply: aiResponse.reply,
     topics_covered: allCoveredIds.length,

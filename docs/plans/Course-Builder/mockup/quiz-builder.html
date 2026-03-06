@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Builder - Course Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex">
+  <!-- Dark Sidebar -->
+  <aside class="w-60 bg-slate-900 text-white flex flex-col shrink-0 min-h-screen">
+    <div class="px-5 py-5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-sm font-bold">A</div>
+        <span class="font-semibold text-sm">Alamo Prime</span>
+      </div>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="editor.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to Editor
+      </a>
+      <div class="px-3 py-3">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Course: Spring 2026 Menu Launch</div>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500">
+            <span class="w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold bg-slate-700 text-slate-400">1</span> Content
+          </div>
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500">
+            <span class="w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold bg-slate-700 text-slate-400">2</span> Settings
+          </div>
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-white bg-slate-800 font-medium">
+            <span class="w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold bg-purple-600 text-white">3</span> Quiz
+          </div>
+          <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-500">
+            <span class="w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold bg-slate-700 text-slate-400">4</span> Preview
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="px-5 py-4 border-t border-slate-700 text-xs text-slate-500">
+      <a href="index.html" class="hover:text-slate-300 transition">&larr; Back to mockup index</a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto">
+    <div class="max-w-5xl mx-auto px-8 py-10">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Quiz &amp; Assessment</h1>
+          <p class="text-slate-500 mt-1">Configure how staff are tested on this course material.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition">Save</button>
+          <button class="px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition shadow-sm">Generate Questions</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+        <!-- LEFT: Config Panel (2 cols) -->
+        <div class="lg:col-span-2 space-y-5">
+
+          <!-- Quiz Mode -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Quiz Mode</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-3 border border-emerald-300 bg-emerald-50/50 rounded-xl p-3 cursor-pointer">
+                <input type="radio" name="mode" checked class="accent-emerald-600">
+                <div>
+                  <div class="text-sm font-medium text-slate-900">Multiple Choice</div>
+                  <div class="text-xs text-slate-500">1 credit per attempt</div>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                <input type="radio" name="mode" class="accent-emerald-600">
+                <div>
+                  <div class="text-sm font-medium text-slate-900">Voice Response</div>
+                  <div class="text-xs text-slate-500">2 credits per attempt</div>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                <input type="radio" name="mode" class="accent-emerald-600">
+                <div>
+                  <div class="text-sm font-medium text-slate-900 flex items-center gap-2">Interactive AI <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">5-8 credits</span></div>
+                  <div class="text-xs text-slate-500">Real-time voice conversation</div>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 border border-slate-200 rounded-xl p-3 cursor-pointer hover:border-slate-300 transition">
+                <input type="radio" name="mode" class="accent-emerald-600">
+                <div>
+                  <div class="text-sm font-medium text-slate-900">Mixed</div>
+                  <div class="text-xs text-slate-500">Combine MC + Voice</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Question Settings -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-4">Question Settings</h3>
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Questions per Attempt</label>
+                  <input type="number" value="10" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Question Pool Size</label>
+                  <input type="number" value="30" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Passing Score</label>
+                  <div class="flex items-center gap-1">
+                    <input type="number" value="70" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <span class="text-sm text-slate-400">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Max Attempts</label>
+                  <select class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option>Unlimited</option>
+                    <option selected>3</option>
+                    <option>5</option>
+                    <option>10</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Cooldown Between Attempts</label>
+                <select class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option>No cooldown</option>
+                  <option>15 minutes</option>
+                  <option selected>30 minutes</option>
+                  <option>1 hour</option>
+                  <option>24 hours</option>
+                </select>
+              </div>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">Shuffle question order</span>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">Shuffle answer options</span>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">Show feedback after each question</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pool Status -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <h3 class="font-semibold text-slate-900 mb-3">Question Pool Status</h3>
+            <div class="space-y-3">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Generated</span>
+                <span class="font-medium text-slate-900">24 / 30</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2">
+                <div class="bg-emerald-500 h-2 rounded-full" style="width: 80%"></div>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500">
+                <span>Lesson 1: 8 questions</span>
+                <span>Lesson 2: 8 questions</span>
+                <span>Lesson 3: 8 questions</span>
+              </div>
+              <div class="pt-2 border-t border-slate-100">
+                <div class="flex items-center gap-2 text-xs">
+                  <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span class="text-amber-700">6 more questions needed to reach pool size of 30</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Question Preview (3 cols) -->
+        <div class="lg:col-span-3 space-y-5">
+
+          <!-- Example MC Question 1 -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400">Q1</span>
+                <span class="text-sm font-medium text-slate-700">Ribeye Knowledge</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
+                <span class="text-[10px] text-slate-400">Shown 12x &middot; 83% correct</span>
+              </div>
+            </div>
+            <div class="p-5">
+              <p class="text-sm font-medium text-slate-900 mb-4">How many days is the Prime Dry-Aged Ribeye aged at minimum before serving?</p>
+              <div class="space-y-2.5">
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q1" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">A) 14 days</span>
+                </label>
+                <label class="flex items-center gap-3 border-2 border-emerald-500 bg-emerald-50/50 rounded-xl px-4 py-3 cursor-pointer">
+                  <input type="radio" name="q1" checked class="accent-emerald-600">
+                  <span class="text-sm text-slate-900 font-medium">B) 28 days</span>
+                  <svg class="w-4 h-4 text-emerald-600 ml-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q1" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">C) 45 days</span>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q1" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">D) 60 days</span>
+                </label>
+              </div>
+              <!-- Explanation -->
+              <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div class="text-xs font-semibold text-emerald-700 mb-1">Explanation</div>
+                <p class="text-xs text-emerald-800 leading-relaxed">Our Prime Dry-Aged Ribeye is aged for a minimum of 28 days in-house. This duration allows for optimal moisture loss (concentrating flavor) and enzymatic tenderization without over-aging the cut.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Example MC Question 2 -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400">Q2</span>
+                <span class="text-sm font-medium text-slate-700">Allergen Awareness</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
+                <span class="text-[10px] text-slate-400">Shown 10x &middot; 60% correct</span>
+              </div>
+            </div>
+            <div class="p-5">
+              <p class="text-sm font-medium text-slate-900 mb-4">Which of the following allergens are present in the Ribeye's herb butter and dry-rub? Select the most complete answer.</p>
+              <div class="space-y-2.5">
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q2" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">A) Gluten and soy</span>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q2" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">B) Dairy only</span>
+                </label>
+                <label class="flex items-center gap-3 border-2 border-emerald-500 bg-emerald-50/50 rounded-xl px-4 py-3 cursor-pointer">
+                  <input type="radio" name="q2" checked class="accent-emerald-600">
+                  <span class="text-sm text-slate-900 font-medium">C) Dairy and mustard</span>
+                  <svg class="w-4 h-4 text-emerald-600 ml-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q2" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">D) Shellfish and dairy</span>
+                </label>
+              </div>
+              <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div class="text-xs font-semibold text-emerald-700 mb-1">Explanation</div>
+                <p class="text-xs text-emerald-800 leading-relaxed">The herb butter contains dairy, and the dry-rub includes mustard powder. Always confirm both allergens with guests. For dairy-free service, substitute olive oil and sea salt. There is no gluten, soy, or shellfish in this dish.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Example MC Question 3 -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400">Q3</span>
+                <span class="text-sm font-medium text-slate-700">Wine Pairing</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
+                <span class="text-[10px] text-slate-400">Shown 8x &middot; 75% correct</span>
+              </div>
+            </div>
+            <div class="p-5">
+              <p class="text-sm font-medium text-slate-900 mb-4">What is the recommended primary wine pairing for the Dry-Aged Ribeye?</p>
+              <div class="space-y-2.5">
+                <label class="flex items-center gap-3 border-2 border-emerald-500 bg-emerald-50/50 rounded-xl px-4 py-3 cursor-pointer">
+                  <input type="radio" name="q3" checked class="accent-emerald-600">
+                  <span class="text-sm text-slate-900 font-medium">A) Caymus Cabernet Sauvignon</span>
+                  <svg class="w-4 h-4 text-emerald-600 ml-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q3" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">B) Veuve Clicquot Yellow Label</span>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q3" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">C) Sancerre Sauvignon Blanc</span>
+                </label>
+                <label class="flex items-center gap-3 border border-slate-200 rounded-xl px-4 py-3 cursor-pointer hover:border-slate-300 transition">
+                  <input type="radio" name="q3" class="accent-emerald-600">
+                  <span class="text-sm text-slate-700">D) Pinot Grigio</span>
+                </label>
+              </div>
+              <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div class="text-xs font-semibold text-emerald-700 mb-1">Explanation</div>
+                <p class="text-xs text-emerald-800 leading-relaxed">The Caymus Cabernet Sauvignon's bold tannins cut through the rich fat of the dry-aged ribeye, while its dark fruit notes complement the char from our 1200&deg;F broiler. The backup recommendation is the Stag's Leap Artemis for guests who prefer a softer profile.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Flagged Question -->
+          <div class="bg-white rounded-2xl border border-amber-300 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400">Q8</span>
+                <span class="text-sm font-medium text-slate-700">Service Procedure</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                  Flagged
+                </span>
+                <span class="text-[10px] text-amber-600">Shown 15x &middot; 27% correct</span>
+              </div>
+            </div>
+            <div class="p-5">
+              <p class="text-sm font-medium text-slate-900 mb-3">How long should the ribeye rest before being brought to the table?</p>
+              <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <strong>Auto-flagged:</strong> This question has a &gt;70% miss rate after 15 attempts. The wording may be confusing or the correct answer may need clarification. Consider rephrasing or regenerating.
+              </div>
+              <div class="mt-3 flex gap-2">
+                <button class="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">Regenerate</button>
+                <button class="text-xs px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition">Edit</button>
+                <button class="text-xs px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition">Archive</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
