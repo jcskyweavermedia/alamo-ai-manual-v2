@@ -7,6 +7,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Paperclip, FileText, X, Loader2, Mic, Sparkles, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { chatMdComponents } from '@/lib/chat-markdown';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -505,11 +506,9 @@ export function AIBuilderPanel({ language, groupId }: AIBuilderPanelProps) {
               >
                 {/* Message text */}
                 {msg.role === 'assistant' ? (
-                  <div className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={chatMdComponents}>
+                    {msg.content}
+                  </ReactMarkdown>
                 ) : (
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {msg.content}

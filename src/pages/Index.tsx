@@ -6,29 +6,61 @@ import { BookOpen, Search, Sparkles, ArrowRight } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { useSearchNavigation } from "@/hooks/use-search-navigation";
 
+const STRINGS = {
+  en: {
+    heroTitle: 'Welcome to Alamo Prime',
+    heroSubtitle: 'Your AI-powered restaurant operations assistant',
+    quickAccess: 'Quick Access',
+    manualTitle: 'Operations Manual',
+    manualDesc: 'Access SOPs, food safety guidelines, and equipment procedures',
+    searchTitle: 'Search',
+    searchDesc: 'Find specific procedures, temperatures, or protocols',
+    askAiTitle: 'Ask AI',
+    askAiDesc: 'Get instant answers from the AI assistant',
+    systemStatus: 'System Status',
+    allOperational: 'All systems operational',
+    lastSynced: 'Last synced: Just now',
+  },
+  es: {
+    heroTitle: 'Bienvenido a Alamo Prime',
+    heroSubtitle: 'Tu asistente de operaciones de restaurante con IA',
+    quickAccess: 'Acceso R\u00e1pido',
+    manualTitle: 'Manual de Operaciones',
+    manualDesc: 'Accede a procedimientos, normas de seguridad alimentaria y uso de equipos',
+    searchTitle: 'Buscar',
+    searchDesc: 'Encuentra procedimientos, temperaturas o protocolos espec\u00edficos',
+    askAiTitle: 'Preguntar a la IA',
+    askAiDesc: 'Obt\u00e9n respuestas al instante del asistente de IA',
+    systemStatus: 'Estado del Sistema',
+    allOperational: 'Todos los sistemas funcionando',
+    lastSynced: '\u00daltima sincronizaci\u00f3n: Ahora mismo',
+  },
+} as const;
+
 const Index = () => {
   const navigate = useNavigate();
   const { language, setLanguage } = useLanguage();
   const handleSearch = useSearchNavigation();
+  const t = STRINGS[language];
 
   const quickLinks = [
-    { 
-      title: "Operations Manual", 
-      description: "Access SOPs, food safety guidelines, and equipment procedures",
+    {
+      title: t.manualTitle,
+      description: t.manualDesc,
       icon: BookOpen,
-      path: "/manual" 
+      path: "/manual"
     },
-    { 
-      title: "Search", 
-      description: "Find specific procedures, temperatures, or protocols",
+    {
+      title: t.searchTitle,
+      description: t.searchDesc,
       icon: Search,
-      path: "/search" 
+      path: "/search"
     },
-    { 
-      title: "Ask AI", 
-      description: "Get instant answers from the AI assistant",
+    {
+      title: t.askAiTitle,
+      description: t.askAiDesc,
       icon: Sparkles,
-      path: "/ask" 
+      path: "/ask"
     },
   ];
 
@@ -42,18 +74,18 @@ const Index = () => {
     >
       <div className="space-y-xl">
         <div className="space-y-sm">
-          <PageTitle>Welcome to Alamo Prime</PageTitle>
+          <PageTitle>{t.heroTitle}</PageTitle>
           <BodyText className="text-muted-foreground">
-            Your AI-powered restaurant operations assistant
+            {t.heroSubtitle}
           </BodyText>
         </div>
 
         {/* Quick Links */}
         <section className="space-y-lg">
-          <SectionTitle>Quick Access</SectionTitle>
+          <SectionTitle>{t.quickAccess}</SectionTitle>
           <div className="grid gap-md">
             {quickLinks.map((link) => (
-              <Card 
+              <Card
                 key={link.path}
                 className="group cursor-pointer hover:shadow-elevated transition-shadow duration-transition"
                 onClick={() => navigate(link.path)}
@@ -75,13 +107,13 @@ const Index = () => {
 
         {/* Status */}
         <section className="space-y-md">
-          <SectionTitle>System Status</SectionTitle>
+          <SectionTitle>{t.systemStatus}</SectionTitle>
           <Card>
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
-                  <BodyText>All systems operational</BodyText>
-                  <MetaText>Last synced: Just now</MetaText>
+                  <BodyText>{t.allOperational}</BodyText>
+                  <MetaText>{t.lastSynced}</MetaText>
                 </div>
                 <div className="h-3 w-3 rounded-full bg-success animate-pulse-subtle" />
               </div>

@@ -82,7 +82,8 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
         .from('tracked_restaurants')
         .select('id, name, restaurant_type, parent_unit_id, city, state')
         .eq('group_id', groupId)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .order('name');
 
       if (restError) throw restError;
       const allRestaurants = (restaurants ?? []) as TrackedRestaurant[];
@@ -144,14 +145,14 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
           .order('period_start', { ascending: false })
           .limit(1),
 
-        // 5. review_intelligence: last 12 months for own restaurant (monthly scores chart)
+        // 5. review_intelligence: last 12 months per restaurant (monthly scores chart)
         supabase
           .from('review_intelligence')
-          .select('period_start, flavor_index, restaurant_id')
-          .eq('restaurant_id', primaryOwn.id)
+          .select('period_start, flavor_index, food_sentiment, service_sentiment, ambience_sentiment, value_sentiment, restaurant_id')
+          .in('restaurant_id', allIds)
           .eq('period_type', 'month')
-          .order('period_start', { ascending: true })
-          .limit(12),
+          .order('period_start', { ascending: false })
+          .limit(100),
 
         // 6. review_intelligence: weekly for all restaurants (trend data + sparkline)
         supabase
@@ -282,40 +283,6 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
       const riMonthOwn = riMonthOwnResult.data?.[0] ?? null;
       const competitorsRaw = competitorsResult.data ?? [];
 
-      // ── Diagnostic logging (remove after Phase 5 is verified) ──
-      console.group('[ReviewDashboard] Phase C — Data Diagnostics');
-      console.log('fiCurrent:', fiCurrent);
-      console.log('fiPrevious:', fiPrevious);
-      console.log('riMonthOwn period_start:', riMonthOwn?.period_start, 'top_strengths:', riMonthOwn?.top_strengths, 'top_opportunities:', riMonthOwn?.top_opportunities);
-      console.log('subFood rows:', subFoodResult.data?.length ?? 0, subFoodResult.error?.message ?? 'OK');
-      console.log('subService rows:', subServiceResult.data?.length ?? 0, subServiceResult.error?.message ?? 'OK');
-      console.log('subAmbience rows:', subAmbienceResult.data?.length ?? 0, subAmbienceResult.error?.message ?? 'OK');
-      console.log('subValue rows:', subValueResult.data?.length ?? 0, subValueResult.error?.message ?? 'OK');
-      console.log('alerts rows:', alertsResult.data?.length ?? 0, alertsResult.error?.message ?? 'OK');
-      console.log('staff month rows:', staffMonthResult.data, staffMonthResult.error?.message ?? 'OK');
-      console.log('catTrend food rows:', catTrendFoodResult.data?.length ?? 0, catTrendFoodResult.error?.message ?? 'OK');
-
-      // ── RLS Comparison: check if review_analyses is accessible ──
-      const [raNoFilter, raWithRestaurant, raCount, fidSample, rrCheck] = await Promise.all([
-        // Test 1: ANY row from review_analyses (no filters except RLS)
-        supabase.from('review_analyses').select('id, group_id').limit(1),
-        // Test 2: filter by restaurant only (no date)
-        supabase.from('review_analyses').select('id, group_id').eq('restaurant_id', primaryOwn.id).limit(1),
-        // Test 3: count all accessible rows
-        supabase.from('review_analyses').select('*', { count: 'exact', head: true }),
-        // Test 4: flavor_index_daily sample with group_id
-        supabase.from('flavor_index_daily').select('group_id').limit(1),
-        // Test 5: restaurant_reviews accessible?
-        supabase.from('restaurant_reviews').select('id, group_id').limit(1),
-      ]);
-      console.log('RA test1 (no filter):', raNoFilter.data?.length, raNoFilter.error?.message ?? 'OK', 'group_id:', raNoFilter.data?.[0]?.group_id);
-      console.log('RA test2 (restaurant):', raWithRestaurant.data?.length, raWithRestaurant.error?.message ?? 'OK');
-      console.log('RA test3 (count):', raCount.count);
-      console.log('FID group_id sample:', fidSample.data?.[0]?.group_id);
-      console.log('RR test (reviews):', rrCheck.data?.length, rrCheck.error?.message ?? 'OK', 'group_id:', rrCheck.data?.[0]?.group_id);
-      console.log('User groupId:', groupId, 'primaryOwn.id:', primaryOwn.id);
-      console.groupEnd();
-
       // Build name lookup
       const nameMap = new Map<string, string>();
       for (const r of allRestaurants) nameMap.set(r.id, r.name);
@@ -444,12 +411,27 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
         restaurantName: a.restaurant_name ?? '',
       }));
 
-      // --- monthlyScores ---
+      // --- monthlyScores (per-restaurant, last 12 months, with category sentiments) ---
       const monthlyRows = riMonthAllResult.data ?? [];
-      const monthlyScores: FlavorMonthlyScore[] = (monthlyRows as any[]).map((r) => ({
-        month: getMonthLabel(r.period_start, locale),
-        score: Number(r.flavor_index ?? 0),
-      }));
+      const monthlyByRest: Record<string, FlavorMonthlyScore[]> = {};
+      for (const r of monthlyRows as any[]) {
+        const rid = r.restaurant_id;
+        if (!monthlyByRest[rid]) monthlyByRest[rid] = [];
+        monthlyByRest[rid].push({
+          month: getMonthLabel(r.period_start, locale),
+          score: Number(r.flavor_index ?? 0),
+          food: r.food_sentiment != null ? Math.round(sentimentToScore(Number(r.food_sentiment)) * 100) : null,
+          service: r.service_sentiment != null ? Math.round(sentimentToScore(Number(r.service_sentiment)) * 100) : null,
+          ambience: r.ambience_sentiment != null ? Math.round(sentimentToScore(Number(r.ambience_sentiment)) * 100) : null,
+          value: r.value_sentiment != null ? Math.round(sentimentToScore(Number(r.value_sentiment)) * 100) : null,
+        });
+      }
+      // Data arrived DESC — reverse each to chronological order, take latest 12
+      for (const rid of Object.keys(monthlyByRest)) {
+        monthlyByRest[rid] = monthlyByRest[rid].reverse().slice(-12);
+      }
+      const monthlyScores = monthlyByRest[primaryOwn.id] ?? [];
+      const monthlyScoresByRestaurant = monthlyByRest;
 
       // --- restaurantItems (per-restaurant top/worst from review_intelligence) ---
       // Fetch latest monthly review_intelligence for each restaurant (parallel)
@@ -624,19 +606,50 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
       }));
 
       // --- companyCards (own restaurants scorecards) ---
+      // get_dashboard_competitors only returns primaryOwn + its competitors.
+      // Secondary own restaurants (e.g. Pisco y Nazca) need independent FI queries.
+      const secondaryOwnIds = ownRestaurants
+        .filter((r) => !competitors.some((c) => c.restaurantId === r.id))
+        .map((r) => r.id);
+
+      const secondaryFiResults = await Promise.all(
+        secondaryOwnIds.map((id) =>
+          supabase.rpc('compute_flavor_index_range', {
+            p_restaurant_id: id,
+            p_start_date: from,
+            p_end_date: to,
+          })
+        )
+      );
+
+      // Build a lookup for secondary own FI data
+      const secondaryFiMap = new Map<string, any>();
+      secondaryOwnIds.forEach((id, idx) => {
+        const result = secondaryFiResults[idx];
+        if (!result.error && result.data) {
+          const fi = Array.isArray(result.data) ? result.data[0] : result.data;
+          secondaryFiMap.set(id, fi);
+        }
+      });
+
       const companyCards: CompanyScorecard[] = [];
       for (let i = 0; i < ownRestaurants.length; i++) {
         const own = ownRestaurants[i];
         const comp = competitors.find((c) => c.restaurantId === own.id);
-        const score = comp?.score ?? null;
+        const secFi = secondaryFiMap.get(own.id);
+
+        const score = comp?.score ?? (secFi ? Number(secFi.flavor_index ?? 0) : null);
+        const totalReviews = comp?.totalReviews ?? Number(secFi?.total_reviews ?? 0);
+        const avgRating = comp?.avgRating ?? Number(secFi?.avg_rating ?? 0);
+
         companyCards.push({
           name: own.name,
           location: [own.city, own.state].filter(Boolean).join(', ') || 'Location TBD',
-          score,
+          score: totalReviews > 0 ? score : null,
           delta: comp?.delta ?? null,
-          zone: score !== null ? getFlavorZone(score).zone as FlavorScoreZone : null,
-          totalReviews: comp?.totalReviews ?? 0,
-          avgRating: comp?.avgRating ?? 0,
+          zone: (totalReviews > 0 && score !== null) ? getFlavorZone(score).zone as FlavorScoreZone : null,
+          totalReviews,
+          avgRating,
           isPrimary: i === 0,
         });
       }
@@ -684,6 +697,7 @@ export function useReviewDashboard(dateRange: { from: Date; to: Date }, locale: 
         staff,
         alerts,
         monthlyScores,
+        monthlyScoresByRestaurant,
         restaurantItems,
         staffYear: staffYear,
         categoryStats,

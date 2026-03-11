@@ -13,6 +13,35 @@ import type { Recipe, PrepRecipe, PlateSpec, BatchScaling, TrainingNotes } from 
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
 import { HiQuestionMarkCircle } from 'react-icons/hi2';
+import type { Language } from '@/hooks/use-language';
+import { getCommon } from '@/lib/common-strings';
+
+const STRINGS = {
+  en: {
+    batchScaling: 'Batch Scaling',
+    trainingNotes: 'Training Notes',
+    platingNotes: 'Plating Notes',
+    prep: 'Prep',
+    viewFohPlateSpec: 'View FOH Plate Spec',
+    askQuestion: 'Ask a question',
+    components: 'Components',
+    plating: 'Plating',
+    commonMistakes: 'Common mistakes:',
+    qualityChecks: 'Quality checks:',
+  },
+  es: {
+    batchScaling: 'Escalado por Lote',
+    trainingNotes: 'Notas de Entrenamiento',
+    platingNotes: 'Notas de Emplatado',
+    prep: 'Preparaci\u00f3n',
+    viewFohPlateSpec: 'Ver Gu\u00eda FOH',
+    askQuestion: 'Hacer una pregunta',
+    components: 'Componentes',
+    plating: 'Emplatado',
+    commonMistakes: 'Errores comunes:',
+    qualityChecks: 'Revisiones de calidad:',
+  },
+} as const;
 
 interface RecipeCardViewProps {
   recipe: Recipe;
@@ -26,6 +55,7 @@ interface RecipeCardViewProps {
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
   fohSlug?: string | null;
+  language: Language;
 }
 
 export function RecipeCardView({
@@ -40,12 +70,15 @@ export function RecipeCardView({
   activeAction,
   onActionChange,
   fohSlug,
+  language,
 }: RecipeCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const isPrep = recipe.type === 'prep';
   const prep = isPrep ? (recipe as PrepRecipe) : null;
   const plate = !isPrep ? (recipe as PlateSpec) : null;
+  const t = STRINGS[language];
+  const c = getCommon(language);
 
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
@@ -58,16 +91,16 @@ export function RecipeCardView({
   const notes: { variant: 'tip' | 'info'; title: string; text: string }[] = [];
   if (prep?.batchScaling && 'scalable' in prep.batchScaling) {
     const bs = prep.batchScaling as BatchScaling;
-    notes.push({ variant: 'info', title: 'Batch Scaling', text: bs.notes || `${bs.scaling_method} scaling` });
+    notes.push({ variant: 'info', title: t.batchScaling, text: bs.notes || `${bs.scaling_method} scaling` });
   }
   if (prep?.trainingNotes && 'notes' in prep.trainingNotes) {
     const tn = prep.trainingNotes as TrainingNotes;
     const parts = [tn.notes];
-    if (tn.common_mistakes.length) parts.push('Common mistakes: ' + tn.common_mistakes.join('; '));
-    if (tn.quality_checks.length) parts.push('Quality checks: ' + tn.quality_checks.join('; '));
-    notes.push({ variant: 'tip', title: 'Training Notes', text: parts.filter(Boolean).join('\n') });
+    if (tn.common_mistakes.length) parts.push(t.commonMistakes + ' ' + tn.common_mistakes.join('; '));
+    if (tn.quality_checks.length) parts.push(t.qualityChecks + ' ' + tn.quality_checks.join('; '));
+    notes.push({ variant: 'tip', title: t.trainingNotes, text: parts.filter(Boolean).join('\n') });
   }
-  if (plate?.notes) notes.push({ variant: 'tip', title: 'Plating Notes', text: plate.notes });
+  if (plate?.notes) notes.push({ variant: 'tip', title: t.platingNotes, text: plate.notes });
 
   // Collect images for the gallery below ingredients
   const images = recipe.images.map(img => img.url);
@@ -86,7 +119,7 @@ export function RecipeCardView({
             onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/${recipe.type === 'prep' ? 'prep_recipes' : 'plate_specs'}/${recipe.id}`); }}
             title="Edit product"
           >
-            <span className="text-[14px] leading-none">✏️</span>
+            <span className="text-[14px] leading-none">{'\u270F\uFE0F'}</span>
           </Button>
         )}
 
@@ -102,7 +135,7 @@ export function RecipeCardView({
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
             <HiQuestionMarkCircle className="w-4 h-4 text-orange-500" />
-            Ask a question
+            {t.askQuestion}
           </Button>
         )}
       </div>
@@ -110,8 +143,8 @@ export function RecipeCardView({
       {/* Featured badge */}
       {recipe.isFeatured && (
         <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-          <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
-          <span>Featured</span>
+          <span className="text-[16px] h-[16px] leading-[16px]">{'\u2728'}</span>
+          <span>{c.featured}</span>
         </div>
       )}
 
@@ -127,7 +160,7 @@ export function RecipeCardView({
                 : 'bg-amber-500 text-white dark:bg-amber-600'
             )}
           >
-            {isPrep ? 'Prep' : plate!.plateType}
+            {isPrep ? t.prep : plate!.plateType}
           </span>
           {recipe.type === 'plate' && recipe.allergens.map(a => (
             <AllergenBadge key={a} allergen={a as any} />
@@ -137,11 +170,11 @@ export function RecipeCardView({
         {prep && (
           <div className="flex items-center gap-3 text-xs leading-none text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">📦</span>
+              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">{'\uD83D\uDCE6'}</span>
               {prep.yieldQty} {prep.yieldUnit}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">🕐</span>
+              <span className="text-[16px] h-[16px] leading-[16px] shrink-0">{'\uD83D\uDD50'}</span>
               {prep.shelfLifeValue} {prep.shelfLifeUnit}
             </span>
           </div>
@@ -153,7 +186,7 @@ export function RecipeCardView({
         {/* Cross-nav: BOH → FOH (right side of meta row) */}
         {recipe.type === 'plate' && fohSlug && (
           <CrossNavButton
-            label="View FOH Plate Spec"
+            label={t.viewFohPlateSpec}
             targetPath="/dish-guide"
             targetSlug={fohSlug}
           />
@@ -171,7 +204,7 @@ export function RecipeCardView({
             onClick={() => onActionChange(activeAction === 'questions' ? null : 'questions')}
           >
             <HiQuestionMarkCircle className="w-4 h-4 text-orange-500" />
-            Ask a question
+            {t.askQuestion}
           </Button>
         )}
 
@@ -197,7 +230,7 @@ export function RecipeCardView({
             />
           ) : plate ? (
             <div className="space-y-md">
-              <h2 className="text-section-title text-foreground">Components</h2>
+              <h2 className="text-section-title text-foreground">{t.components}</h2>
 
               {plate.components.map((group, gi) => (
                 <div key={gi}>
@@ -269,7 +302,7 @@ export function RecipeCardView({
         <div className="flex-1 min-w-0">
           <ProcedureColumn
             groups={prep ? prep.procedure : plate!.assemblyProcedure}
-            sectionLabel={plate ? 'Plating' : 'Procedure'}
+            sectionLabel={plate ? t.plating : undefined}
             notes={notes}
           />
         </div>

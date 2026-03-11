@@ -1,24 +1,27 @@
 // =============================================================================
-// ElementCardWrapper — Per-element wrapper with controls
-// Arrow buttons for reorder (UP/DOWN on left side), AI button, edit, delete,
-// status badge. CRITICAL: arrow-based reordering, NOT drag-and-drop.
+// ElementCardWrapper — Per-element wrapper with simplified chrome.
+// Arrow buttons for reorder (UP/DOWN on left side), delete button.
+// Inline editing elements provide their own styling — wrapper is minimal.
+// AI instructions card shown below content when toggle is on.
+// Media/ProductViewer keep the InlineAIPrompt sparkle button.
 // =============================================================================
 
-import { ChevronUp, ChevronDown, Sparkles, Pencil, Trash2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Sparkles, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { useCourseBuilder } from '@/contexts/CourseBuilderContext';
 import { InlineAIPrompt } from '@/components/course-builder/InlineAIPrompt';
-import type { CourseElement, ElementStatus } from '@/types/course-builder';
+import { AIInstructionsCard } from '@/components/course-builder/AIInstructionsCard';
+import type { CourseElement } from '@/types/course-builder';
 
-const statusBadgeStyles: Record<ElementStatus, string> = {
-  outline: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  generated: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-  reviewed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-};
+// Element types that use the new inline editing (NOT media/product_viewer)
+const INLINE_EDITABLE_TYPES = new Set([
+  'content', 'feature', 'page_header', 'section_header',
+  'card_grid', 'comparison', 'script_block',
+]);
 
 interface ElementCardWrapperProps {
   element: CourseElement;
+  sectionId: string;
   isSelected: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -28,6 +31,7 @@ interface ElementCardWrapperProps {
 
 export function ElementCardWrapper({
   element,
+  sectionId,
   isSelected,
   isFirst,
   isLast,
@@ -35,7 +39,7 @@ export function ElementCardWrapper({
   children,
 }: ElementCardWrapperProps) {
   const { selectElement, removeElement, moveElementUp, moveElementDown, state } = useCourseBuilder();
-  const sectionId = state.activeSectionId || '';
+  const isInlineEditable = INLINE_EDITABLE_TYPES.has(element.type);
 
   return (
     <div
@@ -45,7 +49,11 @@ export function ElementCardWrapper({
           ? 'ring-2 ring-primary shadow-md'
           : 'hover:shadow-sm',
       )}
-      onClick={() => selectElement(element.key)}
+      onClick={(e) => {
+        // Don't steal focus from inline editable fields
+        if ((e.target as HTMLElement).closest('input, textarea, select, [data-inline-editable]')) return;
+        selectElement(element.key);
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -99,66 +107,79 @@ export function ElementCardWrapper({
 
       {/* Main card content */}
       <div className={cn(
-        'flex-1 min-w-0 rounded-xl border bg-card p-3',
-        'border-black/[0.04] dark:border-white/[0.06]',
+        'flex-1 min-w-0 rounded-xl',
+        // Only add card chrome for non-inline-editable types (media, product_viewer)
+        !isInlineEditable && 'border bg-card p-3 border-black/[0.04] dark:border-white/[0.06]',
+        // Inline editable types get minimal padding
+        isInlineEditable && 'p-2',
       )}>
-        {/* Top row: type label + status badge + action buttons */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">
-              {element.type === 'product_viewer' ? 'PRODUCT' : element.type}{element.type === 'feature' && 'variant' in element ? ` / ${element.variant}` : ''}
-            </span>
-            <Badge
-              variant="secondary"
-              className={cn(
-                'text-[9px] font-semibold px-1.5 py-0 h-[16px] border-0',
-                statusBadgeStyles[element.status],
-              )}
-            >
-              {element.status}
-            </Badge>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            {element.type !== 'product_viewer' && (
-              <InlineAIPrompt
-                elementKey={element.key}
-                currentInstructions={element.ai_instructions}
-                sectionId={sectionId}
-                language={language}
-              >
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); }}
-                  className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                  aria-label="AI Generate"
+        {/* Action buttons — simplified for inline types, full for media/product_viewer */}
+        {!isInlineEditable && (
+          <div className="flex items-center justify-end mb-2">
+            <div className={cn(
+              'flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
+              isSelected && '!opacity-100',
+            )}>
+              {element.type !== 'product_viewer' && (
+                <InlineAIPrompt
+                  elementKey={element.key}
+                  currentInstructions={element.ai_instructions}
+                  sectionId={sectionId}
+                  language={language}
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
-                </button>
-              </InlineAIPrompt>
-            )}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); selectElement(element.key); }}
-              className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Edit"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); }}
+                    className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    aria-label="AI Generate"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </button>
+                </InlineAIPrompt>
+              )}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); removeElement(element.key); }}
+                className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                aria-label="Delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Delete button for inline editable types — floating top-right */}
+        {isInlineEditable && (
+          <div className={cn(
+            'absolute top-1 right-1 z-20 flex items-center gap-0.5',
+            'opacity-0 group-hover:opacity-100 transition-opacity',
+            isSelected && '!opacity-100',
+          )}>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); removeElement(element.key); }}
-              className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="h-6 w-6 flex items-center justify-center rounded bg-background/80 backdrop-blur-sm border border-border/50 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               aria-label="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
+        )}
 
         {/* Element content (rendered by type-specific renderer) */}
         {children}
+
+        {/* AI Instructions Card — shown for inline editable types when toggled on */}
+        {isInlineEditable && state.showAiInstructions && (
+          <AIInstructionsCard
+            elementKey={element.key}
+            aiInstructions={element.ai_instructions}
+            sectionId={sectionId}
+            language={language}
+            isGenerating={state.aiGeneratingElementKey === element.key}
+          />
+        )}
       </div>
     </div>
   );

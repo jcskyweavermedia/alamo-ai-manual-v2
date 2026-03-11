@@ -87,7 +87,7 @@ RULES:
 - For very short reviews (under 10 words) with no specific items or staff mentioned, return empty arrays for items_mentioned and staff_mentioned. Only extract strengths/opportunities if a specific category is clearly identifiable.
 - For items_mentioned, extract actual food/drink names (e.g., "Ribeye", "Old Fashioned"), not generic categories. Desserts use item_type "food" with course_type "dessert".
 - For non-English item names, translate them to their English menu equivalent if recognizable. Otherwise, keep the original name.
-- For staff_mentioned, extract actual first names or descriptions (e.g., "Maria", "our server", "the bartender").
+- For staff_mentioned, ONLY extract real first names (e.g., "Maria", "Carlos", "Jake"). Do NOT include generic descriptions like "our server" or "the bartender" — skip those. Capitalize the first letter of each name. If a full name is given (e.g., "Maria Garcia"), use only the first name ("Maria") unless two staff share the same first name. Normalize common nicknames to their standard form (e.g., "Chris" not "Christopher", "Mike" not "Michael").
 - Intensity scale: 1 = brief/mild mention, 3 = moderate detail, 5 = emphatic/detailed praise or criticism.
 - A review can have BOTH strengths AND opportunities.
 - high_severity_flag = true ONLY for: health/safety issues, food poisoning, discrimination, legal threats, harassment, or gross negligence. Normal complaints are NOT high severity.
@@ -469,9 +469,33 @@ async function extractReviewIntelligence(review: PendingReview): Promise<Extract
   return validateExtraction(result);
 }
 
+/** Generic staff descriptions to filter out — not attributable to a specific person. */
+const GENERIC_STAFF = new Set([
+  "our server", "the server", "our waiter", "the waiter",
+  "our bartender", "the bartender", "our host", "the host",
+  "the manager", "our manager", "a server", "a waiter",
+  "my server", "my waiter", "my bartender", "the hostess",
+  "our hostess", "my hostess", "the chef", "our chef",
+]);
+
+/**
+ * Normalize a staff name to match PostgreSQL initcap(split_part(trim(...), ' ', 1)).
+ * Takes first name only, title-cases it.
+ */
+function normalizeStaffName(name: string): string {
+  let n = name.trim();
+  // Extract first name only
+  const parts = n.split(/\s+/);
+  if (parts.length > 1) n = parts[0];
+  // Title-case: uppercase first char of each word segment (handles O'Brien, Jean-Pierre)
+  return n.replace(/(^|[\s'-])(\w)/g, (_m, sep, ch) => sep + ch.toUpperCase())
+    .replace(/([\s'-]\w)(\w+)/g, (_m, first, rest) => first + rest.toLowerCase());
+}
+
 /**
  * Validate and sanitize extraction output before saving.
- * Clamps intensity values, validates high_severity consistency.
+ * Clamps intensity values, validates high_severity consistency,
+ * normalizes staff names and filters generic descriptions.
  */
 function validateExtraction(ext: ExtractionResult): ExtractionResult {
   // Clamp intensity values to [1, 5]
@@ -480,6 +504,14 @@ function validateExtraction(ext: ExtractionResult): ExtractionResult {
   ext.strengths.forEach((s) => { s.intensity = clamp(s.intensity); });
   ext.opportunities.forEach((o) => { o.intensity = clamp(o.intensity); });
   ext.items_mentioned.forEach((i) => { i.intensity = clamp(i.intensity); });
+
+  // Normalize staff names: filter generics, first-name only, title-case
+  ext.staff_mentioned = ext.staff_mentioned
+    .filter((s) => {
+      const lower = s.name.toLowerCase().trim();
+      return !GENERIC_STAFF.has(lower) && lower.length > 1;
+    })
+    .map((s) => ({ ...s, name: normalizeStaffName(s.name) }));
 
   // Ensure high_severity_details is empty when flag is false
   if (!ext.high_severity_flag && ext.high_severity_details.length > 0) {

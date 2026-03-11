@@ -84,6 +84,28 @@ export function serializeRecipe(r: Record<string, unknown>): string {
   return parts.filter(Boolean).join("\n");
 }
 
+export function serializeStepsOfService(
+  s: Record<string, unknown>,
+  language: "en" | "es" = "en",
+): string {
+  const title = language === "es"
+    ? ((s.title_es as string) || (s.title_en as string) || "")
+    : ((s.title_en as string) || "");
+  const content = language === "es"
+    ? ((s.content_es as string) || (s.content_en as string) || "")
+    : ((s.content_en as string) || "");
+  // Truncate content to ~2000 chars (steps can be detailed markdown)
+  const truncated = content.length > 2000
+    ? content.slice(0, 2000) + "..."
+    : content;
+  return [
+    `=== Step of Service: ${title} ===`,
+    s.position ? `Position: ${s.position}` : null,
+    s.parent_key ? `Parent Step: ${s.parent_key}` : null,
+    truncated || "(no content)",
+  ].filter(Boolean).join("\n");
+}
+
 // =============================================================================
 // LOOKUP MAPS
 // =============================================================================
@@ -96,6 +118,7 @@ export const CONTENT_SERIALIZERS: Record<string, (item: Record<string, unknown>,
   wines: serializeWine,
   cocktails: serializeCocktail,
   beer_liquor_list: serializeBeerLiquor,
+  steps_of_service_sections: serializeStepsOfService,
 };
 
 export const SOURCE_TABLE: Record<string, string> = {
@@ -106,6 +129,7 @@ export const SOURCE_TABLE: Record<string, string> = {
   wines: "wines",
   cocktails: "cocktails",
   beer_liquor_list: "beer_liquor_list",
+  steps_of_service_sections: "steps_of_service_sections",
 };
 
 // =============================================================================

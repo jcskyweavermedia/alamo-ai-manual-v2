@@ -43,6 +43,8 @@ interface ExtendedFormFieldRendererProps extends FormFieldRendererProps {
   aiMissing?: boolean;
   /** When true, hides the label in FormFieldWrapper (for canvas inline editing) */
   hideLabel?: boolean;
+  /** When true, renders the field as non-interactive (for submission viewing) */
+  readOnly?: boolean;
 }
 
 // =============================================================================
@@ -58,6 +60,7 @@ function FormFieldRendererInner({
   aiHighlighted,
   aiMissing,
   hideLabel,
+  readOnly,
 }: ExtendedFormFieldRendererProps) {
   // 'header' is not rendered here — handled at FormBody level
   if (field.type === 'header') {
@@ -75,7 +78,7 @@ function FormFieldRendererInner({
   if (!fieldInput) {
     // Unknown field type fallback
     return (
-      <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel}>
+      <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel} readOnly={readOnly}>
         <p className="text-sm text-muted-foreground italic">
           Unsupported field type: {field.type}
         </p>
@@ -84,7 +87,7 @@ function FormFieldRendererInner({
   }
 
   return (
-    <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel}>
+    <FormFieldWrapper field={field} error={error} language={language} aiHighlighted={aiHighlighted} aiMissing={aiMissing} hideLabel={hideLabel} readOnly={readOnly}>
       {fieldInput}
     </FormFieldWrapper>
   );
@@ -287,6 +290,7 @@ export const FormFieldRenderer = React.memo(FormFieldRendererInner, (prev: Exten
   if (prev.aiHighlighted !== next.aiHighlighted) return false;
   if (prev.aiMissing !== next.aiMissing) return false;
   if (prev.hideLabel !== next.hideLabel) return false;
+  if (prev.readOnly !== next.readOnly) return false;
 
   // Deep compare value — handle arrays and objects
   if (prev.value === next.value) return true;

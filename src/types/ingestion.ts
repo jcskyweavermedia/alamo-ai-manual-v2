@@ -30,7 +30,7 @@ export type ProductType =
 
 export type IngestionMethod = 'chat' | 'file_upload' | 'image_upload' | 'edit' | 'batch';
 
-export type MobileMode = 'chat' | 'preview' | 'edit';
+export type MobileMode = 'chat' | 'preview' | 'edit' | 'list';
 
 // =============================================================================
 // PRODUCT TYPE METADATA
@@ -61,7 +61,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   /** When role='assistant', may include a draft preview */
-  draftPreview?: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | null;
+  draftPreview?: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | BeerLiquorDraft | null;
   createdAt: string;
 }
 
@@ -225,6 +225,11 @@ export function isPrepRecipeDraft(draft: PrepRecipeDraft | WineDraft | CocktailD
 /** Type guard: is the draft a CocktailDraft? */
 export function isCocktailDraft(draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft): draft is CocktailDraft {
   return 'glass' in draft && 'keyIngredients' in draft && typeof (draft as Record<string, unknown>).keyIngredients === 'string';
+}
+
+/** Type guard: is the value a BeerLiquorDraft? */
+export function isBeerLiquorDraft(d: unknown): d is BeerLiquorDraft {
+  return d !== null && typeof d === 'object' && '_tempId' in d && 'rowStatus' in d;
 }
 
 // =============================================================================

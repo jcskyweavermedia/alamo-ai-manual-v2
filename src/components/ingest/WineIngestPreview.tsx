@@ -83,7 +83,7 @@ export function WineIngestPreview({ draft, onSwitchToEdit }: WineIngestPreviewPr
                 <img
                   src={draft.image}
                   alt={draft.name || 'Wine image'}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                   loading="lazy"
                 />
               </div>

@@ -3,9 +3,7 @@
 // Only multiple_choice is active for MVP; others show "Coming Soon".
 // =============================================================================
 
-import { ListChecks, Mic, Bot, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
@@ -26,29 +24,29 @@ const STRINGS = {
     passingScore: 'Passing Score',
   },
   es: {
-    multiple_choice: 'Opcion Multiple',
-    multiple_choiceDesc: 'Cuestionario estandar con preguntas de opcion multiple.',
+    multiple_choice: 'Opción Múltiple',
+    multiple_choiceDesc: 'Cuestionario estándar con preguntas de opción múltiple.',
     voice_response: 'Respuesta por Voz',
     voice_responseDesc: 'Responde preguntas usando entrada de voz.',
     interactive_ai: 'IA Interactiva',
     interactive_aiDesc: 'Cuestionario adaptativo impulsado por IA.',
     mixed: 'Mixto',
-    mixedDesc: 'Combinacion de todos los modos de cuestionario.',
-    comingSoon: 'Proximamente',
-    questionCount: 'Numero de Preguntas',
-    passingScore: 'Puntaje de Aprobacion',
+    mixedDesc: 'Combinación de todos los modos de cuestionario.',
+    comingSoon: 'Próximamente',
+    questionCount: 'Número de Preguntas',
+    passingScore: 'Puntaje de Aprobación',
   },
 };
 
 const MODES: Array<{
   value: QuizMode;
-  icon: typeof ListChecks;
+  emoji: string;
   enabled: boolean;
 }> = [
-  { value: 'multiple_choice', icon: ListChecks, enabled: true },
-  { value: 'voice_response', icon: Mic, enabled: false },
-  { value: 'interactive_ai', icon: Bot, enabled: false },
-  { value: 'mixed', icon: Shuffle, enabled: false },
+  { value: 'multiple_choice', emoji: '✅', enabled: true },
+  { value: 'voice_response', emoji: '🎙️', enabled: false },
+  { value: 'interactive_ai', emoji: '🤖', enabled: false },
+  { value: 'mixed', emoji: '🔀', enabled: false },
 ];
 
 interface QuizModeSelectorProps {
@@ -63,43 +61,44 @@ export function QuizModeSelector({ quizConfig, onChange, language = 'en' }: Quiz
   return (
     <div className="space-y-5">
       {/* Mode cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label={language === 'es' ? 'Modo de evaluación' : 'Assessment mode'}>
         {MODES.map((mode) => {
-          const Icon = mode.icon;
           const isSelected = quizConfig.quiz_mode === mode.value;
           return (
-            <button
+            <div
               key={mode.value}
-              type="button"
-              disabled={!mode.enabled}
+              role="radio"
+              aria-checked={isSelected}
+              tabIndex={mode.enabled ? 0 : -1}
               onClick={() => mode.enabled && onChange({ quiz_mode: mode.value })}
+              onKeyDown={(e) => { if (mode.enabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onChange({ quiz_mode: mode.value }); } }}
               className={cn(
-                'relative flex items-start gap-3 p-3 rounded-xl border text-left transition-all',
+                'bg-card rounded-[20px] border shadow-sm p-5 text-left transition-all cursor-pointer',
                 !mode.enabled && 'opacity-50 cursor-not-allowed',
                 isSelected
-                  ? 'ring-2 ring-primary border-primary bg-primary/5'
+                  ? 'ring-2 ring-orange-500 border-orange-200'
                   : mode.enabled
-                    ? 'border-border hover:border-primary/40 hover:shadow-sm'
-                    : 'border-border',
+                    ? 'border-black/[0.04] dark:border-white/[0.06] hover:shadow-md'
+                    : 'border-black/[0.04] dark:border-white/[0.06]',
               )}
             >
-              <div className="flex items-center justify-center h-9 w-9 rounded-lg shrink-0 bg-muted text-muted-foreground">
-                <Icon className="h-4.5 w-4.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">{t[mode.value]}</p>
-                  {!mode.enabled && (
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
-                      {t.comingSoon}
-                    </Badge>
-                  )}
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" role="img">{mode.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-foreground">{t[mode.value]}</span>
+                    {!mode.enabled && (
+                      <span className="text-[9px] font-semibold bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+                        {t.comingSoon}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] text-muted-foreground mt-0.5 leading-[1.4]">
+                    {t[`${mode.value}Desc` as keyof typeof t]}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t[`${mode.value}Desc` as keyof typeof t]}
-                </p>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

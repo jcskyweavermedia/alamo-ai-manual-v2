@@ -1,12 +1,15 @@
 import { cn } from '@/lib/utils';
-import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft } from '@/types/ingestion';
-import { isPrepRecipeDraft, isCocktailDraft, isPlateSpecDraft } from '@/types/ingestion';
+import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft, BeerLiquorDraft } from '@/types/ingestion';
+import { isPrepRecipeDraft, isCocktailDraft, isPlateSpecDraft, isBeerLiquorDraft } from '@/types/ingestion';
 
 interface DraftPreviewCardProps {
-  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft;
+  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | BeerLiquorDraft;
 }
 
 export function DraftPreviewCard({ draft }: DraftPreviewCardProps) {
+  if (isBeerLiquorDraft(draft)) {
+    return <BeerLiquorPreviewCard draft={draft} />;
+  }
   if (isPlateSpecDraft(draft)) {
     return <PlateSpecPreviewCard draft={draft} />;
   }
@@ -16,7 +19,49 @@ export function DraftPreviewCard({ draft }: DraftPreviewCardProps) {
   if (isPrepRecipeDraft(draft)) {
     return <PrepRecipePreviewCard draft={draft} />;
   }
-  return <WinePreviewCard draft={draft} />;
+  return <WinePreviewCard draft={draft as WineDraft} />;
+}
+
+function BeerLiquorPreviewCard({ draft }: { draft: BeerLiquorDraft }) {
+  const categoryEmoji = draft.category === 'Beer' ? '🍺' : '🥃';
+  return (
+    <div className={cn(
+      'rounded-xl border border-border bg-card p-4 space-y-3',
+      'shadow-sm'
+    )}>
+      <div className="flex items-start gap-3">
+        <span className="text-[24px] leading-none shrink-0">{categoryEmoji}</span>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold text-foreground truncate">
+            {draft.name || 'Untitled Item'}
+          </h4>
+          <p className="text-xs text-muted-foreground capitalize">
+            {draft.category}{draft.subcategory ? ` · ${draft.subcategory}` : ''}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {draft.producer && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="text-[14px] leading-none">🏭</span>
+            <span className="truncate">{draft.producer}</span>
+          </div>
+        )}
+        {draft.country && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="text-[14px] leading-none">📍</span>
+            <span className="truncate">{draft.country}</span>
+          </div>
+        )}
+        {draft.style && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground col-span-2">
+            <span className="text-[14px] leading-none">🏷</span>
+            <span className="truncate">{draft.style}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PrepRecipePreviewCard({ draft }: { draft: PrepRecipeDraft }) {

@@ -44,6 +44,7 @@ export function WineImageEditor() {
       name: draft.name,
       prepType: draft.style,
       description: `${draft.varietal} wine from ${draft.region}, ${draft.country}`,
+      category: draft.style,
       sessionId: state.sessionId || undefined,
     });
 

@@ -9,6 +9,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateEmbedding } from "../_shared/embeddings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -245,35 +246,6 @@ const TEXT_BUILDERS: Record<
 };
 
 // =============================================================================
-// EMBEDDING HELPER
-// =============================================================================
-
-async function generateEmbedding(
-  text: string,
-  apiKey: string
-): Promise<number[]> {
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: text,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenAI error: ${response.status} - ${error}`);
-  }
-
-  const data = await response.json();
-  return data.data[0].embedding;
-}
-
-// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -387,7 +359,7 @@ Deno.serve(async (req) => {
       for (const row of rows) {
         try {
           const text = buildText(row as Record<string, unknown>);
-          const embedding = await generateEmbedding(text, OPENAI_API_KEY);
+          const embedding = await generateEmbedding(text);
 
           const { error: updateError } = await supabase
             .from(tbl)

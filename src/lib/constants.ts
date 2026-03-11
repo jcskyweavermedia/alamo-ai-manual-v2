@@ -12,15 +12,13 @@ export const ROUTES = {
   BEER_LIQUOR: '/beer-liquor',
   FOH_MANUALS: '/foh-manuals',
   COURSES: '/courses',
-  COURSES_PROGRAM: '/courses/:programSlug',
-  COURSES_COURSE: '/courses/:programSlug/:courseSlug',
-  COURSES_SECTION: '/courses/:programSlug/:courseSlug/:sectionSlug',
-  COURSES_QUIZ: '/courses/:programSlug/:courseSlug/:sectionSlug/quiz',
   FORMS: '/forms',
   FORMS_DETAIL: '/forms/:slug',
   PROFILE: '/profile',
   ADMIN: '/admin',
-  ADMIN_TRAINING: '/admin/training',
+  ADMIN_COURSES: '/admin/courses',
+  ADMIN_COURSES_NEW: '/admin/courses/new',
+  ADMIN_COURSES_EDIT: '/admin/courses/:id/edit',
   ADMIN_REVIEWS: '/admin/reviews',
 } as const;
 
@@ -38,33 +36,35 @@ export const ANIMATION = {
 } as const;
 
 // Navigation items for staff
+// @deprecated for sidebar use — sidebar now uses NAV_GROUPS from nav-config.ts.
+// Kept for MobileTabBar.
 export const STAFF_NAV_ITEMS = [
-  { path: '/manual', label: 'Restaurant Standards', icon: 'BookOpen' },
-  { path: '/search', label: 'Search', icon: 'Search' },
-  { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
-  { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
-  { path: '/wines', label: 'Wines', icon: 'Wine' },
-  { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
-  { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
-  { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
-  { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
-  { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
-  { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
-  { path: '/profile', label: 'Profile', icon: 'User' },
+  { path: '/manual', labelEn: 'Restaurant Standards', labelEs: 'Estándares', icon: 'BookOpen' },
+  { path: '/search', labelEn: 'Search', labelEs: 'Buscar', icon: 'Search' },
+  { path: '/recipes', labelEn: 'Recipes', labelEs: 'Recetas', icon: 'ChefHat' },
+  { path: '/dish-guide', labelEn: 'Dish Guide', labelEs: 'Guía de Platos', icon: 'Utensils' },
+  { path: '/wines', labelEn: 'Wines', labelEs: 'Vinos', icon: 'Wine' },
+  { path: '/cocktails', labelEn: 'Cocktails', labelEs: 'Cócteles', icon: 'Martini' },
+  { path: '/beer-liquor', labelEn: 'Beer & Liquor', labelEs: 'Cerveza y Licores', icon: 'Beer' },
+  { path: '/foh-manuals', labelEn: 'FOH Manuals', labelEs: 'Manuales FOH', icon: 'ConciergeBell' },
+  { path: '/courses', labelEn: 'Courses', labelEs: 'Cursos', icon: 'GraduationCap' },
+  { path: '/forms', labelEn: 'Forms', labelEs: 'Formularios', icon: 'ClipboardList' },
+  { path: '/ask', labelEn: 'Ask AI', labelEs: 'Preguntar IA', icon: 'Sparkles' },
+  { path: '/profile', labelEn: 'Profile', labelEs: 'Perfil', icon: 'User' },
 ] as const;
 
 // Navigation items for admin (includes admin panel)
 export const ADMIN_NAV_ITEMS = [
-  { path: '/manual', label: 'Restaurant Standards', icon: 'BookOpen' },
-  { path: '/search', label: 'Search', icon: 'Search' },
-  { path: '/recipes', label: 'Recipes', icon: 'ChefHat' },
-  { path: '/dish-guide', label: 'Dish Guide', icon: 'Utensils' },
-  { path: '/wines', label: 'Wines', icon: 'Wine' },
-  { path: '/cocktails', label: 'Cocktails', icon: 'Martini' },
-  { path: '/beer-liquor', label: 'Beer & Liquor', icon: 'Beer' },
-  { path: '/foh-manuals', label: 'FOH Manuals', icon: 'ConciergeBell' },
-  { path: '/courses', label: 'Courses', icon: 'GraduationCap' },
-  { path: '/forms', label: 'Forms', icon: 'ClipboardList' },
-  { path: '/ask', label: 'Ask AI', icon: 'Sparkles' },
-  { path: '/admin', label: 'Admin', icon: 'Settings' },
+  { path: '/manual', labelEn: 'Restaurant Standards', labelEs: 'Estándares', icon: 'BookOpen' },
+  { path: '/search', labelEn: 'Search', labelEs: 'Buscar', icon: 'Search' },
+  { path: '/recipes', labelEn: 'Recipes', labelEs: 'Recetas', icon: 'ChefHat' },
+  { path: '/dish-guide', labelEn: 'Dish Guide', labelEs: 'Guía de Platos', icon: 'Utensils' },
+  { path: '/wines', labelEn: 'Wines', labelEs: 'Vinos', icon: 'Wine' },
+  { path: '/cocktails', labelEn: 'Cocktails', labelEs: 'Cócteles', icon: 'Martini' },
+  { path: '/beer-liquor', labelEn: 'Beer & Liquor', labelEs: 'Cerveza y Licores', icon: 'Beer' },
+  { path: '/foh-manuals', labelEn: 'FOH Manuals', labelEs: 'Manuales FOH', icon: 'ConciergeBell' },
+  { path: '/courses', labelEn: 'Courses', labelEs: 'Cursos', icon: 'GraduationCap' },
+  { path: '/forms', labelEn: 'Forms', labelEs: 'Formularios', icon: 'ClipboardList' },
+  { path: '/ask', labelEn: 'Ask AI', labelEs: 'Preguntar IA', icon: 'Sparkles' },
+  { path: '/admin', labelEn: 'Admin', labelEs: 'Admin', icon: 'Settings' },
 ] as const;

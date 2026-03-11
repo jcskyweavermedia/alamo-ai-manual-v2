@@ -10,6 +10,9 @@ export interface ItemNav {
   hasNext: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** Optional counter shown between prev/next arrows */
+  current?: number;
+  total?: number;
 }
 
 interface HeaderProps {
@@ -32,6 +35,23 @@ interface HeaderProps {
   className?: string;
 }
 
+const STRINGS = {
+  en: {
+    askAI: 'Ask AI',
+    searchPlaceholder: 'Search manuals...',
+    voiceInput: 'Voice input',
+    previousItem: 'Previous item',
+    nextItem: 'Next item',
+  },
+  es: {
+    askAI: 'Preguntar IA',
+    searchPlaceholder: 'Buscar manuales...',
+    voiceInput: 'Entrada de voz',
+    previousItem: 'Elemento anterior',
+    nextItem: 'Siguiente elemento',
+  },
+} as const;
+
 export function Header({
   showSearch = true,
   showMenuButton = false,
@@ -46,7 +66,7 @@ export function Header({
   leftContent,
   className,
 }: HeaderProps) {
-  const askLabel = language === 'es' ? 'Preguntar IA' : 'Ask AI';
+  const t = STRINGS[language];
   const [searchValue, setSearchValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -106,14 +126,11 @@ export function Header({
         {leftContent}
       </div>
 
-      {/* Center section: toolbar (absolute center) or manual search (flex center) */}
-      {toolbar && (
-        <div className="absolute left-1/2 -translate-x-1/2 z-10">
-          {toolbar}
-        </div>
-      )}
-      <div className="flex-1 flex items-center justify-center min-w-0">
-        {!toolbar && showSearch ? (
+      {/* Center section: toolbar (flex-bounded) or search */}
+      <div className="flex-1 flex items-center justify-center min-w-0 overflow-x-clip">
+        {toolbar ? (
+          toolbar
+        ) : showSearch ? (
           <div className="flex-1 max-w-md relative">
             <SearchInput
               ref={inputRef}
@@ -121,7 +138,7 @@ export function Header({
               onChange={handleSearchChange}
               onClear={handleClear}
               onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
-              placeholder={language === 'es' ? 'Buscar manuales...' : 'Search manuals...'}
+              placeholder={t.searchPlaceholder}
               className="w-full"
             />
             {/* Keyboard shortcut hint (desktop only, when empty) */}
@@ -145,7 +162,7 @@ export function Header({
             className="gap-2"
           >
             <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">{askLabel}</span>
+            <span className="hidden sm:inline">{t.askAI}</span>
           </Button>
         )}
 
@@ -164,10 +181,15 @@ export function Header({
                 'transition-all duration-150',
                 !itemNav.hasPrev && 'opacity-30 pointer-events-none'
               )}
-              title="Previous item"
+              title={t.previousItem}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+            {itemNav.current != null && itemNav.total != null && (
+              <span className="text-xs text-muted-foreground font-medium tabular-nums px-1.5">
+                {itemNav.current}/{itemNav.total}
+              </span>
+            )}
             <button
               type="button"
               onClick={itemNav.onNext}
@@ -180,7 +202,7 @@ export function Header({
                 'transition-all duration-150',
                 !itemNav.hasNext && 'opacity-30 pointer-events-none'
               )}
-              title="Next item"
+              title={t.nextItem}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -192,7 +214,7 @@ export function Header({
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
-          aria-label="Voice input"
+          aria-label={t.voiceInput}
         >
           <Mic className="h-4 w-4" />
         </Button>

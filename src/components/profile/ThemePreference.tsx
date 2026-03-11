@@ -9,7 +9,23 @@ import { Moon, Sun, Monitor } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useTheme, type Theme } from '@/hooks/use-theme';
+import { useLanguage } from '@/hooks/use-language';
 import { cn } from '@/lib/utils';
+
+const STRINGS = {
+  en: {
+    label: 'Theme',
+    light: 'Light theme',
+    system: 'System theme',
+    dark: 'Dark theme',
+  },
+  es: {
+    label: 'Tema',
+    light: 'Tema claro',
+    system: 'Tema del sistema',
+    dark: 'Tema oscuro',
+  },
+} as const;
 
 interface ThemePreferenceProps {
   className?: string;
@@ -17,6 +33,8 @@ interface ThemePreferenceProps {
 
 export function ThemePreference({ className }: ThemePreferenceProps) {
   const { theme, setTheme } = useTheme();
+  const { language } = useLanguage();
+  const t = STRINGS[language];
 
   const handleThemeChange = (value: string) => {
     if (value === 'light' || value === 'dark' || value === 'system') {
@@ -34,7 +52,7 @@ export function ThemePreference({ className }: ThemePreferenceProps) {
         ) : (
           <Monitor className="h-5 w-5 text-muted-foreground" />
         )}
-        <Label>Theme</Label>
+        <Label>{t.label}</Label>
       </div>
       <ToggleGroup
         type="single"
@@ -44,21 +62,21 @@ export function ThemePreference({ className }: ThemePreferenceProps) {
       >
         <ToggleGroupItem
           value="light"
-          aria-label="Light theme"
+          aria-label={t.light}
           className="rounded-r-none border border-r-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
           <Sun className="h-4 w-4" />
         </ToggleGroupItem>
         <ToggleGroupItem
           value="system"
-          aria-label="System theme"
+          aria-label={t.system}
           className="rounded-none border-y data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
           <Monitor className="h-4 w-4" />
         </ToggleGroupItem>
         <ToggleGroupItem
           value="dark"
-          aria-label="Dark theme"
+          aria-label={t.dark}
           className="rounded-l-none border border-l-0 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
           <Moon className="h-4 w-4" />

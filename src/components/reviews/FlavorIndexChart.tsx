@@ -1,54 +1,76 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Download, Maximize2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from 'recharts';
 import type { FlavorMonthlyScore, CompetitorData } from '@/types/reviews';
 import { getFlavorZoneHex, formatFlavorScore } from '@/lib/flavor-utils';
 
+type CategoryKey = 'food' | 'service' | 'ambience' | 'value';
+
 interface FlavorIndexChartProps {
   monthlyScores: FlavorMonthlyScore[];
+  monthlyScoresByRestaurant: Record<string, FlavorMonthlyScore[]>;
   competitors: CompetitorData[];
   isEs: boolean;
 }
 
-const CATEGORY_CHIPS = [
+const CATEGORY_CHIPS: { key: CategoryKey; label: { en: string; es: string }; color: string }[] = [
   { key: 'food',     label: { en: 'Food',     es: 'Comida' },   color: '#F97316' },
   { key: 'service',  label: { en: 'Service',  es: 'Servicio' }, color: '#FB923C' },
   { key: 'ambience', label: { en: 'Ambience', es: 'Ambiente' }, color: '#FDBA74' },
   { key: 'value',    label: { en: 'Value',    es: 'Valor' },    color: '#FED7AA' },
 ];
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label, isCategory }: any) {
   if (!active || !payload?.length) return null;
-  const score = payload[0].value as number;
+  const val = payload[0].value as number;
   return (
     <div
       className="rounded-lg px-3 py-2 text-xs shadow-lg"
       style={{ background: '#141418', color: '#fff' }}
     >
       <p className="font-medium mb-0.5">{label}</p>
-      <p className="font-mono font-bold">{formatFlavorScore(score)}</p>
+      <p className="font-mono font-bold">
+        {isCategory ? `${val}%` : formatFlavorScore(val)}
+      </p>
     </div>
   );
 }
 
 export function FlavorIndexChart({
   monthlyScores,
+  monthlyScoresByRestaurant,
   competitors,
   isEs,
 }: FlavorIndexChartProps) {
-  const [activeChips, setActiveChips] = useState<Set<string>>(new Set(['food']));
-  const [selectedRestaurant, setSelectedRestaurant] = useState(
-    competitors.find((c) => c.isOwn)?.name ?? competitors[0]?.name ?? '',
+  // Single-select: null = show overall FI; a key = show that category sentiment
+  const [activeCategory, setActiveCategory] = useState<CategoryKey | null>(null);
+
+  // Restaurant dropdown — keyed by restaurantId
+  const ownRestaurant = competitors.find((c) => c.isOwn);
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(
+    ownRestaurant?.restaurantId ?? competitors[0]?.restaurantId ?? '',
   );
 
-  const toggleChip = (key: string) => {
-    setActiveChips((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const toggleChip = (key: CategoryKey) => {
+    setActiveCategory((prev) => (prev === key ? null : key));
   };
+
+  // Pick the data for selected restaurant
+  const chartData = useMemo(() => {
+    return monthlyScoresByRestaurant[selectedRestaurantId] ?? monthlyScores;
+  }, [selectedRestaurantId, monthlyScoresByRestaurant, monthlyScores]);
+
+  // What data key to use for the bars
+  const dataKey = activeCategory ?? 'score';
+  const isCategory = activeCategory !== null;
+
+  // Y-axis domain: FI = [-25, 100], category sentiment = [0, 100]
+  const yDomain: [number, number] = isCategory ? [0, 100] : [-25, 100];
+
+  // Bar color
+  const chipColor = isCategory
+    ? CATEGORY_CHIPS.find((c) => c.key === activeCategory)?.color ?? '#F97316'
+    : '';
 
   return (
     <div className="bg-card border border-border rounded-[16px] p-6 transition-shadow hover:shadow-elevated">
@@ -81,7 +103,7 @@ export function FlavorIndexChart({
       {/* Toggle chips + restaurant selector */}
       <div className="flex flex-wrap items-center gap-2 mt-3 mb-4">
         {CATEGORY_CHIPS.map((chip) => {
-          const isActive = activeChips.has(chip.key);
+          const isActive = activeCategory === chip.key;
           return (
             <button
               key={chip.key}
@@ -104,13 +126,13 @@ export function FlavorIndexChart({
           );
         })}
         <select
-          value={selectedRestaurant}
-          onChange={(e) => setSelectedRestaurant(e.target.value)}
+          value={selectedRestaurantId}
+          onChange={(e) => setSelectedRestaurantId(e.target.value)}
           aria-label={isEs ? 'Seleccionar restaurante' : 'Select restaurant'}
           className="ml-auto bg-muted border border-border rounded-full px-3 py-1.5 text-xs font-medium text-foreground cursor-pointer"
         >
           {competitors.map((c) => (
-            <option key={c.restaurantId} value={c.name}>
+            <option key={c.restaurantId} value={c.restaurantId}>
               {c.name}
             </option>
           ))}
@@ -120,7 +142,7 @@ export function FlavorIndexChart({
       {/* Chart */}
       <div role="img" aria-label={isEs ? 'Gráfico de barras del Índice de Sabor, últimos 12 meses' : 'Flavor Index bar chart, last 12 months'} style={{ height: 'clamp(180px, 35vw, 220px)' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={monthlyScores} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
             <XAxis
               dataKey="month"
               axisLine={false}
@@ -128,16 +150,21 @@ export function FlavorIndexChart({
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             />
             <YAxis
-              domain={[-25, 100]}
+              domain={yDomain}
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
               width={30}
             />
-            <Tooltip content={<CustomTooltip />} cursor={false} />
-            <Bar dataKey="score" radius={[6, 6, 0, 0]} maxBarSize={48}>
-              {monthlyScores.map((entry, index) => {
-                const isLast = index === monthlyScores.length - 1;
+            <Tooltip content={<CustomTooltip isCategory={isCategory} />} cursor={false} />
+            <Bar dataKey={dataKey} radius={[6, 6, 0, 0]} maxBarSize={48}>
+              {chartData.map((entry, index) => {
+                const isLast = index === chartData.length - 1;
+                if (isCategory) {
+                  // Category mode: use chip color (darker for current month)
+                  return <Cell key={entry.month} fill={isLast ? '#C2410C' : chipColor} />;
+                }
+                // Overall FI mode: zone-based coloring
                 const fill = isLast ? '#C2410C' : getFlavorZoneHex(entry.score);
                 return <Cell key={entry.month} fill={fill} />;
               })}

@@ -7,6 +7,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchPromptBySlug, assembleSystemPrompt, MODE_SLUG_MAP } from "../_shared/prompt-helpers.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +26,10 @@ interface SessionRequest {
   itemContext?: Record<string, unknown>;
   /** Listen-only mode: disable VAD, strip tools, AI speaks once */
   listenOnly?: boolean;
+  /** Training teacher slug — activates AI teacher persona + section enrichment */
+  teacher_slug?: string;
+  /** Section ID for context enrichment in training mode */
+  section_id?: string;
 }
 
 // Product search tool definitions for WebRTC sessions
@@ -230,7 +235,7 @@ Deno.serve(async (req) => {
     // =========================================================================
     // 2. PARSE REQUEST
     // =========================================================================
-    const { groupId, language = 'en', promptSlug = 'assistant', domain, action, itemContext, listenOnly }: SessionRequest = await req.json();
+    const { groupId, language = 'en', promptSlug = 'assistant', domain, action, itemContext, listenOnly, teacher_slug, section_id }: SessionRequest = await req.json();
 
     if (!groupId) {
       return new Response(JSON.stringify({ error: 'Missing groupId' }), {
@@ -239,6 +244,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    const isTrainingMode = !!teacher_slug;
     const isProductMode = !!(domain && action && itemContext);
 
     // =========================================================================
@@ -313,7 +319,68 @@ Deno.serve(async (req) => {
     let systemPrompt: string;
     let voice = 'cedar';
 
-    if (isProductMode) {
+    if (isTrainingMode) {
+      // Training mode: fetch AI teacher persona and optionally enrich with section context
+      console.log('[realtime-session] Training mode — teacher_slug:', teacher_slug);
+
+      const { data: teacher, error: teacherError } = await supabase
+        .from('ai_teachers')
+        .select('slug, name, prompt_en, prompt_es, persona_en, persona_es')
+        .eq('slug', teacher_slug!)
+        .eq('is_active', true)
+        .single();
+
+      if (teacherError) {
+        console.warn('[realtime-session] Teacher not found:', teacher_slug, teacherError.message);
+      }
+
+      // Layer 2: teacher persona (persona_en preferred; fallback to prompt_en for transition)
+      const persona = (language === 'es' && teacher?.persona_es)
+        ? teacher.persona_es
+        : (teacher?.persona_en ?? (
+            (language === 'es' && teacher?.prompt_es)
+              ? teacher.prompt_es
+              : (teacher?.prompt_en ?? 'You are a helpful training teacher for Alamo Prime steakhouse. Help staff learn the menu, preparation techniques, and service standards.')
+          ));
+
+      // Fetch section context (Layer 4 content)
+      let enrichedContext = '';
+      if (section_id) {
+        try {
+          const { data: ctxData, error: ctxError } = await supabase
+            .rpc('fn_get_section_context', {
+              _section_id: section_id,
+              _language: language ?? 'en',
+            });
+          if (!ctxError && ctxData && ctxData.length > 0) {
+            enrichedContext = ctxData;
+            console.log('[realtime-session] Section context enriched, chars:', ctxData.length);
+          } else if (ctxError) {
+            console.warn('[realtime-session] Section context error:', ctxError.message);
+          }
+        } catch (e) {
+          console.warn('[realtime-session] Section context fetch failed:', e);
+        }
+      }
+
+      // Fetch Layer 1 (global rules) and Layer 3 (live trainer mode) in parallel
+      const [globalRules, modePrompt] = await Promise.all([
+        fetchPromptBySlug(supabase, 'teacher-global-rules', language as 'en' | 'es'),
+        fetchPromptBySlug(supabase, MODE_SLUG_MAP['live_trainer'], language as 'en' | 'es'),
+      ]);
+
+      // Assemble 4-layer system prompt
+      systemPrompt = assembleSystemPrompt({
+        globalRules,
+        persona,
+        modePrompt,
+        contentMd: enrichedContext,
+      });
+
+      voice = 'coral'; // Warm voice for training sessions
+
+      console.log('[realtime-session] Training prompt assembled (4-layer), voice:', voice);
+    } else if (isProductMode) {
       // Product mode: fetch voice action prompt from ai_prompts
       const voiceSlug = `voice-action-${domain}-${action}`;
       const fallbackSlug = `action-${domain}-${action}`;
@@ -448,8 +515,8 @@ Deno.serve(async (req) => {
       },
     ];
 
-    // Add all product search tools in product mode (enables cross-domain search)
-    if (isProductMode) {
+    // Add all product search tools in product mode OR training mode
+    if (isProductMode || isTrainingMode) {
       for (const toolDef of Object.values(PRODUCT_SEARCH_TOOL_DEFS)) {
         tools.push({
           type: 'function',

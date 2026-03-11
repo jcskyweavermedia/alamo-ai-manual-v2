@@ -12,12 +12,18 @@ import { useLanguage } from '@/hooks/use-language';
 import { useProfile } from '@/hooks/use-profile';
 import { cn } from '@/lib/utils';
 
+const STRINGS = {
+  en: { label: 'Language' },
+  es: { label: 'Idioma' },
+} as const;
+
 interface LanguagePreferenceProps {
   className?: string;
 }
 
 export function LanguagePreference({ className }: LanguagePreferenceProps) {
   const { language } = useLanguage();
+  const t = STRINGS[language];
   const { updateLanguage, isLoading } = useProfile();
 
   const handleLanguageChange = (value: string) => {
@@ -30,7 +36,7 @@ export function LanguagePreference({ className }: LanguagePreferenceProps) {
     <div className={cn('flex items-center justify-between', className)}>
       <div className="flex items-center gap-md">
         <Globe className="h-5 w-5 text-muted-foreground" />
-        <Label>Language</Label>
+        <Label>{t.label}</Label>
       </div>
       <ToggleGroup
         type="single"

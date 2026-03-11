@@ -6,6 +6,7 @@ import { useBatchIngest } from '@/hooks/use-batch-ingest';
 import { useIngestionSession } from '@/hooks/use-ingestion-session';
 import { useDirectImageUpload } from '@/hooks/use-direct-image-upload';
 import { useGenerateImage } from '@/hooks/use-generate-image';
+import { deriveBeerLiquorCategory } from '@/lib/image-category-helpers';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { BeerLiquorDraft } from '@/types/ingestion';
 import { createEmptyBeerLiquorDraft } from '@/types/ingestion';
@@ -612,8 +613,9 @@ export function BeerLiquorBatchIngest({ onDirtyChange }: BeerLiquorBatchIngestPr
     const result = await generateImage({
       productTable: 'beer_liquor_list',
       name: item.name,
-      prepType: item.category,
+      prepType: item.subcategory || item.category,
       description: item.description,
+      category: deriveBeerLiquorCategory(item.category || '', item.subcategory || ''),
       sessionId: sessionId ?? undefined,
     });
     if (result) {

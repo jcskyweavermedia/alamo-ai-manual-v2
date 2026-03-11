@@ -2,7 +2,6 @@
 // TeacherLevelSelector — 4 radio cards for teacher personality level
 // =============================================================================
 
-import { Smile, Briefcase, ShieldCheck, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TeacherLevel } from '@/types/course-builder';
 
@@ -21,23 +20,22 @@ const STRINGS = {
     friendly: 'Amigable',
     friendlyDesc: 'Alentador y solidario. Ideal para nuevos miembros del equipo.',
     professional: 'Profesional',
-    professionalDesc: 'Claro y equilibrado. El estilo de ensenanza predeterminado.',
+    professionalDesc: 'Claro y equilibrado. El estilo de enseñanza predeterminado.',
     strict: 'Estricto',
     strictDesc: 'Exigente y preciso. Espera conocimiento detallado.',
     expert: 'Experto',
-    expertDesc: 'Profundo y matizado. Para formacion avanzada.',
+    expertDesc: 'Profundo y matizado. Para formación avanzada.',
   },
 };
 
 const LEVELS: Array<{
   value: TeacherLevel;
-  icon: typeof Smile;
-  color: string;
+  emoji: string;
 }> = [
-  { value: 'friendly', icon: Smile, color: 'text-green-600 bg-green-50 dark:bg-green-950/30' },
-  { value: 'professional', icon: Briefcase, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/30' },
-  { value: 'strict', icon: ShieldCheck, color: 'text-amber-600 bg-amber-50 dark:bg-amber-950/30' },
-  { value: 'expert', icon: GraduationCap, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/30' },
+  { value: 'friendly', emoji: '😊' },
+  { value: 'professional', emoji: '👔' },
+  { value: 'strict', emoji: '📋' },
+  { value: 'expert', emoji: '🎓' },
 ];
 
 interface TeacherLevelSelectorProps {
@@ -50,32 +48,34 @@ export function TeacherLevelSelector({ value, onChange, language = 'en' }: Teach
   const t = STRINGS[language];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label={language === 'es' ? 'Estilo de enseñanza' : 'Teaching style'}>
       {LEVELS.map((level) => {
-        const Icon = level.icon;
         const isSelected = value === level.value;
         return (
-          <button
+          <div
             key={level.value}
-            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            tabIndex={0}
             onClick={() => onChange(level.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(level.value); } }}
             className={cn(
-              'flex items-start gap-3 p-3 rounded-xl border text-left transition-all',
+              'bg-card rounded-[20px] border shadow-sm p-5 text-left transition-all hover:shadow-md cursor-pointer',
               isSelected
-                ? 'ring-2 ring-primary border-primary bg-primary/5'
-                : 'border-border hover:border-primary/40 hover:shadow-sm',
+                ? 'ring-2 ring-orange-500 border-orange-200'
+                : 'border-black/[0.04] dark:border-white/[0.06]',
             )}
           >
-            <div className={cn('flex items-center justify-center h-9 w-9 rounded-lg shrink-0', level.color)}>
-              <Icon className="h-4.5 w-4.5" />
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" role="img">{level.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm font-bold text-foreground">{t[level.value]}</span>
+                <p className="text-[13px] text-muted-foreground mt-0.5 leading-[1.4]">
+                  {t[`${level.value}Desc` as keyof typeof t]}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{t[level.value]}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {t[`${level.value}Desc` as keyof typeof t]}
-              </p>
-            </div>
-          </button>
+          </div>
         );
       })}
     </div>

@@ -14,6 +14,7 @@ import type {
   FormSubmission,
   FormAttachment,
   Contact,
+  ContactLookupValue,
   ImageValue,
   FileValue,
 } from '@/types/forms';
@@ -320,6 +321,146 @@ export function transformSubmissionRow(row: any): FormSubmission {
 /**
  * Transform a raw contacts DB row (snake_case) to a Contact (camelCase).
  */
+// =============================================================================
+// MAIN FIELD EXTRACTION (Filing Cabinet cards)
+// =============================================================================
+
+/**
+ * Extract the first fillable field's label + value from a submission.
+ * Used to show a prominent name/title on Filing Cabinet result cards.
+ */
+export function extractMainField(
+  fields: FormFieldDefinition[],
+  values: FormFieldValues,
+  language: 'en' | 'es',
+): { label: string; value: string } | null {
+  const sorted = [...fields].sort((a, b) => a.order - b.order);
+  const first = sorted.find((f) => !NON_FILLABLE_TYPES.has(f.type));
+  if (!first) return null;
+
+  const raw = values[first.key];
+  if (raw === null || raw === undefined || raw === '') return null;
+
+  const label = getFieldLabel(first, language);
+  let value: string;
+
+  if (typeof raw === 'string') {
+    value = raw;
+  } else if (typeof raw === 'number') {
+    value = String(raw);
+  } else if (typeof raw === 'boolean') {
+    value = raw ? (language === 'es' ? 'Sí' : 'Yes') : 'No';
+  } else if (Array.isArray(raw)) {
+    // string[] (checkbox) or ImageValue[]/FileValue[] — show joined or count
+    if (raw.length === 0) return null;
+    if (typeof raw[0] === 'string') {
+      value = (raw as string[]).join(', ');
+    } else {
+      value = `${raw.length} ${raw.length === 1 ? 'item' : 'items'}`;
+    }
+  } else if (typeof raw === 'object' && raw !== null && 'name' in raw) {
+    // ContactLookupValue
+    value = (raw as ContactLookupValue).name;
+  } else {
+    return null;
+  }
+
+  return { label, value };
+}
+
+// =============================================================================
+// EMAIL BUILDER (Filing Cabinet viewer)
+// =============================================================================
+
+/** Field types whose values are binary / non-textual */
+const SKIP_EMAIL_TYPES: Set<FormFieldType> = new Set([
+  'signature',
+  'image',
+  'file',
+  'header',
+  'instructions',
+]);
+
+/**
+ * Build a mailto: URL with form data pre-populated.
+ */
+export function buildFormEmail(
+  templateTitle: string,
+  fields: FormFieldDefinition[],
+  values: FormFieldValues,
+  metadata: {
+    filledByName: string | null;
+    subjectName: string | null;
+    submittedAt: string | null;
+    createdAt: string;
+  },
+  language: 'en' | 'es',
+): string {
+  // --- Subject line ---
+  const mainField = extractMainField(fields, values, language);
+  const datePart = new Date(metadata.submittedAt ?? metadata.createdAt)
+    .toLocaleDateString(language === 'es' ? 'es' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  const subjectParts = [templateTitle];
+  if (mainField) subjectParts.push(mainField.value);
+  subjectParts.push(datePart);
+  const subject = subjectParts.join(' — ');
+
+  // --- Body ---
+  const lines: string[] = [];
+  lines.push(templateTitle);
+  lines.push('='.repeat(templateTitle.length));
+  lines.push('');
+
+  if (metadata.filledByName) {
+    lines.push(`${language === 'es' ? 'Enviado por' : 'Submitted by'}: ${metadata.filledByName}`);
+  }
+  if (metadata.subjectName) {
+    lines.push(`${language === 'es' ? 'Sujeto' : 'Subject'}: ${metadata.subjectName}`);
+  }
+  lines.push(`${language === 'es' ? 'Fecha' : 'Date'}: ${datePart}`);
+  lines.push('');
+  lines.push('---');
+  lines.push('');
+
+  const sorted = [...fields].sort((a, b) => a.order - b.order);
+  for (const field of sorted) {
+    if (SKIP_EMAIL_TYPES.has(field.type)) continue;
+
+    const label = getFieldLabel(field, language);
+    const raw = values[field.key];
+
+    let display: string;
+    if (raw === null || raw === undefined || raw === '') {
+      display = '—';
+    } else if (typeof raw === 'string') {
+      display = raw;
+    } else if (typeof raw === 'number') {
+      display = String(raw);
+    } else if (typeof raw === 'boolean') {
+      display = raw ? (language === 'es' ? 'Sí' : 'Yes') : 'No';
+    } else if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === 'string') {
+      display = (raw as string[]).join(', ');
+    } else if (typeof raw === 'object' && raw !== null && 'name' in raw) {
+      display = (raw as ContactLookupValue).name;
+    } else {
+      continue;
+    }
+
+    lines.push(`${label}: ${display}`);
+  }
+
+  const body = lines.join('\n');
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+// =============================================================================
+// TRANSFORM FUNCTIONS (continued)
+// =============================================================================
+
 export function transformContactRow(row: any): Contact {
   return {
     id: row.id,

@@ -11,16 +11,42 @@ import { DockedProductAIPanel } from '@/components/shared/DockedProductAIPanel';
 import { ProductAIDrawer } from '@/components/shared/ProductAIDrawer';
 import { getActionConfig } from '@/data/ai-action-config';
 import { usePinnedCourses } from '@/hooks/use-pinned-courses';
+import type { Language } from '@/hooks/use-language';
 
-const POSITION_LABELS: Record<string, string> = {
-  server: 'Server',
-  bartender: 'Bartender',
-  busser: 'Busser',
-  barback: 'Barback',
+const STRINGS = {
+  en: {
+    heroLine1: 'Hospitality,',
+    heroLine2: 'Perfected',
+    subtitle: 'Step-by-step service manuals for every front-of-house role.',
+    failedToLoad: 'Failed to load steps of service',
+  },
+  es: {
+    heroLine1: 'Hospitalidad,',
+    heroLine2: 'Perfeccionada',
+    subtitle: 'Manuales de servicio paso a paso para cada rol en sala.',
+    failedToLoad: 'Error al cargar los pasos de servicio',
+  },
+} as const;
+
+const POSITION_LABELS: Record<Language, Record<string, string>> = {
+  en: {
+    server: 'Server',
+    bartender: 'Bartender',
+    busser: 'Busser',
+    barback: 'Barback',
+  },
+  es: {
+    server: 'Mesero',
+    bartender: 'Bartender',
+    busser: 'Busser',
+    barback: 'Barback',
+  },
 };
 
 const StepsOfService = () => {
   const { language, setLanguage } = useLanguage();
+  const t = STRINGS[language];
+  const positionLabels = POSITION_LABELS[language];
   const isMobile = useIsMobile();
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const { togglePin, isPinned, sortPinnedFirst } = usePinnedCourses();
@@ -58,7 +84,7 @@ const StepsOfService = () => {
       onClose={() => setActiveAction(null)}
       actionConfig={getActionConfig('steps_of_service', activeAction) ?? null}
       domain="steps_of_service"
-      itemName={`SOS — ${POSITION_LABELS[selectedPosition] ?? selectedPosition}`}
+      itemName={`SOS — ${positionLabels[selectedPosition] ?? selectedPosition}`}
       itemContext={{ position: selectedPosition }}
     />
   ) : undefined;
@@ -78,9 +104,7 @@ const StepsOfService = () => {
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 gap-2">
           <AlertCircle className="h-6 w-6 text-destructive" />
-          <p className="text-sm text-muted-foreground">
-            {language === 'es' ? 'Error al cargar los pasos de servicio' : 'Failed to load steps of service'}
-          </p>
+          <p className="text-sm text-muted-foreground">{t.failedToLoad}</p>
         </div>
       ) : selectedPosition ? (
         <>
@@ -99,7 +123,7 @@ const StepsOfService = () => {
               onOpenChange={(open) => { if (!open) setActiveAction(null); }}
               actionConfig={activeAction ? getActionConfig('steps_of_service', activeAction) ?? null : null}
               domain="steps_of_service"
-              itemName={`SOS — ${POSITION_LABELS[selectedPosition] ?? selectedPosition}`}
+              itemName={`SOS — ${positionLabels[selectedPosition] ?? selectedPosition}`}
               itemContext={{ position: selectedPosition }}
             />
           )}
@@ -108,15 +132,11 @@ const StepsOfService = () => {
         <>
           <div className="py-6">
             <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
-              {language === 'es' ? 'Hospitalidad,' : 'Hospitality,'}
+              {t.heroLine1}
               <br />
-              <span className="font-bold">{language === 'es' ? 'Perfeccionada' : 'Perfected'}</span> ✨
+              <span className="font-bold">{t.heroLine2}</span> ✨
             </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              {language === 'es'
-                ? 'Manuales de servicio paso a paso para cada rol en sala.'
-                : 'Step-by-step service manuals for every front-of-house role.'}
-            </p>
+            <p className="text-sm text-muted-foreground mt-2">{t.subtitle}</p>
           </div>
           <SOSPositionSelector
             onSelectPosition={selectPosition}

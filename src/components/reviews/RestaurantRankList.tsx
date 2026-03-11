@@ -1,34 +1,13 @@
-import { useState } from 'react';
 import { MoreHorizontal, TrendingUp, TrendingDown } from 'lucide-react';
 import type { CompetitorData } from '@/types/reviews';
 import { formatFlavorScore } from '@/lib/flavor-utils';
-import { TimePillBar } from './TimePillBar';
 
 interface RestaurantRankListProps {
   competitors: CompetitorData[];
   isEs: boolean;
 }
 
-const TIME_OPTIONS_EN = [
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
-  { value: 'last-year', label: 'Last Year' },
-  { value: '5yr', label: '5 Yr', hiddenOnMobile: true },
-  { value: 'all', label: 'All', hiddenOnMobile: true },
-];
-
-const TIME_OPTIONS_ES = [
-  { value: 'month', label: 'Mes' },
-  { value: 'quarter', label: 'Trimestre' },
-  { value: 'year', label: 'Año' },
-  { value: 'last-year', label: 'Año Pasado' },
-  { value: '5yr', label: '5 Años', hiddenOnMobile: true },
-  { value: 'all', label: 'Todo', hiddenOnMobile: true },
-];
-
 export function RestaurantRankList({ competitors, isEs }: RestaurantRankListProps) {
-  const [timePeriod, setTimePeriod] = useState('month');
   const sorted = [...competitors].sort((a, b) => b.score - a.score);
   const maxAbsScore = sorted.length > 0 ? Math.max(...sorted.map((c) => Math.abs(c.score))) : 0;
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
@@ -55,16 +34,6 @@ export function RestaurantRankList({ competitors, isEs }: RestaurantRankListProp
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
-      </div>
-
-      {/* Time selector */}
-      <div className="mb-5">
-        <TimePillBar
-          options={isEs ? TIME_OPTIONS_ES : TIME_OPTIONS_EN}
-          value={timePeriod}
-          onChange={setTimePeriod}
-          bgClassName="bg-[rgba(255,255,255,0.35)]"
-        />
       </div>
 
       {/* Restaurant rows */}

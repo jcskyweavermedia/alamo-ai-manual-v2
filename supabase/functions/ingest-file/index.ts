@@ -429,6 +429,115 @@ const FILE_PROMPT_MAP: Record<string, string> = {
 };
 
 // =============================================================================
+// STRUCTURED EXTRACTION WITH RETRY
+// =============================================================================
+
+const EXTRACT_MAX_TOKENS = 10000;
+const EXTRACT_MAX_RETRIES = 2;
+const EXTRACT_TIMEOUT_MS = 250000;
+
+/**
+ * Calls OpenAI Chat Completions with json_schema response format.
+ * Retries on empty content, truncation, refusal, timeout, or fetch errors.
+ * Logs timing, finish_reason, and refusal for diagnostics.
+ */
+async function fetchStructuredExtraction(
+  openaiApiKey: string,
+  model: string,
+  systemPrompt: string,
+  // deno-lint-ignore no-explicit-any
+  userContent: string | any[],
+  // deno-lint-ignore no-explicit-any
+  jsonSchema: any,
+  label: string,
+  reasoningEffort?: string,
+): Promise<{ content: string | null; error?: string }> {
+  for (let attempt = 1; attempt <= EXTRACT_MAX_RETRIES; attempt++) {
+    console.log(`[${label}] Structured extraction attempt ${attempt}/${EXTRACT_MAX_RETRIES} (max_tokens=${EXTRACT_MAX_TOKENS})...`);
+
+    const start = Date.now();
+    let response: Response;
+    const abortCtrl = new AbortController();
+    const timeout = setTimeout(() => abortCtrl.abort(), EXTRACT_TIMEOUT_MS);
+
+    try {
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent },
+          ],
+          response_format: { type: "json_schema", json_schema: jsonSchema },
+          max_completion_tokens: EXTRACT_MAX_TOKENS,
+          ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        }),
+        signal: abortCtrl.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      const elapsed = Date.now() - start;
+      const isTimeout = (fetchError as Error)?.name === "AbortError";
+      console.error(
+        `[${label}] attempt ${attempt} ${isTimeout ? "TIMED OUT" : "fetch error"} after ${elapsed}ms:`,
+        isTimeout ? `exceeded ${EXTRACT_TIMEOUT_MS}ms` : fetchError
+      );
+      if (attempt < EXTRACT_MAX_RETRIES) continue;
+      return { content: null, error: isTimeout ? "Timed out" : "Fetch failed after retries" };
+    }
+    clearTimeout(timeout);
+
+    const elapsed = Date.now() - start;
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[${label}] attempt ${attempt} HTTP ${response.status} after ${elapsed}ms:`, errText.slice(0, 500));
+      if (attempt < EXTRACT_MAX_RETRIES) continue;
+      return { content: null, error: `HTTP ${response.status}` };
+    }
+
+    // deno-lint-ignore no-explicit-any
+    const data: any = await response.json();
+    const choice = data.choices?.[0];
+    const finishReason = choice?.finish_reason;
+    const refusal = choice?.message?.refusal;
+    const raw = choice?.message?.content;
+
+    console.log(
+      `[${label}] attempt ${attempt} completed in ${elapsed}ms — finish_reason=${finishReason}, ` +
+      `content_length=${raw?.length ?? 0}, refusal=${refusal ?? "none"}`
+    );
+
+    if (refusal) {
+      console.error(`[${label}] attempt ${attempt} REFUSED: ${refusal}`);
+      if (attempt < EXTRACT_MAX_RETRIES) continue;
+      return { content: null, error: `Refused: ${refusal}` };
+    }
+
+    if (finishReason === "length") {
+      console.error(`[${label}] attempt ${attempt} truncated (finish_reason=length)`);
+      if (attempt < EXTRACT_MAX_RETRIES) continue;
+      return { content: null, error: "Token limit exceeded" };
+    }
+
+    if (!raw) {
+      console.error(`[${label}] attempt ${attempt} empty content — finish_reason=${finishReason}`);
+      if (attempt < EXTRACT_MAX_RETRIES) continue;
+      return { content: null, error: "Empty content" };
+    }
+
+    return { content: raw };
+  }
+
+  return { content: null, error: "All retries exhausted" };
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
@@ -817,50 +926,23 @@ Deno.serve(async (req) => {
       // -----------------------------------------------------------------
       // Wine: Call 2 — Chat Completions + json_schema (structured extraction)
       // -----------------------------------------------------------------
-      console.log("[ingest-file] Wine: Call 2 — structured extraction...");
-
       const call2UserContent = existingDraft && existingDraft.name
         ? `CURRENT DRAFT:\n${JSON.stringify(existingDraft, null, 2)}\n\nASSISTANT ANALYSIS (from document + web research):\n${call1Text}\n\nMerge the analysis into the existing draft. Preserve all existing non-empty values. Fill in empty fields from the analysis.`
         : `ASSISTANT ANALYSIS (from document + web research):\n${call1Text}\n\nExtract all wine data into the structured format. Fill in ALL fields — use the web research to provide complete tasting notes, producer notes, and service recommendations.`;
 
-      const call2Response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-5-mini-2025-08-07",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: call2UserContent },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: WINE_DRAFT_SCHEMA,
-          },
-          max_completion_tokens: 4000,
-        }),
-      });
+      const call2Result = await fetchStructuredExtraction(
+        openaiApiKey, "gpt-5-mini-2025-08-07", systemPrompt, call2UserContent,
+        WINE_DRAFT_SCHEMA, "ingest-file wine-call2",
+      );
 
-      if (!call2Response.ok) {
-        const errText = await call2Response.text();
-        console.error(`[ingest-file] Wine Call 2 (Chat Completions) error ${call2Response.status}:`, errText);
-        return errorResponse("ai_error", "Failed to structure wine data", 500);
-      }
-
-      const call2Data = await call2Response.json();
-      const rawContent = call2Data.choices?.[0]?.message?.content;
-
-      if (!rawContent) {
-        console.error("[ingest-file] Wine Call 2 returned empty content");
-        return errorResponse("ai_error", "AI returned empty structured response", 500);
+      if (!call2Result.content) {
+        return errorResponse("ai_error", `Failed to structure wine data: ${call2Result.error}`, 500);
       }
 
       try {
-        draft = JSON.parse(rawContent) as WineDraft;
+        draft = JSON.parse(call2Result.content) as WineDraft;
       } catch (_parseError) {
-        console.error("[ingest-file] Failed to parse Wine Call 2 response as JSON:", rawContent);
+        console.error("[ingest-file] Failed to parse Wine Call 2 JSON:", call2Result.content.slice(0, 300));
         return errorResponse("ai_error", "AI returned invalid JSON", 500);
       }
 
@@ -871,8 +953,6 @@ Deno.serve(async (req) => {
       const isCocktail = productTable === "cocktails";
       const draftSchema = isCocktail ? COCKTAIL_DRAFT_SCHEMA : PREP_RECIPE_DRAFT_SCHEMA;
       const productLabel = isCocktail ? "cocktail" : "recipe";
-
-      console.log(`[ingest-file] Calling OpenAI (GPT-5.2, json_schema) for ${productLabel}...`);
 
       let userMessageText: string;
 
@@ -889,45 +969,19 @@ Deno.serve(async (req) => {
           : `Here is a recipe document to structure:\n\n${extractedText}`;
       }
 
-      const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-5.2",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessageText },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: draftSchema,
-          },
-          reasoning_effort: "medium",
-          max_completion_tokens: 4000,
-        }),
-      });
+      const extractResult = await fetchStructuredExtraction(
+        openaiApiKey, "gpt-5.2", systemPrompt, userMessageText,
+        draftSchema, `ingest-file ${productLabel}`, "medium",
+      );
 
-      if (!openaiResponse.ok) {
-        const errText = await openaiResponse.text();
-        console.error(`[ingest-file] OpenAI error ${openaiResponse.status}:`, errText);
-        return errorResponse("ai_error", `Failed to structure ${productLabel} from file`, 500);
-      }
-
-      const aiData = await openaiResponse.json();
-      const rawContent = aiData.choices?.[0]?.message?.content;
-
-      if (!rawContent) {
-        console.error("[ingest-file] OpenAI returned empty content");
-        return errorResponse("ai_error", "AI returned empty response", 500);
+      if (!extractResult.content) {
+        return errorResponse("ai_error", `Failed to structure ${productLabel}: ${extractResult.error}`, 500);
       }
 
       try {
-        draft = JSON.parse(rawContent) as ProductDraft;
+        draft = JSON.parse(extractResult.content) as ProductDraft;
       } catch (_parseError) {
-        console.error("[ingest-file] Failed to parse AI response as JSON:", rawContent);
+        console.error(`[ingest-file] Failed to parse ${productLabel} JSON:`, extractResult.content.slice(0, 300));
         return errorResponse("ai_error", "AI returned invalid JSON", 500);
       }
     }

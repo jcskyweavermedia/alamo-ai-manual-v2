@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Expand, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,21 @@ import type { BeerLiquorSubcategory } from '@/data/mock-beer-liquor';
 import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 import { AI_ACTION_ICONS } from '@/data/ai-action-icons';
 import { useAuth } from '@/hooks/use-auth';
+import type { Language } from '@/hooks/use-language';
+import { getCommon } from '@/lib/common-strings';
+
+const STRINGS = {
+  en: {
+    style: 'Style',
+    description: 'Description',
+    serviceNotes: 'Service Notes',
+  },
+  es: {
+    style: 'Estilo',
+    description: 'Descripci\u00f3n',
+    serviceNotes: 'Notas de Servicio',
+  },
+} as const;
 
 interface BeerLiquorCardViewProps {
   item: BeerLiquorItem;
@@ -17,11 +33,15 @@ interface BeerLiquorCardViewProps {
   onNext?: () => void;
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
+  language: Language;
 }
 
-export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction, onActionChange }: BeerLiquorCardViewProps) {
+export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction, onActionChange, language }: BeerLiquorCardViewProps) {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const t = STRINGS[language];
+  const c = getCommon(language);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -42,10 +62,10 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction,
           'w-10 h-10 rounded-full',
           'bg-amber-100 dark:bg-amber-900/30'
         )}>
-          <span className="text-[22px] h-[22px] leading-[22px]">{item.category === 'Beer' ? '🍺' : '🥃'}</span>
+          <span className="text-[22px] h-[22px] leading-[22px]">{item.category === 'Beer' ? '\uD83C\uDF7A' : '\uD83E\uDD43'}</span>
         </span>
         <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-          Style
+          {t.style}
         </h2>
         <p className="text-sm leading-relaxed text-foreground">
           {item.style}
@@ -60,10 +80,10 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction,
           'w-10 h-10 rounded-full',
           'bg-blue-100 dark:bg-blue-900/30'
         )}>
-          <span className="text-[22px] h-[22px] leading-[22px]">📋</span>
+          <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83D\uDCCB'}</span>
         </span>
         <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-          Description
+          {t.description}
         </h2>
         <p className="text-sm leading-relaxed text-foreground">
           {item.description}
@@ -79,10 +99,10 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction,
             'w-10 h-10 rounded-full',
             'bg-green-100 dark:bg-green-900/30'
           )}>
-            <span className="text-[22px] h-[22px] leading-[22px]">📝</span>
+            <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83D\uDCDD'}</span>
           </span>
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-            Service Notes
+            {t.serviceNotes}
           </h2>
           <p className="text-sm leading-relaxed text-foreground">
             {item.notes}
@@ -123,10 +143,10 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction,
               variant="outline"
               size="sm"
               className="h-8 px-2"
-              onClick={(e) => { e.stopPropagation(); }}
+              onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/beer_liquor_list/${item.id}`); }}
               title="Edit product"
             >
-              <span className="text-[14px] leading-none">✏️</span>
+              <span className="text-[14px] leading-none">{'\u270F\uFE0F'}</span>
             </Button>
           )}
         </div>
@@ -134,15 +154,15 @@ export function BeerLiquorCardView({ item, onBack, onPrev, onNext, activeAction,
         {/* Featured badge */}
         {item.isFeatured && (
           <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
-            <span>Featured</span>
+            <span className="text-[16px] h-[16px] leading-[16px]">{'\u2728'}</span>
+            <span>{c.featured}</span>
           </div>
         )}
 
         {/* Producer + country */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{item.producer}</span>
-          <span className="text-border">·</span>
+          <span className="text-border">&middot;</span>
           <span>{item.country}</span>
         </div>
       </div>

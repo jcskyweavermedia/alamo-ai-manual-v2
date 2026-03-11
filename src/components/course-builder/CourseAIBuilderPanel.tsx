@@ -21,9 +21,9 @@ const STRINGS = {
     chipTip: 'Add a tip about...',
     chipExpand: 'Expand this section',
     chipConcise: 'Make more concise',
-    chipSpanish: 'Add Spanish translation',
-    chipPairing: 'Add pairing suggestions',
-    chipAllergen: 'Add allergen warnings',
+    chipTakeaways: 'Add key takeaways',
+    chipSimplify: 'Rewrite for beginners',
+    chipScenario: 'Add a practice scenario',
     changes: 'Changes:',
   },
   es: {
@@ -35,9 +35,9 @@ const STRINGS = {
     chipTip: 'Agregar un consejo sobre...',
     chipExpand: 'Expandir esta seccion',
     chipConcise: 'Hacer mas conciso',
-    chipSpanish: 'Agregar traduccion al espanol',
-    chipPairing: 'Agregar sugerencias de maridaje',
-    chipAllergen: 'Agregar advertencias de alergenos',
+    chipTakeaways: 'Agregar puntos clave',
+    chipSimplify: 'Reescribir para principiantes',
+    chipScenario: 'Agregar un escenario de practica',
     changes: 'Cambios:',
   },
 };
@@ -81,9 +81,9 @@ export function CourseAIBuilderPanel({ language }: CourseAIBuilderPanelProps) {
     t.chipTip,
     t.chipExpand,
     t.chipConcise,
-    t.chipSpanish,
-    t.chipPairing,
-    t.chipAllergen,
+    t.chipTakeaways,
+    t.chipSimplify,
+    t.chipScenario,
   ];
 
   return (

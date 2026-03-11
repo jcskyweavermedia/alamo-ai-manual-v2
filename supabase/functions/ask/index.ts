@@ -23,6 +23,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchPromptBySlug, assembleSystemPrompt, MODE_SLUG_MAP } from "../_shared/prompt-helpers.ts";
 
 // =============================================================================
 // CORS
@@ -119,10 +120,14 @@ interface TrainingAskRequest {
   groupId: string;
   section_id: string;
   content_context: string;
+  teacher_slug?: string;
   conversation_history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   session_summary?: string;
   topics_covered?: string[];
   topics_total?: string[];
+  // NEW
+  mode?: 'teach_me' | 'quiz_me';
+  is_first_message?: boolean;
 }
 
 interface TrainingAskResponse {
@@ -132,7 +137,11 @@ interface TrainingAskResponse {
     covered: string[];
     total: string[];
   };
-  should_suggest_quiz: boolean;
+  should_suggest_quiz?: boolean;   // teach_me only
+  // NEW — quiz_me only
+  question?: string;
+  question_type?: string;
+  readiness_hint?: string;
 }
 
 interface SearchResult {
@@ -793,6 +802,57 @@ async function callOpenAI(
 }
 
 // =============================================================================
+// Training mode helpers
+// =============================================================================
+
+/**
+ * Returns the JSON schema for structured output, mode-specific.
+ */
+function getTrainingResponseSchema(mode: 'teach_me' | 'quiz_me') {
+  const base = {
+    type: 'object',
+    properties: {
+      reply:             { type: 'string' },
+      suggested_replies: { type: 'array', items: { type: 'string' } },
+      topics_update: {
+        type: 'object',
+        properties: {
+          covered: { type: 'array', items: { type: 'string' } },
+          total:   { type: 'array', items: { type: 'string' } },
+        },
+        required: ['covered', 'total'],
+        additionalProperties: false,
+      },
+    },
+    required: ['reply', 'suggested_replies', 'topics_update'] as string[],
+    additionalProperties: false,
+  };
+
+  if (mode === 'teach_me') {
+    return {
+      ...base,
+      properties: {
+        ...base.properties,
+        should_suggest_quiz: { type: 'boolean' },
+      },
+      required: [...base.required, 'should_suggest_quiz'],
+    };
+  }
+
+  // quiz_me
+  return {
+    ...base,
+    properties: {
+      ...base.properties,
+      question:       { type: 'string' },
+      question_type:  { type: 'string', enum: ['direct', 'scenario', 'reasoning'] },
+      readiness_hint: { type: 'string', enum: ['keep_going', 'almost_there', 'ready_for_test'] },
+    },
+    required: [...base.required, 'question', 'question_type', 'readiness_hint'],
+  };
+}
+
+// =============================================================================
 // HELPER: handleTrainingDomain
 // =============================================================================
 
@@ -813,146 +873,177 @@ async function handleTrainingDomain(
     topics_total = [],
   } = request;
 
-  // Fetch training-teacher prompt from ai_prompts table
-  const { data: prompts, error: promptError } = await supabase
-    .from("ai_prompts")
-    .select("slug, prompt_en, prompt_es")
-    .eq("slug", "training-teacher")
+  const mode = request.mode ?? 'teach_me';
+  const isFirstMessage = !conversation_history.some(m => m.role === 'assistant');
+
+  // Fetch teacher from ai_teachers (include persona_en/es)
+  const teacherSlug = request.teacher_slug ?? "standards-101";
+  console.log(`[ask:training] Loading teacher: ${teacherSlug}, mode: ${mode}`);
+
+  // deno-lint-ignore no-explicit-any
+  let teacherData: any = null;
+  const { data: teacherResult, error: teacherError } = await supabase
+    .from("ai_teachers")
+    .select("slug, name, prompt_en, prompt_es, persona_en, persona_es")
+    .eq("slug", teacherSlug)
     .eq("is_active", true)
     .single();
 
-  if (promptError) {
-    console.error("[ask:training] Prompt load error:", promptError.message);
-    throw new Error("Failed to load training prompt");
+  if (teacherError || !teacherResult) {
+    console.error("[ask:training] Teacher not found:", teacherSlug, teacherError?.message);
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("ai_teachers")
+      .select("slug, name, prompt_en, prompt_es, persona_en, persona_es")
+      .eq("slug", "standards-101")
+      .eq("is_active", true)
+      .single();
+    if (fallbackError || !fallback) throw new Error("Failed to load teacher prompt");
+    teacherData = fallback;
+  } else {
+    teacherData = teacherResult;
   }
 
-  const basePrompt = language === "es" && prompts.prompt_es
-    ? prompts.prompt_es
-    : prompts.prompt_en;
+  // Layer 2: teacher persona (persona_en preferred, fallback to prompt_en)
+  const persona = (language === 'es' && teacherData.persona_es)
+    ? teacherData.persona_es
+    : (teacherData.persona_en ?? (
+        (language === 'es' && teacherData.prompt_es)
+          ? teacherData.prompt_es
+          : teacherData.prompt_en
+      ));
 
-  // Build system prompt with context
-  const systemParts: string[] = [basePrompt];
+  // Layer 1 + Layer 3: fetch from ai_prompts in parallel
+  const modeSlug = MODE_SLUG_MAP[mode] ?? 'mode-teach-me';
+  const [globalRules, modePrompt] = await Promise.all([
+    fetchPromptBySlug(supabase, 'teacher-global-rules', language),
+    fetchPromptBySlug(supabase, modeSlug, language),
+  ]);
 
-  // Add content context
-  systemParts.push(
-    `\n\n## Content Being Taught\n${content_context}`
-  );
-
-  // Add session summary if provided
-  if (session_summary) {
-    systemParts.push(
-      `\n\n## Session Summary\n${session_summary}`
-    );
+  // Layer 4: enrich with section content from DB
+  let contentMd = content_context ?? '';
+  if (section_id) {
+    const { data: ctxData, error: ctxError } = await supabase
+      .rpc('fn_get_section_context', {
+        _section_id: section_id,
+        _language: language ?? 'en',
+      });
+    if (!ctxError && ctxData && ctxData.length > 0) {
+      contentMd = ctxData;
+    }
   }
 
-  // Add topic tracking
-  const remainingTopics = topics_total.filter(t => !topics_covered.includes(t));
-  if (remainingTopics.length > 0) {
-    systemParts.push(
-      `\n\n## Remaining Topics\n${remainingTopics.join(", ")}`
-    );
-  }
-  if (topics_covered.length > 0) {
-    systemParts.push(
-      `\n\n## Topics Already Covered\n${topics_covered.join(", ")}`
-    );
-  }
+  // Assemble 4-layer system prompt
+  const systemPrompt = assembleSystemPrompt({
+    globalRules,
+    persona,
+    modePrompt,
+    contentMd,
+    session: {
+      topics_covered,
+      topics_total,
+      session_summary: session_summary ?? '',
+    },
+  });
 
-  const systemPrompt = systemParts.join("\n");
+  // Build user content (on first message, inject synthetic starter if question is empty)
+  const userContent = (isFirstMessage && !question?.trim())
+    ? `[Staff member selected ${mode === 'teach_me' ? 'Teach Me' : 'Practice Questions'} mode. Begin the session.]`
+    : question;
 
-  // Build conversation messages (system + recent 10 history + user question)
+  // Build messages array
   // deno-lint-ignore no-explicit-any
   const messages: any[] = [
     { role: "system", content: systemPrompt },
+    ...conversation_history.slice(-20),
+    { role: "user", content: userContent },
   ];
 
-  // Add recent conversation history (last 10 messages)
-  const recentHistory = conversation_history.slice(-10);
-  messages.push(...recentHistory);
+  // Get response schema for this mode
+  const responseSchema = getTrainingResponseSchema(mode);
 
-  // Add current question
-  messages.push({ role: "user", content: question });
+  // Multi-round tool loop (reuse SEARCH_TOOLS + executeSearch)
+  console.log("[ask:training] Calling OpenAI with 4-layer prompt, mode:", mode);
 
-  // Define JSON schema for structured output
-  const responseSchema = {
-    type: "object",
-    properties: {
-      reply: {
-        type: "string",
-        description: "The teacher's response to the student's question or statement"
-      },
-      suggested_replies: {
-        type: "array",
-        items: { type: "string" },
-        description: "3-4 suggested follow-up questions or responses for the student"
-      },
-      topics_update: {
-        type: "object",
-        properties: {
-          covered: {
-            type: "array",
-            items: { type: "string" },
-            description: "Updated list of topics that have been covered"
-          },
-          total: {
-            type: "array",
-            items: { type: "string" },
-            description: "Updated list of all topics"
-          }
-        },
-        required: ["covered", "total"],
-        additionalProperties: false
-      },
-      should_suggest_quiz: {
-        type: "boolean",
-        description: "Whether to suggest a quiz at this point"
-      }
+  let aiData = await callOpenAI(apiKey, {
+    messages,
+    tools: SEARCH_TOOLS,
+    tool_choice: "auto",
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "training_response", strict: true, schema: responseSchema },
     },
-    required: ["reply", "suggested_replies", "topics_update", "should_suggest_quiz"],
-    additionalProperties: false
-  };
+    temperature: 0.7,
+    max_tokens: 2500,
+  });
 
-  console.log("[ask:training] Calling OpenAI with structured output...");
+  // Tool loop — up to MAX_TOOL_ROUNDS
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const choice = aiData.choices?.[0];
+    if (choice?.finish_reason !== 'tool_calls') break;
 
-  // Call OpenAI with structured JSON output
-  const response = await fetch(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.7,
-        max_tokens: 800,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "training_response",
-            strict: true,
-            schema: responseSchema
-          }
-        }
-      }),
+    const toolCalls = choice.message?.tool_calls ?? [];
+    if (toolCalls.length === 0) break;
+
+    // Append assistant message with tool calls
+    messages.push(choice.message);
+
+    // Execute each tool call
+    for (const toolCall of toolCalls) {
+      const fnName = toolCall.function?.name;
+      const fnArgs = JSON.parse(toolCall.function?.arguments ?? '{}');
+      const query = fnArgs.query ?? '';
+
+      console.log(`[ask:training] Tool call: ${fnName}("${query}")`);
+
+      let results: SearchResult[] = [];
+      try {
+        const queryEmbedding = await getQueryEmbedding(query);
+        results = await executeSearch(supabase, fnName, query, queryEmbedding, language);
+      } catch (err) {
+        console.error(`[ask:training] Tool ${fnName} error:`, err);
+      }
+
+      const resultText = results.length > 0
+        ? results.map((r: SearchResult) =>
+            `${r.name}: ${r.snippet}`
+          ).join('\n\n')
+        : 'No results found.';
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: resultText,
+      });
     }
-  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error ${response.status}: ${errorText}`);
+    // Call again — last round forces json output only (no more tools)
+    const isLastRound = round === MAX_TOOL_ROUNDS - 1;
+    aiData = await callOpenAI(apiKey, {
+      messages,
+      ...(isLastRound ? {} : { tools: SEARCH_TOOLS, tool_choice: "auto" }),
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "training_response", strict: true, schema: responseSchema },
+      },
+      temperature: 0.7,
+      max_tokens: 2500,
+    });
   }
 
-  const aiData = await response.json();
-  const content = aiData.choices?.[0]?.message?.content;
+  const finalChoice = aiData.choices?.[0];
+  const content = finalChoice?.message?.content;
+  const finishReason = finalChoice?.finish_reason;
+
+  if (finishReason === "length") {
+    console.error("[ask:training] Response truncated. Content:", content);
+    throw new Error("OpenAI response truncated — max_tokens too low");
+  }
 
   if (!content) {
+    console.error("[ask:training] Empty content. Refusal:", finalChoice?.message?.refusal, "finish_reason:", finishReason);
     throw new Error("No response from OpenAI");
   }
 
-  // Parse and validate JSON response
   let parsed: TrainingAskResponse;
   try {
     parsed = JSON.parse(content);
@@ -961,11 +1052,14 @@ async function handleTrainingDomain(
     throw new Error("Invalid JSON response from OpenAI");
   }
 
-  // Validate required fields
-  if (!parsed.reply || !Array.isArray(parsed.suggested_replies) ||
-      !parsed.topics_update || typeof parsed.should_suggest_quiz !== 'boolean') {
+  if (!parsed.reply || !Array.isArray(parsed.suggested_replies) || !parsed.topics_update) {
     console.error("[ask:training] Invalid response structure:", parsed);
     throw new Error("Invalid response structure from OpenAI");
+  }
+
+  // Prevent topics_total drift — pin to canonical input list
+  if (parsed.topics_update?.total && topics_total && topics_total.length > 0) {
+    parsed.topics_update.total = topics_total;
   }
 
   return parsed;
@@ -1036,7 +1130,9 @@ Deno.serve(async (req) => {
       ? body.domain
       : "manual";
 
-    if (!question?.trim()) {
+    const trainingBodyPeek = body as unknown as TrainingAskRequest;
+    const isTrainingWelcomeTrigger = body.domain === 'training' && trainingBodyPeek.is_first_message === true;
+    if (!isTrainingWelcomeTrigger && !question?.trim()) {
       return errorResponse("bad_request", "Question is required", 400);
     }
 
@@ -1155,13 +1251,12 @@ Deno.serve(async (req) => {
 
       // Return training response (cast to match return type)
       return jsonResponse({
+        ...trainingResponse,   // spread all fields (reply, suggested_replies, topics_update, question, etc.)
         answer: trainingResponse.reply,
         citations: [],
         usage: updatedUsage,
-        mode: "action",
+        mode: "action" as const,
         sessionId: "",
-        // Include training-specific fields
-        ...trainingResponse,
       } as unknown as UnifiedAskResponse);
     }
 

@@ -145,12 +145,14 @@ export function SourceMaterialPicker({
             {results.map((result) => {
               const isChecked = selectedIds.has(result.ref.id);
               return (
-                <button
+                <div
                   key={`${result.ref.table}-${result.ref.id}`}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleItem(result)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(result); } }}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
+                    'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors cursor-pointer',
                     isChecked ? 'bg-primary/5' : 'hover:bg-muted/50',
                   )}
                 >
@@ -176,7 +178,7 @@ export function SourceMaterialPicker({
                   {isChecked && (
                     <Check className="h-4 w-4 text-primary shrink-0" />
                   )}
-                </button>
+                </div>
               );
             })}
           </div>

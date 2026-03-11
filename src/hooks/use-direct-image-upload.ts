@@ -8,6 +8,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
 
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -16,23 +17,24 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 export function useDirectImageUpload() {
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useAuth();
+  const { language } = useLanguage();
 
   const uploadToStorage = useCallback(async (
     file: File,
     sessionId?: string,
   ): Promise<string | null> => {
     if (!user) {
-      toast.error('Please sign in to upload images');
+      toast.error(language === 'es' ? 'Inicia sesión para subir imágenes' : 'Please sign in to upload images');
       return null;
     }
 
     if (!ACCEPTED_TYPES.has(file.type)) {
-      toast.error('Only JPEG, PNG, WebP, and GIF images are supported');
+      toast.error(language === 'es' ? 'Solo se admiten imágenes JPEG, PNG, WebP y GIF' : 'Only JPEG, PNG, WebP, and GIF images are supported');
       return null;
     }
 
     if (file.size > MAX_SIZE) {
-      toast.error('Image exceeds the 10MB size limit');
+      toast.error(language === 'es' ? 'La imagen excede el límite de 10MB' : 'Image exceeds the 10MB size limit');
       return null;
     }
 
@@ -54,13 +56,13 @@ export function useDirectImageUpload() {
 
       return publicUrl;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to upload image';
+      const msg = err instanceof Error ? err.message : (language === 'es' ? 'Error al subir imagen' : 'Failed to upload image');
       toast.error(msg);
       return null;
     } finally {
       setIsUploading(false);
     }
-  }, [user]);
+  }, [user, language]);
 
   return { uploadToStorage, isUploading };
 }

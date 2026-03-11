@@ -77,10 +77,15 @@ export function CocktailGrid({
                   {cocktail.name}
                 </h3>
 
-                {/* Subtitle — plain text style */}
-                <p className="text-sm text-muted-foreground capitalize mt-0.5">
-                  {cocktail.style}
-                </p>
+                {/* Subtitle */}
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm text-muted-foreground capitalize">{cocktail.style}</span>
+                  {cocktail.isFeatured && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white">
+                      Featured
+                    </span>
+                  )}
+                </div>
 
                 {/* Metadata row — anchored to bottom */}
                 <div className="flex items-center gap-3 mt-auto pt-3 text-[13px] leading-none text-muted-foreground">
@@ -94,14 +99,6 @@ export function CocktailGrid({
                       <span className="inline-flex items-center gap-1.5">
                         <span className="text-[16px] h-[16px] leading-[16px] shrink-0">⭐</span>
                         <span>Top Seller</span>
-                      </span>
-                    </>
-                  )}
-                  {cocktail.isFeatured && (
-                    <>
-                      <span className="text-black/10 dark:text-white/10">·</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-                        Featured
                       </span>
                     </>
                   )}

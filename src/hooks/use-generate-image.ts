@@ -15,6 +15,7 @@ interface GenerateImageParams {
   name: string;
   prepType: string;
   description?: string;
+  category?: string;
   sessionId?: string;
 }
 

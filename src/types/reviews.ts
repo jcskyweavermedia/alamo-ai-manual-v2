@@ -213,10 +213,14 @@ export interface SeverityAlert {
 
 // ─── Section 4: Dashboard Extended Interfaces ────────────────────────────
 
-/** 12-month chart data point */
+/** 12-month chart data point (with optional per-category sentiments 0-100) */
 export interface FlavorMonthlyScore {
   month: string;
   score: number;
+  food?: number | null;
+  service?: number | null;
+  ambience?: number | null;
+  value?: number | null;
 }
 
 /** Per-restaurant item comparison (Food tab 5-column grid) */
@@ -299,6 +303,7 @@ export interface ReviewDashboardData {
   staff: StaffMention[];
   alerts: SeverityAlert[];
   monthlyScores: FlavorMonthlyScore[];
+  monthlyScoresByRestaurant: Record<string, FlavorMonthlyScore[]>;
   restaurantItems: RestaurantItemComparison[];
   staffYear: StaffMention[];
   categoryStats: CategoryStat[];

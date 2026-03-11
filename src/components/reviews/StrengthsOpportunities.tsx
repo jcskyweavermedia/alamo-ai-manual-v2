@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { TrendingUp } from 'lucide-react';
 import type { CategoryStat, StrengthItem } from '@/types/reviews';
 import { getFlavorZone, formatFlavorScore } from '@/lib/flavor-utils';
@@ -11,18 +10,6 @@ interface StrengthsOpportunitiesProps {
   isEs: boolean;
 }
 
-const PERIOD_OPTIONS_EN = [
-  { value: 'month', label: 'This Month' },
-  { value: 'quarter', label: 'This Quarter' },
-  { value: 'year', label: 'This Year' },
-];
-
-const PERIOD_OPTIONS_ES = [
-  { value: 'month', label: 'Este Mes' },
-  { value: 'quarter', label: 'Este Trimestre' },
-  { value: 'year', label: 'Este Año' },
-];
-
 export function StrengthsOpportunities({
   score,
   categoryStats,
@@ -30,27 +17,15 @@ export function StrengthsOpportunities({
   opportunities,
   isEs,
 }: StrengthsOpportunitiesProps) {
-  const [period, setPeriod] = useState('month');
   const zone = getFlavorZone(score);
-  const periodOpts = isEs ? PERIOD_OPTIONS_ES : PERIOD_OPTIONS_EN;
 
   return (
     <div className="bg-card border border-border rounded-[16px] p-6 transition-shadow hover:shadow-elevated">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="mb-4">
         <p className="text-lg font-semibold text-muted-foreground">
           {isEs ? 'Fortalezas y Oportunidades' : 'Strengths & Opportunities'}
         </p>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value)}
-          aria-label={isEs ? 'Seleccionar período' : 'Select period'}
-          className="bg-muted border border-border rounded-full px-2.5 py-1 text-xs font-medium text-foreground cursor-pointer"
-        >
-          {periodOpts.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
       </div>
 
       {/* Hero Score */}

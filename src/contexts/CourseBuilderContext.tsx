@@ -24,6 +24,8 @@ import type {
   CourseElement,
   ElementType,
   FeatureVariant,
+  CanvasViewMode,
+  PreviewDevice,
 } from '@/types/course-builder';
 import {
   getDefaultElement,
@@ -62,6 +64,12 @@ export function createInitialState(): CourseBuilderState {
 
     activeTab: 'elements',
     rightPanelMode: 'ai-chat',
+    showAiInstructions: true,
+
+    canvasViewMode: 'preview',
+    previewDevice: 'desktop',
+    previewLang: 'en',
+    previewEditingKey: null,
 
     isDirty: false,
     saveStatus: 'saved',
@@ -76,6 +84,13 @@ export function createInitialState(): CourseBuilderState {
     aiGenerating: false,
     aiGeneratingElementKey: null,
     aiProgress: null,
+
+    multiphaseState: {
+      isActive: false,
+      phases: [],
+      currentPhaseId: null,
+      estimatedTotalSeconds: 0,
+    },
 
     builderChatMessages: [],
     builderChatLoading: false,
@@ -94,7 +109,7 @@ function takeSnapshot(state: CourseBuilderState): CourseBuilderSnapshot {
   return {
     sections: state.sections.map(s => ({
       ...s,
-      elements: s.elements.map(e => ({ ...e })),
+      elements: structuredClone(s.elements),
     })),
     titleEn: state.titleEn,
     titleEs: state.titleEs,
@@ -127,6 +142,11 @@ function updateSectionElements(
       ? { ...s, elements: updater(s.elements) }
       : s,
   );
+}
+
+/** Find the section containing an element by its key */
+function findSectionByKey(sections: CourseSection[], elementKey: string): CourseSection | null {
+  return sections.find(s => s.elements.some(e => e.key === elementKey)) ?? null;
 }
 
 // =============================================================================
@@ -196,6 +216,35 @@ export function courseBuilderReducer(
     case 'SET_SELECTED_ELEMENT':
       return { ...state, selectedElementKey: action.payload };
 
+    case 'SET_SHOW_AI_INSTRUCTIONS':
+      return { ...state, showAiInstructions: action.payload };
+
+    case 'SET_CANVAS_VIEW_MODE':
+      return {
+        ...state,
+        canvasViewMode: action.payload,
+        previewEditingKey: null,
+        selectedElementKey: null,
+        rightPanelMode: 'ai-chat',
+      };
+    case 'SET_PREVIEW_DEVICE':
+      return { ...state, previewDevice: action.payload };
+    case 'SET_PREVIEW_LANG':
+      return { ...state, previewLang: action.payload };
+    case 'SET_PREVIEW_EDITING_KEY':
+      return { ...state, previewEditingKey: action.payload };
+
+    case 'UPDATE_ELEMENT_SILENT':
+      return {
+        ...state,
+        isDirty: true,
+        saveStatus: 'unsaved',
+        sections: state.sections.map(s =>
+          s.id === action.payload.sectionId
+            ? { ...s, elements: s.elements.map(e => e.key === action.payload.key ? ({ ...e, ...action.payload.updates } as CourseElement) : e) }
+            : s
+        ),
+      };
     // --- Section Operations (undoable) ---
     case 'ADD_SECTION': {
       const s = pushUndo(state);
@@ -378,10 +427,12 @@ export function courseBuilderReducer(
     case 'AI_BUILD_ELEMENT_START':
       return { ...state, aiGeneratingElementKey: action.payload.key };
     case 'AI_BUILD_ELEMENT_SUCCESS': {
+      // Push undo for single-element AI edits (skip during bulk "Build All" to avoid flooding history)
+      const s2 = state.aiProgress ? state : pushUndo(state);
       return {
-        ...state,
+        ...s2,
         sections: updateSectionElements(
-          state.sections,
+          s2.sections,
           action.payload.sectionId,
           (els) =>
             els.map(e =>
@@ -405,6 +456,136 @@ export function courseBuilderReducer(
       };
     case 'AI_PROGRESS_UPDATE':
       return { ...state, aiProgress: action.payload };
+
+    // --- Multiphase Pipeline ---
+    case 'AI_MULTIPHASE_START':
+      return {
+        ...state,
+        aiGenerating: true,
+        multiphaseState: {
+          isActive: true,
+          phases: action.payload.phases,
+          currentPhaseId: null,
+          estimatedTotalSeconds: action.payload.estimatedSeconds,
+        },
+      };
+    case 'AI_PHASE_START':
+      return {
+        ...state,
+        multiphaseState: {
+          ...state.multiphaseState,
+          currentPhaseId: action.payload.phaseId,
+          phases: state.multiphaseState.phases.map(p =>
+            p.id === action.payload.phaseId
+              ? { ...p, status: 'active', startedAt: Date.now() }
+              : p,
+          ),
+        },
+      };
+    case 'AI_PHASE_PROGRESS':
+      return {
+        ...state,
+        multiphaseState: {
+          ...state.multiphaseState,
+          phases: state.multiphaseState.phases.map(p =>
+            p.id === action.payload.phaseId
+              ? { ...p, progress: { completed: action.payload.completed, total: action.payload.total } }
+              : p,
+          ),
+        },
+      };
+    case 'AI_PHASE_COMPLETE':
+      return {
+        ...state,
+        multiphaseState: {
+          ...state.multiphaseState,
+          phases: state.multiphaseState.phases.map(p =>
+            p.id === action.payload.phaseId
+              ? { ...p, status: 'complete', completedAt: Date.now() }
+              : p,
+          ),
+        },
+      };
+    case 'AI_PHASE_ERROR':
+      return {
+        ...state,
+        aiGenerating: false,
+        multiphaseState: {
+          ...state.multiphaseState,
+          error: action.payload.error,
+          phases: state.multiphaseState.phases.map(p =>
+            p.id === action.payload.phaseId
+              ? { ...p, status: 'error' }
+              : p,
+          ),
+        },
+      };
+    case 'AI_MULTIPHASE_COMPLETE':
+      return {
+        ...state,
+        aiGenerating: false,
+        multiphaseState: {
+          ...state.multiphaseState,
+          isActive: false,
+          currentPhaseId: null,
+        },
+      };
+    case 'AI_MULTIPHASE_CANCEL':
+      return {
+        ...state,
+        aiGenerating: false,
+        aiGeneratingElementKey: null,
+        aiProgress: null,
+        multiphaseState: {
+          ...state.multiphaseState,
+          isActive: false,
+          currentPhaseId: null,
+        },
+      };
+    case 'AI_UPDATE_ESTIMATE':
+      return {
+        ...state,
+        multiphaseState: {
+          ...state.multiphaseState,
+          estimatedTotalSeconds: action.payload.estimatedSeconds,
+        },
+      };
+    case 'AI_HYDRATE_SECTIONS': {
+      // Merge/upsert: update existing sections by ID, append new ones
+      const merged = [...state.sections];
+      for (const incoming of action.payload.sections) {
+        const idx = merged.findIndex(s => s.id === incoming.id);
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], ...incoming } as CourseSection;
+        } else if (incoming.id) {
+          // New section from Pass 1 — append with sensible defaults
+          merged.push({
+            id: incoming.id,
+            courseId: state.courseId || '',
+            groupId: state.groupId || '',
+            slug: '',
+            titleEn: '',
+            titleEs: '',
+            elements: [],
+            sourceRefs: [],
+            generationStatus: 'empty',
+            sortOrder: merged.length,
+            estimatedMinutes: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ...incoming,
+          } as CourseSection);
+        }
+      }
+      return {
+        ...state,
+        sections: merged,
+        // Set activeSectionId if it was null (first hydration)
+        activeSectionId: state.activeSectionId || merged[0]?.id || null,
+        isDirty: true,
+        saveStatus: 'unsaved',
+      };
+    }
 
     // --- AI Builder Chat ---
     case 'BUILDER_CHAT_ADD_MESSAGE':
@@ -575,9 +756,12 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
   // Ref-based guard against concurrent saves
   const savingRef = useRef(false);
 
-  // Auto-save: 3s debounce when dirty
+  // Ref-based guard against concurrent translations
+  const translatingRef = useRef(false);
+
+  // Auto-save: 3s debounce when dirty (suppressed during build pipeline AND translation)
   useEffect(() => {
-    if (state.isDirty && !state.isSaving && state.courseId && state.saveStatus !== 'error') {
+    if (state.isDirty && !state.isSaving && state.courseId && state.saveStatus !== 'error' && !state.multiphaseState.isActive && !state.aiGenerating) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
         void saveDraftInternal();
@@ -587,11 +771,12 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.isDirty, state.isSaving, state.courseId, state.sections, state.titleEn, state.titleEs]);
+  }, [state.isDirty, state.isSaving, state.courseId, state.sections, state.titleEn, state.titleEs, state.aiGenerating]);
 
   // Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z (redo), Ctrl+S (save), Escape (deselect)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (state.multiphaseState.isActive) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         dispatch({ type: 'UNDO' });
@@ -605,6 +790,8 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
         void saveDraftInternal();
       }
       if (e.key === 'Escape') {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
         dispatch({ type: 'SET_SELECTED_ELEMENT', payload: null });
       }
     }
@@ -612,7 +799,7 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.courseId, state.isSaving]);
+  }, [state.courseId, state.isSaving, state.multiphaseState.isActive]);
 
   // Internal save function with optimistic concurrency + retry
   async function saveDraftInternal() {
@@ -669,25 +856,30 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
         if (retry.error) throw retry.error;
         if (!retry.data) throw new Error('Course not found');
         updatedAt = retry.data.updated_at;
+
+        // Sync ref immediately so subsequent saves use the fresh timestamp
+        serverUpdatedAtRef.current = updatedAt;
       }
 
       // Save sections (upsert each section's elements)
-      for (const section of state.sections) {
+      for (let i = 0; i < state.sections.length; i++) {
+        const section = state.sections[i];
+        const sectionPayload: Record<string, unknown> = {
+          id: section.id,
+          course_id: state.courseId,
+          group_id: state.groupId,
+          slug: section.slug || `section-${section.sortOrder ?? i}`,
+          title_en: section.titleEn,
+          title_es: section.titleEs || null,
+          elements: section.elements as unknown as Record<string, unknown>[],
+          source_refs: section.sourceRefs as unknown as Record<string, unknown>[],
+          generation_status: section.generationStatus,
+          sort_order: section.sortOrder,
+          estimated_minutes: section.estimatedMinutes,
+        };
         await supabase
           .from('course_sections')
-          .upsert({
-            id: section.id,
-            course_id: state.courseId,
-            group_id: state.groupId,
-            slug: section.slug,
-            title_en: section.titleEn,
-            title_es: section.titleEs || null,
-            elements: section.elements as unknown as Record<string, unknown>[],
-            source_refs: section.sourceRefs as unknown as Record<string, unknown>[],
-            generation_status: section.generationStatus,
-            sort_order: section.sortOrder,
-            estimated_minutes: section.estimatedMinutes,
-          })
+          .upsert(sectionPayload)
           .eq('id', section.id);
       }
 
@@ -730,8 +922,97 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.courseId, state.version]);
 
+  // Translate course — on-demand, per-section, non-fatal
+  const translateCourse = useCallback(async (
+    onProgress?: (completed: number, total: number) => void,
+  ): Promise<{ translated: number; failed: number; total: number }> => {
+    if (!state.courseId || translatingRef.current) return { translated: 0, failed: 0, total: 0 };
+    translatingRef.current = true;
+
+    // Set aiGenerating to suppress auto-save and block concurrent operations
+    dispatch({ type: 'AI_BUILD_ALL_START', payload: { total: 0 } });
+
+    try {
+      // Save draft first to ensure DB is up-to-date
+      await saveDraftInternal();
+
+      // Find sections that need translation (only 'generated' — edge fn requires this status)
+      const translatable = state.sections.filter(
+        s => s.generationStatus === 'generated',
+      );
+      const total = translatable.length;
+      if (total === 0) return { translated: 0, failed: 0, total: 0 };
+
+      let translated = 0;
+      let failed = 0;
+
+      for (let i = 0; i < translatable.length; i++) {
+        const section = translatable[i];
+
+        try {
+          const { data, error: fnError } = await supabase.functions.invoke('build-course', {
+            body: {
+              step: 'translate',
+              course_id: state.courseId,
+              section_id: section.id,
+              translate_page_header: section.sortOrder === 0,
+            },
+          });
+
+          if (fnError) {
+            const errorDetail = data?.error || data?.message || fnError.message || 'Translation failed';
+            console.warn(`[translateCourse] section ${section.id} failed:`, errorDetail);
+            failed++;
+          } else if (data?.error) {
+            console.warn(`[translateCourse] section ${section.id} error:`, data.error);
+            failed++;
+          } else {
+            // Validate response — require both title and elements
+            const hasTitle = data?.title_es && typeof data.title_es === 'string';
+            const hasElements = data?.elements && Array.isArray(data.elements);
+            if (hasTitle && hasElements) {
+              dispatch({
+                type: 'AI_HYDRATE_SECTIONS',
+                payload: {
+                  sections: [{
+                    id: section.id,
+                    titleEs: data.title_es,
+                    elements: data.elements as CourseElement[],
+                    generationStatus: 'translated' as const,
+                  }],
+                },
+              });
+              translated++;
+            } else {
+              console.warn(`[translateCourse] section ${section.id} incomplete response`);
+              failed++;
+            }
+          }
+        } catch (err) {
+          console.warn(`[translateCourse] section ${section.id} exception:`, err);
+          failed++;
+        }
+
+        onProgress?.(i + 1, total);
+      }
+
+      // Save translated state to DB immediately
+      await saveDraftInternal();
+
+      return { translated, failed, total };
+    } finally {
+      translatingRef.current = false;
+      dispatch({ type: 'AI_BUILD_ALL_COMPLETE' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.courseId, state.sections]);
+
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), []);
   const redo = useCallback(() => dispatch({ type: 'REDO' }), []);
+
+  const toggleAiInstructions = useCallback(() => {
+    dispatch({ type: 'SET_SHOW_AI_INSTRUCTIONS', payload: !state.showAiInstructions });
+  }, [state.showAiInstructions]);
 
   // Convenience actions
   const addElement = useCallback((type: ElementType, variant?: FeatureVariant) => {
@@ -753,43 +1034,84 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
   }, [state.activeSectionId, state.sections]);
 
   const removeElement = useCallback((key: string) => {
-    if (!state.activeSectionId) return;
-    dispatch({ type: 'REMOVE_ELEMENT', payload: { sectionId: state.activeSectionId, key } });
-  }, [state.activeSectionId]);
+    const section = findSectionByKey(state.sections, key);
+    if (!section) return;
+    dispatch({ type: 'REMOVE_ELEMENT', payload: { sectionId: section.id, key } });
+  }, [state.sections]);
 
   const updateElement = useCallback((key: string, updates: Partial<CourseElement>) => {
-    if (!state.activeSectionId) return;
-    dispatch({ type: 'UPDATE_ELEMENT', payload: { sectionId: state.activeSectionId, key, updates } });
-  }, [state.activeSectionId]);
+    const section = findSectionByKey(state.sections, key);
+    if (!section) return;
+    dispatch({ type: 'UPDATE_ELEMENT', payload: { sectionId: section.id, key, updates } });
+  }, [state.sections]);
+
+  const updateElementSilent = useCallback((key: string, updates: Partial<CourseElement>) => {
+    const section = findSectionByKey(state.sections, key);
+    if (!section) return;
+    dispatch({ type: 'UPDATE_ELEMENT_SILENT', payload: { sectionId: section.id, key, updates } });
+  }, [state.sections]);
 
   // Arrow-based reordering (NOT drag-and-drop for reorder)
   const moveElementUp = useCallback((key: string) => {
-    if (!state.activeSectionId) return;
-    const section = state.sections.find(s => s.id === state.activeSectionId);
+    const section = findSectionByKey(state.sections, key);
     if (!section) return;
     const idx = section.elements.findIndex(e => e.key === key);
     if (idx <= 0) return;
     const newElements = [...section.elements];
     [newElements[idx - 1], newElements[idx]] = [newElements[idx], newElements[idx - 1]];
-    dispatch({ type: 'REORDER_ELEMENTS', payload: { sectionId: state.activeSectionId, elements: newElements } });
-  }, [state.activeSectionId, state.sections]);
+    dispatch({ type: 'REORDER_ELEMENTS', payload: { sectionId: section.id, elements: newElements } });
+  }, [state.sections]);
 
   const moveElementDown = useCallback((key: string) => {
-    if (!state.activeSectionId) return;
-    const section = state.sections.find(s => s.id === state.activeSectionId);
+    const section = findSectionByKey(state.sections, key);
     if (!section) return;
     const idx = section.elements.findIndex(e => e.key === key);
     if (idx === -1 || idx >= section.elements.length - 1) return;
     const newElements = [...section.elements];
     [newElements[idx], newElements[idx + 1]] = [newElements[idx + 1], newElements[idx]];
-    dispatch({ type: 'REORDER_ELEMENTS', payload: { sectionId: state.activeSectionId, elements: newElements } });
-  }, [state.activeSectionId, state.sections]);
+    dispatch({ type: 'REORDER_ELEMENTS', payload: { sectionId: section.id, elements: newElements } });
+  }, [state.sections]);
+
+  // Per-section convenience functions (for continuous scroll canvas)
+  const addElementToSection = useCallback((sectionId: string, type: ElementType, variant?: FeatureVariant) => {
+    const section = state.sections.find(s => s.id === sectionId);
+    if (!section) return;
+    const existingKeys = section.elements.map(e => e.key);
+    const element = getDefaultElement(type, variant, existingKeys);
+    dispatch({ type: 'ADD_ELEMENT', payload: { sectionId, element } });
+  }, [state.sections]);
+
+  const addElementAtIndexInSection = useCallback((sectionId: string, type: ElementType, index: number, variant?: FeatureVariant) => {
+    const section = state.sections.find(s => s.id === sectionId);
+    if (!section) return;
+    const existingKeys = section.elements.map(e => e.key);
+    const element = getDefaultElement(type, variant, existingKeys);
+    dispatch({ type: 'ADD_ELEMENT_AT_INDEX', payload: { sectionId, element, index } });
+  }, [state.sections]);
+
+  const setCanvasViewMode = useCallback((mode: CanvasViewMode) => {
+    dispatch({ type: 'SET_CANVAS_VIEW_MODE', payload: mode });
+  }, []);
+
+  const setPreviewDevice = useCallback((device: PreviewDevice) => {
+    dispatch({ type: 'SET_PREVIEW_DEVICE', payload: device });
+  }, []);
+
+  const setPreviewLang = useCallback((lang: 'en' | 'es') => {
+    dispatch({ type: 'SET_PREVIEW_LANG', payload: lang });
+  }, []);
+
+  const setPreviewEditingKey = useCallback((key: string | null) => {
+    dispatch({ type: 'SET_PREVIEW_EDITING_KEY', payload: key });
+  }, []);
+
+  const findSectionByElementKeyFn = useCallback((key: string) => {
+    return findSectionByKey(state.sections, key);
+  }, [state.sections]);
 
   const selectElement = useCallback((key: string | null) => {
     dispatch({ type: 'SET_SELECTED_ELEMENT', payload: key });
-    if (key) {
-      dispatch({ type: 'SET_RIGHT_PANEL_MODE', payload: 'element-properties' });
-    }
+    // Don't auto-switch right panel — inline editing handles fields on canvas
   }, []);
 
   const addSection = useCallback((title: string) => {
@@ -833,6 +1155,8 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     elementCount,
     addElement,
     addElementAtIndex,
+    addElementToSection,
+    addElementAtIndexInSection,
     removeElement,
     updateElement,
     moveElementUp,
@@ -844,11 +1168,21 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     setTitleEn,
     saveDraft,
     publish,
+    translateCourse,
     undo,
     redo,
+    toggleAiInstructions,
+    updateElementSilent,
+    setCanvasViewMode,
+    setPreviewDevice,
+    setPreviewLang,
+    setPreviewEditingKey,
+    findSectionByElementKey: findSectionByElementKeyFn,
   }), [state, activeSection, elementCount, addElement, addElementAtIndex,
+       addElementToSection, addElementAtIndexInSection,
        removeElement, updateElement, moveElementUp, moveElementDown, selectElement,
-       addSection, removeSection, setActiveSection, setTitleEn, saveDraft, publish, undo, redo]);
+       addSection, removeSection, setActiveSection, setTitleEn, saveDraft, publish, translateCourse, undo, redo,
+       toggleAiInstructions, updateElementSilent, setCanvasViewMode, setPreviewDevice, setPreviewLang, setPreviewEditingKey, findSectionByElementKeyFn]);
 
   return (
     <CourseBuilderContext.Provider value={value}>

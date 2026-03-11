@@ -31,7 +31,7 @@ export async function callOpenAI<T = unknown>(options: CallOpenAIOptions): Promi
     throw new OpenAIError("AI service not configured", 500);
   }
 
-  const model = options.model || "gpt-4o-mini";
+  const model = options.model || "gpt-5.2";
 
   // Reasoning models (gpt-5*, o1*, o3*) only support temperature=1 and
   // use max_completion_tokens instead of max_tokens.

@@ -17,6 +17,8 @@ interface ExtendedFormFieldWrapperProps extends FormFieldWrapperProps {
   aiMissing?: boolean;
   /** When true, hides the built-in label (for canvas mode where EditableLabel is used) */
   hideLabel?: boolean;
+  /** When true, renders the field as non-interactive (for submission viewing) */
+  readOnly?: boolean;
 }
 
 export function FormFieldWrapper({
@@ -27,6 +29,7 @@ export function FormFieldWrapper({
   aiHighlighted,
   aiMissing,
   hideLabel,
+  readOnly,
 }: ExtendedFormFieldWrapperProps) {
   const label = getFieldLabel(field, language);
   const fieldId = `field-${field.key}`;
@@ -56,7 +59,7 @@ export function FormFieldWrapper({
             )}
           >
             {label}
-            {field.required && (
+            {field.required && !readOnly && (
               <>
                 <span className="text-destructive ml-0.5" aria-hidden="true">
                   *
@@ -70,7 +73,7 @@ export function FormFieldWrapper({
       )}
 
       {/* Field input */}
-      <div>
+      <div className={cn(readOnly && 'pointer-events-none opacity-80')}>
         {children}
       </div>
 
@@ -81,8 +84,8 @@ export function FormFieldWrapper({
         </p>
       )}
 
-      {/* Error text — replaces hint when present */}
-      {error && (
+      {/* Error text — replaces hint when present (hidden in readOnly mode) */}
+      {error && !readOnly && (
         <p
           id={errorId}
           className="text-xs text-destructive font-semibold"

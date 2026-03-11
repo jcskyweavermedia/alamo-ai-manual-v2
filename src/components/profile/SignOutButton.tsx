@@ -10,7 +10,19 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { cn } from '@/lib/utils';
+
+const STRINGS = {
+  en: {
+    signOut: 'Sign Out',
+    signingOut: 'Signing Out...',
+  },
+  es: {
+    signOut: 'Cerrar Sesión',
+    signingOut: 'Cerrando Sesión...',
+  },
+} as const;
 
 interface SignOutButtonProps {
   className?: string;
@@ -18,12 +30,14 @@ interface SignOutButtonProps {
   redirectTo?: string;
 }
 
-export function SignOutButton({ 
-  className, 
-  redirectTo = '/sign-in' 
+export function SignOutButton({
+  className,
+  redirectTo = '/sign-in'
 }: SignOutButtonProps) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { language } = useLanguage();
+  const t = STRINGS[language];
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -49,7 +63,7 @@ export function SignOutButton({
       ) : (
         <LogOut className="h-4 w-4 mr-2" />
       )}
-      {isSigningOut ? 'Signing Out...' : 'Sign Out'}
+      {isSigningOut ? t.signingOut : t.signOut}
     </Button>
   );
 }

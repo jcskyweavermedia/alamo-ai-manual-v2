@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Dashboard — Alamo Prime</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            canvas: 'hsl(var(--canvas))',
+            surface: 'hsl(var(--surface))',
+            border: 'hsl(var(--border-color))',
+            muted: 'hsl(var(--muted))',
+            'muted-fg': 'hsl(var(--muted-fg))',
+            'tertiary-fg': 'hsl(var(--tertiary-fg))',
+            brand: 'hsl(var(--brand))',
+            'brand-hover': 'hsl(var(--brand-hover))',
+            ink: 'hsl(var(--ink))',
+          },
+          borderRadius: { card: '16px', pill: '9999px', bar: '6px' },
+          fontFamily: {
+            sans: ['-apple-system','BlinkMacSystemFont','SF Pro Text','Inter','Segoe UI','Roboto','Helvetica','Arial','sans-serif'],
+            mono: ['ui-monospace','SF Mono','Menlo','Monaco','Consolas','monospace'],
+          },
+          boxShadow: {
+            card: '0 1px 3px 0 rgb(0 0 0/0.04),0 1px 2px -1px rgb(0 0 0/0.04)',
+            elevated: '0 4px 12px -2px rgb(0 0 0/0.08),0 2px 6px -2px rgb(0 0 0/0.04)',
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --canvas: 240 10% 98%;
+      --surface: 0 0% 100%;
+      --border-color: 240 6% 90%;
+      --muted: 240 5% 96%;
+      --muted-fg: 240 4% 38%;
+      --tertiary-fg: 240 4% 55%;
+      --brand: 25 95% 53%;
+      --brand-hover: 21 90% 48%;
+      --ink: 240 10% 7%;
+    }
+    .dark {
+      --canvas: 240 10% 4%;
+      --surface: 240 10% 8%;
+      --border-color: 240 5% 18%;
+      --muted: 240 5% 15%;
+      --muted-fg: 240 5% 72%;
+      --tertiary-fg: 240 5% 57%;
+      --brand: 25 95% 53%;
+      --brand-hover: 21 90% 48%;
+      --ink: 240 5% 96%;
+    }
+
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: hsl(var(--canvas));
+      color: hsl(var(--ink));
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-feature-settings: "cv02","cv03","cv04","cv11";
+      overflow-x: hidden;
+    }
+
+    .card {
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border-color));
+      border-radius: 16px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 12px -2px rgb(0 0 0/0.08); }
+    .dark .card:hover { box-shadow: 0 4px 12px -2px rgb(0 0 0/0.3); }
+
+    .tab-active {
+      background: hsl(var(--ink));
+      color: hsl(var(--canvas));
+      font-weight: 600;
+    }
+    .tab-inactive {
+      color: hsl(var(--muted-fg));
+      font-weight: 500;
+    }
+    .tab-inactive:hover {
+      color: hsl(var(--ink));
+      background: hsl(var(--muted));
+    }
+
+    .progress-track {
+      background: hsl(var(--muted));
+      border-radius: 4px;
+      height: 6px;
+      width: 100%;
+    }
+    .progress-fill {
+      border-radius: 4px;
+      height: 100%;
+      transition: width 0.6s ease-out;
+    }
+
+    .pill-active {
+      background: hsl(var(--ink));
+      color: hsl(var(--canvas));
+    }
+    .pill-inactive {
+      color: hsl(var(--muted-fg));
+    }
+    .pill-inactive:hover { color: hsl(var(--ink)); }
+
+    .course-card {
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .course-card:hover { box-shadow: 0 4px 12px -2px rgb(0 0 0/0.08); }
+    .course-card.selected {
+      border-color: hsl(var(--brand)) !important;
+      box-shadow: 0 0 0 3px hsl(var(--brand)/0.12);
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .grade-a { background: #dcfce7; color: #166534; }
+    .grade-b { background: #dbeafe; color: #1e40af; }
+    .grade-c { background: #fef9c3; color: #854d0e; }
+    .grade-d { background: #fee2e2; color: #991b1b; }
+    .dark .grade-a { background: #14532d; color: #86efac; }
+    .dark .grade-b { background: #1e3a5f; color: #93c5fd; }
+    .dark .grade-c { background: #451a03; color: #fde68a; }
+    .dark .grade-d { background: #450a0a; color: #fca5a5; }
+
+    .status-active { background: #dcfce7; color: #166534; }
+    .status-draft { background: #f1f5f9; color: #475569; }
+    .status-soon { background: #fef9c3; color: #854d0e; }
+    .status-featured { background: hsl(25 95% 53%/0.12); color: hsl(21 90% 48%); }
+    .dark .status-active { background: #14532d; color: #86efac; }
+    .dark .status-draft { background: #1e293b; color: #94a3b8; }
+    .dark .status-soon { background: #451a03; color: #fde68a; }
+    .dark .status-featured { background: hsl(25 95% 53%/0.18); color: hsl(25 95% 65%); }
+
+    .fab {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 56px; height: 56px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 100;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .fab:hover { transform: scale(1.08); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: hsl(var(--border-color)); border-radius: 3px; }
+
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+    .avatar-lg {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+
+    .featured-banner {
+      background: linear-gradient(135deg, hsl(25 95% 53%), hsl(21 90% 48%));
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .featured-banner::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    .ai-bubble {
+      background: linear-gradient(135deg, hsl(var(--muted)), hsl(var(--muted)));
+      border-radius: 12px 12px 12px 2px;
+      position: relative;
+    }
+
+    .score-ring {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .score-ring svg { transform: rotate(-90deg); }
+  </style>
+</head>
+
+<body>
+
+<!-- ===== TOP NAV ===== -->
+<header class="sticky top-0 z-50 border-b" style="background:hsl(var(--surface));border-color:hsl(var(--border-color));">
+  <div class="max-w-screen-2xl mx-auto px-6 h-14 flex items-center justify-between gap-4">
+    <!-- Left -->
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:hsl(var(--brand));">
+        <i data-lucide="graduation-cap" class="w-4 h-4 text-white"></i>
+      </div>
+      <div>
+        <span class="font-semibold text-sm">Training Hub</span>
+        <span class="hidden sm:inline text-xs ml-2" style="color:hsl(var(--muted-fg));">Alamo Prime</span>
+      </div>
+    </div>
+    <!-- Center breadcrumb -->
+    <nav class="hidden md:flex items-center gap-1 text-sm" style="color:hsl(var(--muted-fg));">
+      <span>Admin</span>
+      <i data-lucide="chevron-right" class="w-3 h-3"></i>
+      <span style="color:hsl(var(--ink));">Training Dashboard</span>
+    </nav>
+    <!-- Right -->
+    <div class="flex items-center gap-2">
+      <button onclick="exportReport()" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i> Export
+      </button>
+      <button onclick="toggleDark()" id="theme-btn" class="w-8 h-8 rounded-lg flex items-center justify-center border transition-colors" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+        <i data-lucide="sun" class="w-4 h-4 hidden dark:flex"></i>
+      </button>
+      <div class="avatar text-white font-bold" style="background:hsl(var(--brand));width:32px;height:32px;font-size:12px;">JC</div>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+  <!-- ===== TOP KPI STRIP ===== -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+    <!-- Total Enrolled -->
+    <div class="card p-4 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-medium" style="color:hsl(var(--muted-fg));">Total Enrolled</span>
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:hsl(var(--muted));">
+          <i data-lucide="users" class="w-3.5 h-3.5" style="color:hsl(var(--muted-fg));"></i>
+        </div>
+      </div>
+      <div class="text-2xl font-bold">47</div>
+      <div class="flex items-center gap-1 text-xs" style="color:#16a34a;">
+        <i data-lucide="trending-up" class="w-3 h-3"></i>
+        <span>+8 this week</span>
+      </div>
+    </div>
+
+    <!-- Completion Rate -->
+    <div class="card p-4 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-medium" style="color:hsl(var(--muted-fg));">Completion Rate</span>
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:hsl(var(--muted));">
+          <i data-lucide="check-circle-2" class="w-3.5 h-3.5" style="color:hsl(var(--muted-fg));"></i>
+        </div>
+      </div>
+      <div class="text-2xl font-bold">72%</div>
+      <div class="flex flex-col gap-1">
+        <div class="progress-track">
+          <div class="progress-fill" style="width:72%;background:hsl(var(--brand));"></div>
+        </div>
+        <span class="text-xs" style="color:hsl(var(--muted-fg));">34 of 47 completed</span>
+      </div>
+    </div>
+
+    <!-- Avg Grade -->
+    <div class="card p-4 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-medium" style="color:hsl(var(--muted-fg));">Avg Grade</span>
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:hsl(var(--muted));">
+          <i data-lucide="bar-chart-3" class="w-3.5 h-3.5" style="color:hsl(var(--muted-fg));"></i>
+        </div>
+      </div>
+      <div class="text-2xl font-bold">84 <span class="text-lg font-medium" style="color:hsl(var(--muted-fg));">/ 100</span></div>
+      <div class="flex items-center gap-1 text-xs" style="color:#16a34a;">
+        <i data-lucide="trending-up" class="w-3 h-3"></i>
+        <span>+3 pts vs last month</span>
+      </div>
+    </div>
+
+    <!-- Pass Rate -->
+    <div class="card p-4 flex flex-col gap-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-medium" style="color:hsl(var(--muted-fg));">Pass Rate</span>
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:hsl(var(--muted));">
+          <i data-lucide="award" class="w-3.5 h-3.5" style="color:hsl(var(--muted-fg));"></i>
+        </div>
+      </div>
+      <div class="text-2xl font-bold">91%</div>
+      <div class="flex items-center gap-1 text-xs" style="color:#16a34a;">
+        <i data-lucide="check" class="w-3 h-3"></i>
+        <span>31 of 34 passed</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== MAIN SPLIT LAYOUT ===== -->
+  <div class="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-5">
+
+    <!-- ===== LEFT: COURSE LIST ===== -->
+    <div class="flex flex-col gap-3">
+
+      <!-- Search + Sort -->
+      <div class="flex items-center gap-2">
+        <div class="flex-1 relative">
+          <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style="color:hsl(var(--muted-fg));"></i>
+          <input type="text" placeholder="Search courses…" class="w-full pl-9 pr-3 py-2 text-sm rounded-xl border bg-transparent outline-none" style="border-color:hsl(var(--border-color));color:hsl(var(--ink));">
+        </div>
+        <button class="px-3 py-2 rounded-xl border text-xs font-medium flex items-center gap-1" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- Sort Pills -->
+      <div class="flex items-center gap-1 flex-wrap">
+        <span class="text-xs font-medium mr-1" style="color:hsl(var(--muted-fg));">Sort:</span>
+        <button onclick="setSort(this,'recent')" class="sort-pill pill-active px-3 py-1 rounded-pill text-xs font-medium transition-colors">Recent</button>
+        <button onclick="setSort(this,'alpha')" class="sort-pill pill-inactive px-3 py-1 rounded-pill text-xs font-medium transition-colors">A–Z</button>
+        <button onclick="setSort(this,'completion')" class="sort-pill pill-inactive px-3 py-1 rounded-pill text-xs font-medium transition-colors">Completion</button>
+        <button onclick="setSort(this,'dept')" class="sort-pill pill-inactive px-3 py-1 rounded-pill text-xs font-medium transition-colors">Dept</button>
+      </div>
+
+      <!-- Featured Course: Mother's Day -->
+      <div class="featured-banner p-4 text-white course-card" onclick="selectCourse('mothers-day')">
+        <div class="relative z-10">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <span class="inline-flex items-center gap-1 text-xs font-semibold bg-white/20 px-2 py-0.5 rounded-full mb-2">
+                <i data-lucide="star" class="w-3 h-3"></i> Featured
+              </span>
+              <div class="font-bold text-base leading-tight">Mother's Day Special</div>
+              <div class="text-xs text-white/80 mt-0.5">Service excellence for May 11</div>
+            </div>
+            <div class="text-right">
+              <div class="text-2xl font-bold">68%</div>
+              <div class="text-xs text-white/80">complete</div>
+            </div>
+          </div>
+          <div class="progress-track" style="background:rgba(255,255,255,0.25);">
+            <div class="progress-fill" style="width:68%;background:white;"></div>
+          </div>
+          <div class="flex items-center justify-between mt-2 text-xs text-white/80">
+            <span>23 / 34 employees</span>
+            <span>Due May 9</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable course list -->
+      <div class="flex flex-col gap-2 overflow-y-auto" style="max-height: calc(100vh - 360px);">
+
+        <!-- Server 101 -->
+        <div class="card p-4 course-card selected" onclick="selectCourse('server-101')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(214 100% 97%);">
+              <i data-lucide="utensils" class="w-4 h-4" style="color:hsl(214 80% 50%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Server 101</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active flex-shrink-0">Active</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">FOH · 7 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:82%;background:hsl(214 80% 50%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>18 / 22 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--ink));">82%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saute 101 -->
+        <div class="card p-4 course-card" onclick="selectCourse('saute-101')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(142 76% 95%);">
+              <i data-lucide="flame" class="w-4 h-4" style="color:hsl(142 70% 35%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Saute 101</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active flex-shrink-0">Active</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">BOH · 5 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:61%;background:hsl(142 70% 45%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>8 / 13 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--ink));">61%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wine Fundamentals -->
+        <div class="card p-4 course-card" onclick="selectCourse('wine-fundamentals')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(270 60% 95%);">
+              <i data-lucide="wine" class="w-4 h-4" style="color:hsl(270 60% 50%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Wine Fundamentals</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active flex-shrink-0">Active</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">FOH · 4 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:45%;background:hsl(270 60% 55%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>9 / 20 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--ink));">45%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Knife Skills Basics -->
+        <div class="card p-4 course-card" onclick="selectCourse('knife-skills')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(0 72% 95%);">
+              <i data-lucide="chef-hat" class="w-4 h-4" style="color:hsl(0 72% 50%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Knife Skills Basics</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-soon flex-shrink-0">Coming Soon</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">BOH · 3 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:0%;background:hsl(0 72% 50%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>0 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--muted-fg));">0%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cocktail Essentials -->
+        <div class="card p-4 course-card" onclick="selectCourse('cocktail-essentials')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(38 90% 95%);">
+              <i data-lucide="beer" class="w-4 h-4" style="color:hsl(38 90% 45%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Cocktail Essentials</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-draft flex-shrink-0">Draft</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">Bar · 6 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:0%;"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>Not published</span>
+                <span class="font-medium" style="color:hsl(var(--muted-fg));">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Steak Temps & Cuts -->
+        <div class="card p-4 course-card" onclick="selectCourse('steak-temps')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(16 80% 95%);">
+              <i data-lucide="beef" class="w-4 h-4" style="color:hsl(16 80% 45%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Steak Temps & Cuts</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active flex-shrink-0">Active</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">FOH + BOH · 4 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:55%;background:hsl(16 80% 45%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>11 / 20 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--ink));">55%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Allergen Awareness -->
+        <div class="card p-4 course-card" onclick="selectCourse('allergen')">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(195 60% 94%);">
+              <i data-lucide="shield-alert" class="w-4 h-4" style="color:hsl(195 60% 40%);"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="font-semibold text-sm truncate">Allergen Awareness</span>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active flex-shrink-0">Active</span>
+              </div>
+              <div class="text-xs mb-2" style="color:hsl(var(--muted-fg));">All Staff · 2 modules</div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:94%;background:hsl(195 60% 45%);"></div>
+              </div>
+              <div class="flex items-center justify-between mt-1.5 text-xs" style="color:hsl(var(--muted-fg));">
+                <span>47 / 50 enrolled</span>
+                <span class="font-medium" style="color:hsl(var(--ink));">94%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end scrollable -->
+
+    </div><!-- end left col -->
+
+    <!-- ===== RIGHT: COURSE DETAIL ===== -->
+    <div class="flex flex-col gap-4">
+
+      <!-- Course Header Card -->
+      <div class="card p-5">
+        <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+          <!-- Icon + title -->
+          <div class="flex items-center gap-4 flex-1">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:hsl(214 100% 97%);">
+              <i data-lucide="utensils" class="w-6 h-6" style="color:hsl(214 80% 50%);"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-xl font-bold" id="detail-title">Server 101</h2>
+                <span class="text-xs px-2 py-0.5 rounded-full status-active">Active</span>
+                <span class="text-xs px-2 py-0.5 rounded-full" style="background:hsl(214 80% 95%);color:hsl(214 80% 40%);">FOH</span>
+              </div>
+              <p class="text-sm mt-1" style="color:hsl(var(--muted-fg));">Front-of-house fundamentals: greeting, ordering, table management, and service standards.</p>
+            </div>
+          </div>
+          <!-- Action buttons -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button class="px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+            </button>
+            <button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1.5" style="background:hsl(var(--brand));">
+              <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Enroll
+            </button>
+          </div>
+        </div>
+
+        <!-- Mini stats row -->
+        <div class="grid grid-cols-4 gap-3 mt-5 pt-4 border-t" style="border-color:hsl(var(--border-color));">
+          <div class="text-center">
+            <div class="text-xl font-bold">22</div>
+            <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Enrolled</div>
+          </div>
+          <div class="text-center">
+            <div class="text-xl font-bold">18</div>
+            <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Completed</div>
+          </div>
+          <div class="text-center">
+            <div class="text-xl font-bold">87</div>
+            <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Avg Score</div>
+          </div>
+          <div class="text-center">
+            <div class="text-xl font-bold">7</div>
+            <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Modules</div>
+          </div>
+        </div>
+
+        <!-- Completion bar (wide) -->
+        <div class="mt-4">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-medium" style="color:hsl(var(--muted-fg));">Overall completion</span>
+            <span class="text-xs font-bold">82%</span>
+          </div>
+          <div class="progress-track" style="height:8px;">
+            <div class="progress-fill" style="width:82%;background:hsl(var(--brand));"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== TABS ===== -->
+      <div class="card" style="padding:0;overflow:hidden;">
+
+        <!-- Tab bar -->
+        <div class="flex items-center border-b overflow-x-auto" style="border-color:hsl(var(--border-color));padding:4px 4px 0;">
+          <button onclick="switchTab('employees')" id="tab-employees" class="detail-tab tab-active px-4 py-2.5 text-sm rounded-t-lg mr-0.5 whitespace-nowrap flex items-center gap-1.5 transition-all">
+            <i data-lucide="users" class="w-3.5 h-3.5"></i> Employees
+          </button>
+          <button onclick="switchTab('enrolled')" id="tab-enrolled" class="detail-tab tab-inactive px-4 py-2.5 text-sm rounded-t-lg mr-0.5 whitespace-nowrap flex items-center gap-1.5 transition-all">
+            <i data-lucide="bookmark" class="w-3.5 h-3.5"></i> Enrolled
+          </button>
+          <button onclick="switchTab('completed')" id="tab-completed" class="detail-tab tab-inactive px-4 py-2.5 text-sm rounded-t-lg mr-0.5 whitespace-nowrap flex items-center gap-1.5 transition-all">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Completed
+          </button>
+          <button onclick="switchTab('grades')" id="tab-grades" class="detail-tab tab-inactive px-4 py-2.5 text-sm rounded-t-lg mr-0.5 whitespace-nowrap flex items-center gap-1.5 transition-all">
+            <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Grades
+          </button>
+          <button onclick="switchTab('ai-feedback')" id="tab-ai-feedback" class="detail-tab tab-inactive px-4 py-2.5 text-sm rounded-t-lg whitespace-nowrap flex items-center gap-1.5 transition-all">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI Feedback
+          </button>
+        </div>
+
+        <!-- ========== TAB: EMPLOYEES (recent) ========== -->
+        <div id="panel-employees" class="tab-panel active p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-semibold text-sm">Recent Activity</h3>
+              <p class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Employees who interacted with this course recently</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select class="text-xs border rounded-lg px-2 py-1.5 bg-transparent" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+                <option>All Roles</option>
+                <option>Server</option>
+                <option>Host</option>
+                <option>Manager</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+
+            <!-- Employee row template -->
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(214 80% 85%);color:hsl(214 80% 35%);">AM</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Alejandra Morales</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full grade-a">A</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Server · Completed module 7 of 7 · 2h ago</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold">96</span>
+                <div class="flex">
+                  <div class="w-16 progress-track" style="height:4px;">
+                    <div class="progress-fill" style="width:100%;background:hsl(142 70% 45%);height:4px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(270 60% 88%);color:hsl(270 60% 40%);">CR</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Carlos Reyes</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full grade-b">B</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Server · Completed module 6 of 7 · 5h ago</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold">83</span>
+                <div class="w-16 progress-track" style="height:4px;">
+                  <div class="progress-fill" style="width:86%;background:hsl(214 80% 55%);height:4px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(38 90% 88%);color:hsl(38 90% 35%);">LT</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Laura Torres</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full grade-a">A</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Host · Completed module 7 of 7 · Yesterday</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold">91</span>
+                <div class="w-16 progress-track" style="height:4px;">
+                  <div class="progress-fill" style="width:100%;background:hsl(142 70% 45%);height:4px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(0 72% 88%);color:hsl(0 72% 40%);">JV</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Jose Vargas</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full grade-c">C</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:hsl(38 90% 90%);color:hsl(38 90% 40%);">Needs Review</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Server · Stuck on module 5 · 2 days ago</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold">71</span>
+                <div class="w-16 progress-track" style="height:4px;">
+                  <div class="progress-fill" style="width:71%;background:hsl(38 90% 55%);height:4px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(195 60% 88%);color:hsl(195 60% 35%);">MG</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Maria Garcia</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full grade-b">B</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Server · Completed module 7 of 7 · 3 days ago</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold">85</span>
+                <div class="w-16 progress-track" style="height:4px;">
+                  <div class="progress-fill" style="width:100%;background:hsl(214 80% 55%);height:4px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-[hsl(var(--muted)/0.5)] transition-colors">
+              <div class="avatar" style="background:hsl(142 50% 88%);color:hsl(142 50% 30%);">DP</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold truncate">Diana Pérez</span>
+                  <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">In Progress</span>
+                </div>
+                <div class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Host · On module 4 of 7 · 4 days ago</div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                <span class="text-sm font-bold" style="color:hsl(var(--muted-fg));">—</span>
+                <div class="w-16 progress-track" style="height:4px;">
+                  <div class="progress-fill" style="width:57%;background:hsl(var(--muted-fg));height:4px;"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <button class="w-full mt-4 py-2 text-sm font-medium rounded-xl border transition-colors" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">
+            View all 22 employees →
+          </button>
+        </div>
+
+        <!-- ========== TAB: ENROLLED ========== -->
+        <div id="panel-enrolled" class="tab-panel p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="font-semibold text-sm">All Enrolled (22)</h3>
+              <p class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Everyone assigned to Server 101</p>
+            </div>
+            <button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white flex items-center gap-1.5" style="background:hsl(var(--brand));">
+              <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Enroll More
+            </button>
+          </div>
+
+          <!-- Group by role -->
+          <div class="space-y-4">
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:hsl(var(--muted-fg));">Servers · 14</span>
+                <div class="flex-1 h-px" style="background:hsl(var(--border-color));"></div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(214 80% 55%);">AM</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Alejandra Morales</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Mar 1</div>
+                  </div>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+                </div>
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(270 60% 55%);">CR</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Carlos Reyes</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Feb 28</div>
+                  </div>
+                  <i data-lucide="loader" class="w-4 h-4 flex-shrink-0" style="color:hsl(var(--brand));"></i>
+                </div>
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(0 72% 50%);">JV</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Jose Vargas</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Feb 25</div>
+                  </div>
+                  <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0" style="color:#d97706;"></i>
+                </div>
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(195 60% 45%);">MG</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Maria Garcia</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Feb 20</div>
+                  </div>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:hsl(var(--muted-fg));">Hosts · 5</span>
+                <div class="flex-1 h-px" style="background:hsl(var(--border-color));"></div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(38 90% 45%);">LT</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Laura Torres</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Mar 2</div>
+                  </div>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+                </div>
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(142 60% 40%);">DP</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Diana Pérez</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Feb 27</div>
+                  </div>
+                  <i data-lucide="loader" class="w-4 h-4 flex-shrink-0" style="color:hsl(var(--brand));"></i>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:hsl(var(--muted-fg));">Managers · 3</span>
+                <div class="flex-1 h-px" style="background:hsl(var(--border-color));"></div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div class="flex items-center gap-2 p-2.5 rounded-xl" style="background:hsl(var(--muted));">
+                  <div class="avatar text-white" style="background:hsl(var(--brand));">RH</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">Rafael Hernandez</div>
+                    <div class="text-xs" style="color:hsl(var(--muted-fg));">Enrolled Feb 18 · Admin</div>
+                  </div>
+                  <i data-lucide="check-circle-2" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== TAB: COMPLETED ========== -->
+        <div id="panel-completed" class="tab-panel p-5">
+          <div class="mb-4">
+            <h3 class="font-semibold text-sm">Completed (18 of 22)</h3>
+            <p class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">Employees who finished all 7 modules</p>
+          </div>
+
+          <!-- Completion timeline visual -->
+          <div class="mb-5 p-4 rounded-2xl" style="background:hsl(var(--muted));">
+            <div class="text-xs font-semibold mb-3" style="color:hsl(var(--muted-fg));">COMPLETIONS OVER TIME</div>
+            <canvas id="completionChart" height="80"></canvas>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-3 p-3 rounded-xl border" style="border-color:hsl(142 70% 85%);background:hsl(142 70% 98%);">
+              <i data-lucide="trophy" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+              <div class="avatar" style="background:hsl(214 80% 85%);color:hsl(214 80% 35%);">AM</div>
+              <div class="flex-1">
+                <span class="text-sm font-semibold">Alejandra Morales</span>
+                <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">Completed Mar 4 · Score 96</span>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full grade-a">A</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 rounded-xl border" style="border-color:hsl(142 70% 85%);background:hsl(142 70% 98%);">
+              <i data-lucide="trophy" class="w-4 h-4 flex-shrink-0" style="color:#16a34a;"></i>
+              <div class="avatar" style="background:hsl(38 90% 88%);color:hsl(38 90% 35%);">LT</div>
+              <div class="flex-1">
+                <span class="text-sm font-semibold">Laura Torres</span>
+                <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">Completed Mar 3 · Score 91</span>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full grade-a">A</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 rounded-xl border" style="border-color:hsl(var(--border-color));">
+              <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0" style="color:hsl(214 80% 55%);"></i>
+              <div class="avatar" style="background:hsl(195 60% 88%);color:hsl(195 60% 35%);">MG</div>
+              <div class="flex-1">
+                <span class="text-sm font-semibold">Maria Garcia</span>
+                <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">Completed Mar 1 · Score 85</span>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full grade-b">B</span>
+            </div>
+            <div class="flex items-center gap-3 p-3 rounded-xl border" style="border-color:hsl(var(--border-color));">
+              <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0" style="color:hsl(214 80% 55%);"></i>
+              <div class="avatar" style="background:hsl(270 60% 88%);color:hsl(270 60% 40%);">CR</div>
+              <div class="flex-1">
+                <span class="text-sm font-semibold">Carlos Reyes</span>
+                <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">Completed Feb 28 · Score 83</span>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full grade-b">B</span>
+            </div>
+          </div>
+
+          <!-- Not completed section -->
+          <div class="mt-5">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-xs font-semibold uppercase tracking-wider" style="color:hsl(var(--muted-fg));">Incomplete · 4 employees</span>
+              <div class="flex-1 h-px" style="background:hsl(var(--border-color));"></div>
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center gap-3 p-3 rounded-xl" style="background:hsl(38 90% 97%);">
+                <i data-lucide="clock" class="w-4 h-4 flex-shrink-0" style="color:#d97706;"></i>
+                <div class="avatar" style="background:hsl(0 72% 88%);color:hsl(0 72% 40%);">JV</div>
+                <div class="flex-1">
+                  <span class="text-sm font-semibold">Jose Vargas</span>
+                  <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">5 / 7 modules · Last active 2 days ago</span>
+                </div>
+                <button class="text-xs px-2 py-1 rounded-lg font-medium" style="background:hsl(38 90% 90%);color:hsl(38 90% 35%);">Nudge</button>
+              </div>
+              <div class="flex items-center gap-3 p-3 rounded-xl" style="background:hsl(var(--muted));">
+                <i data-lucide="clock" class="w-4 h-4 flex-shrink-0" style="color:hsl(var(--muted-fg));"></i>
+                <div class="avatar" style="background:hsl(142 50% 88%);color:hsl(142 50% 30%);">DP</div>
+                <div class="flex-1">
+                  <span class="text-sm font-semibold">Diana Pérez</span>
+                  <span class="text-xs ml-2" style="color:hsl(var(--muted-fg));">4 / 7 modules · Last active 4 days ago</span>
+                </div>
+                <button class="text-xs px-2 py-1 rounded-lg font-medium" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">Nudge</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== TAB: GRADES ========== -->
+        <div id="panel-grades" class="tab-panel p-5">
+          <div class="flex items-start justify-between mb-5">
+            <div>
+              <h3 class="font-semibold text-sm">Grade Breakdown</h3>
+              <p class="text-xs mt-0.5" style="color:hsl(var(--muted-fg));">18 graded · Avg score 87</p>
+            </div>
+          </div>
+
+          <!-- Grade distribution chart area -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+
+            <!-- Donut / grade distribution -->
+            <div class="p-4 rounded-2xl" style="background:hsl(var(--muted));">
+              <div class="text-xs font-semibold mb-3" style="color:hsl(var(--muted-fg));">GRADE DISTRIBUTION</div>
+              <div class="flex items-center gap-4">
+                <canvas id="gradeDonut" width="100" height="100"></canvas>
+                <div class="space-y-1.5 flex-1">
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#16a34a;"></span> A (90–100)</div>
+                    <span class="font-semibold">8 students</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:hsl(214 80% 55%);"></span> B (80–89)</div>
+                    <span class="font-semibold">6 students</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#ca8a04;"></span> C (70–79)</div>
+                    <span class="font-semibold">3 students</span>
+                  </div>
+                  <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#dc2626;"></span> D (&lt;70)</div>
+                    <span class="font-semibold">1 student</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Module performance -->
+            <div class="p-4 rounded-2xl" style="background:hsl(var(--muted));">
+              <div class="text-xs font-semibold mb-3" style="color:hsl(var(--muted-fg));">AVG SCORE BY MODULE</div>
+              <div class="space-y-2">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 1: Greeting</span><span class="font-semibold">92</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:92%;background:hsl(142 70% 45%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 2: Menu Knowledge</span><span class="font-semibold">88</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:88%;background:hsl(142 70% 45%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 3: Order Taking</span><span class="font-semibold">84</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:84%;background:hsl(214 80% 55%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 4: Upselling</span><span class="font-semibold">79</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:79%;background:hsl(38 90% 50%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 5: Handling Issues</span><span class="font-semibold">72</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:72%;background:hsl(38 90% 50%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 6: Closing & Farewell</span><span class="font-semibold">90</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:90%;background:hsl(142 70% 45%);"></div></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span>Module 7: Final Exam</span><span class="font-semibold">87</span>
+                  </div>
+                  <div class="progress-track"><div class="progress-fill" style="width:87%;background:hsl(214 80% 55%);"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grade table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-xs font-semibold uppercase tracking-wider text-left border-b" style="color:hsl(var(--muted-fg));border-color:hsl(var(--border-color));">
+                  <th class="pb-2 pr-4">Employee</th>
+                  <th class="pb-2 pr-4">Role</th>
+                  <th class="pb-2 pr-4 text-right">Score</th>
+                  <th class="pb-2 pr-4 text-right">Grade</th>
+                  <th class="pb-2 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y" style="--tw-divide-opacity:1;">
+                <tr class="hover:bg-[hsl(var(--muted)/0.4)] transition-colors" style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Alejandra Morales</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Server</td>
+                  <td class="py-2.5 pr-4 text-right font-bold">96</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs grade-a">A</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:#16a34a;">Passed</span></td>
+                </tr>
+                <tr class="hover:bg-[hsl(var(--muted)/0.4)] transition-colors" style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Laura Torres</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Host</td>
+                  <td class="py-2.5 pr-4 text-right font-bold">91</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs grade-a">A</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:#16a34a;">Passed</span></td>
+                </tr>
+                <tr class="hover:bg-[hsl(var(--muted)/0.4)] transition-colors" style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Maria Garcia</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Server</td>
+                  <td class="py-2.5 pr-4 text-right font-bold">85</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs grade-b">B</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:#16a34a;">Passed</span></td>
+                </tr>
+                <tr class="hover:bg-[hsl(var(--muted)/0.4)] transition-colors" style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Carlos Reyes</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Server</td>
+                  <td class="py-2.5 pr-4 text-right font-bold">83</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs grade-b">B</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:#16a34a;">Passed</span></td>
+                </tr>
+                <tr class="hover:bg-[hsl(var(--muted)/0.4)] transition-colors" style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Jose Vargas</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Server</td>
+                  <td class="py-2.5 pr-4 text-right font-bold">71</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs grade-c">C</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:#d97706;">Review</span></td>
+                </tr>
+                <tr style="border-color:hsl(var(--border-color));">
+                  <td class="py-2.5 pr-4 font-medium">Diana Pérez</td>
+                  <td class="py-2.5 pr-4 text-xs" style="color:hsl(var(--muted-fg));">Host</td>
+                  <td class="py-2.5 pr-4 text-right font-bold" style="color:hsl(var(--muted-fg));">—</td>
+                  <td class="py-2.5 pr-4 text-right"><span class="px-1.5 py-0.5 rounded-full text-xs" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">IP</span></td>
+                  <td class="py-2.5 text-right"><span class="text-xs" style="color:hsl(var(--muted-fg));">In Progress</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ========== TAB: AI FEEDBACK ========== -->
+        <div id="panel-ai-feedback" class="tab-panel p-5">
+
+          <!-- AI summary header -->
+          <div class="p-4 rounded-2xl mb-5" style="background:linear-gradient(135deg,hsl(25 95% 53%/0.08),hsl(270 60% 55%/0.06));border:1px solid hsl(25 95% 53%/0.15);">
+            <div class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:hsl(var(--brand));">
+                <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-bold text-sm">AI Training Analysis</span>
+                  <span class="text-xs px-2 py-0.5 rounded-full" style="background:hsl(25 95% 53%/0.12);color:hsl(21 90% 48%);">Server 101</span>
+                </div>
+                <p class="text-sm leading-relaxed" style="color:hsl(var(--muted-fg));">
+                  Overall cohort performance is <strong style="color:hsl(var(--ink));">strong at 87 avg</strong> with 82% completion. The team excels in guest greeting and menu knowledge. The biggest opportunity is <strong style="color:hsl(var(--ink));">upselling confidence</strong> — Module 4 scores average 79, indicating staff may benefit from role-play practice sessions. Consider scheduling a 30-min upselling workshop before the Mother's Day rush.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cohort strengths / improvements -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+            <div class="p-4 rounded-2xl" style="background:hsl(142 70% 97%);border:1px solid hsl(142 70% 88%);">
+              <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="thumbs-up" class="w-4 h-4" style="color:#16a34a;"></i>
+                <span class="text-xs font-semibold uppercase tracking-wide" style="color:#16a34a;">Cohort Strengths</span>
+              </div>
+              <ul class="space-y-1.5 text-sm" style="color:#166534;">
+                <li class="flex items-start gap-2"><i data-lucide="check" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> Strong guest greeting scores (avg 92)</li>
+                <li class="flex items-start gap-2"><i data-lucide="check" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> Excellent menu knowledge retention</li>
+                <li class="flex items-start gap-2"><i data-lucide="check" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> High engagement — avg 2.4 attempts per quiz</li>
+              </ul>
+            </div>
+            <div class="p-4 rounded-2xl" style="background:hsl(38 90% 97%);border:1px solid hsl(38 90% 85%);">
+              <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="target" class="w-4 h-4" style="color:#d97706;"></i>
+                <span class="text-xs font-semibold uppercase tracking-wide" style="color:#d97706;">Areas to Improve</span>
+              </div>
+              <ul class="space-y-1.5 text-sm" style="color:#92400e;">
+                <li class="flex items-start gap-2"><i data-lucide="arrow-right" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> Upselling confidence (avg 79)</li>
+                <li class="flex items-start gap-2"><i data-lucide="arrow-right" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> Complaint handling (avg 72)</li>
+                <li class="flex items-start gap-2"><i data-lucide="arrow-right" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0"></i> 4 employees still in progress</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Per-employee AI feedback -->
+          <div class="mb-3">
+            <h4 class="font-semibold text-sm mb-3">Individual AI Coaching Notes</h4>
+          </div>
+
+          <div class="space-y-3">
+
+            <!-- Alejandra - top performer -->
+            <div class="card p-4">
+              <div class="flex items-start gap-3">
+                <div class="avatar-lg" style="background:hsl(214 80% 85%);color:hsl(214 80% 35%);">AM</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-semibold text-sm">Alejandra Morales</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full grade-a">A · 96</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:hsl(214 80% 93%);color:hsl(214 80% 35%);">Top Performer</span>
+                  </div>
+                  <div class="ai-bubble p-3 text-sm" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">
+                    <span class="font-semibold" style="color:hsl(var(--brand));">AI:</span> Alejandra demonstrates exceptional guest service instincts and scored perfectly in Modules 1, 2, and 6. She's ready to mentor peers on greeting techniques. Recommend fast-tracking her to advanced sommelier pairing course.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Jose - needs attention -->
+            <div class="card p-4" style="border-color:hsl(38 90% 80%);">
+              <div class="flex items-start gap-3">
+                <div class="avatar-lg" style="background:hsl(0 72% 88%);color:hsl(0 72% 40%);">JV</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-semibold text-sm">Jose Vargas</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full grade-c">C · 71</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:hsl(38 90% 90%);color:hsl(38 90% 35%);">Needs Attention</span>
+                  </div>
+                  <div class="ai-bubble p-3 text-sm" style="background:hsl(38 90% 97%);">
+                    <span class="font-semibold" style="color:hsl(var(--brand));">AI:</span> Jose struggles with Modules 4 and 5 (upselling and complaint resolution). He retried Module 4 three times. I recommend a 1-on-1 role-play session focusing on confident language patterns and de-escalation scripts. He shows strong potential in menu knowledge (score 89).
+                  </div>
+                  <div class="flex gap-2 mt-3">
+                    <button class="px-3 py-1.5 text-xs font-semibold rounded-lg text-white" style="background:hsl(var(--brand));">Schedule 1-on-1</button>
+                    <button class="px-3 py-1.5 text-xs font-medium rounded-lg border" style="border-color:hsl(var(--border-color));color:hsl(var(--muted-fg));">Send Resource</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Carlos -->
+            <div class="card p-4">
+              <div class="flex items-start gap-3">
+                <div class="avatar-lg" style="background:hsl(270 60% 88%);color:hsl(270 60% 40%);">CR</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-semibold text-sm">Carlos Reyes</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full grade-b">B · 83</span>
+                  </div>
+                  <div class="ai-bubble p-3 text-sm" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">
+                    <span class="font-semibold" style="color:hsl(var(--brand));">AI:</span> Solid across all modules. Carlos's upselling score improved from 74 on first attempt to 83 on retry — shows good learning agility. One final module remaining (Module 7). Expected completion within 2 days based on his pace.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Diana - in progress -->
+            <div class="card p-4" style="border-style:dashed;">
+              <div class="flex items-start gap-3">
+                <div class="avatar-lg" style="background:hsl(142 50% 88%);color:hsl(142 50% 30%);">DP</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="font-semibold text-sm">Diana Pérez</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">In Progress · 4/7</span>
+                  </div>
+                  <div class="ai-bubble p-3 text-sm" style="background:hsl(var(--muted));color:hsl(var(--muted-fg));">
+                    <span class="font-semibold" style="color:hsl(var(--brand));">AI:</span> Diana's early modules look promising (avg 88 on completed). At her current pace she should finish in 3 days. No red flags yet — check back after Module 5 for a full assessment.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- AI Ask bar at bottom -->
+          <div class="mt-5 p-3 rounded-2xl border" style="border-color:hsl(var(--border-color));">
+            <div class="flex items-center gap-2">
+              <i data-lucide="sparkles" class="w-4 h-4 flex-shrink-0" style="color:hsl(var(--brand));"></i>
+              <input type="text" placeholder="Ask AI about this course... e.g. &quot;Who needs extra help before Mother&apos;s Day?&quot;" class="flex-1 text-sm bg-transparent outline-none" style="color:hsl(var(--ink));">
+              <button class="px-3 py-1.5 text-xs font-semibold rounded-lg text-white flex-shrink-0" style="background:hsl(var(--brand));">Ask</button>
+            </div>
+          </div>
+
+        </div><!-- end ai-feedback panel -->
+
+      </div><!-- end tabs card -->
+
+    </div><!-- end right col -->
+
+  </div><!-- end main grid -->
+
+</div><!-- end main container -->
+
+<!-- ===== FAB ===== -->
+<div class="fab text-white shadow-[0_8px_24px_-4px_rgb(0_0_0/0.2)]" style="background:hsl(var(--brand));" onclick="openAI()">
+  <i data-lucide="sparkles" class="w-5 h-5"></i>
+</div>
+<div class="fab-tooltip shadow-card" style="color:hsl(var(--ink));">Ask AI Coach</div>
+
+<script>
+  // Init icons
+  lucide.createIcons();
+
+  // Dark mode toggle
+  function toggleDark() {
+    document.documentElement.classList.toggle('dark');
+    lucide.createIcons();
+  }
+
+  // Sort pills
+  function setSort(el, type) {
+    document.querySelectorAll('.sort-pill').forEach(p => {
+      p.classList.remove('pill-active');
+      p.classList.add('pill-inactive');
+    });
+    el.classList.remove('pill-inactive');
+    el.classList.add('pill-active');
+  }
+
+  // Course selection
+  function selectCourse(id) {
+    document.querySelectorAll('.course-card').forEach(c => c.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+  }
+
+  // Tab switching
+  function switchTab(name) {
+    document.querySelectorAll('.detail-tab').forEach(t => {
+      t.classList.remove('tab-active');
+      t.classList.add('tab-inactive');
+    });
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.remove('tab-inactive');
+    document.getElementById('tab-' + name).classList.add('tab-active');
+    document.getElementById('panel-' + name).classList.add('active');
+    lucide.createIcons();
+  }
+
+  function exportReport() { alert('Export report — coming soon!'); }
+  function openAI() {
+    const input = document.querySelector('#panel-ai-feedback input');
+    if (input) {
+      switchTab('ai-feedback');
+      setTimeout(() => input.focus(), 100);
+    }
+  }
+
+  // ===== Charts =====
+  function getComputedHSL(varName) {
+    return `hsl(${getComputedStyle(document.documentElement).getPropertyValue(varName).trim()})`;
+  }
+
+  // Completion over time chart
+  window.addEventListener('DOMContentLoaded', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    const mutedFg = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.3)';
+    const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const brand = '#F97316';
+
+    // Completion over time
+    const ctx1 = document.getElementById('completionChart').getContext('2d');
+    new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: ['Feb 18','Feb 21','Feb 24','Feb 27','Mar 1','Mar 3','Mar 4'],
+        datasets: [{
+          label: 'Completions',
+          data: [2, 3, 4, 5, 8, 2, 2],
+          backgroundColor: brand + 'cc',
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} completed` } } },
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: mutedFg, font: { size: 10 } } },
+          y: { grid: { color: gridColor }, ticks: { color: mutedFg, font: { size: 10 }, stepSize: 2 }, beginAtZero: true }
+        }
+      }
+    });
+
+    // Grade donut
+    const ctx2 = document.getElementById('gradeDonut').getContext('2d');
+    new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: ['A','B','C','D'],
+        datasets: [{
+          data: [8, 6, 3, 1],
+          backgroundColor: ['#16a34a','#3b82f6','#ca8a04','#dc2626'],
+          borderWidth: 0,
+          hoverOffset: 4,
+        }]
+      },
+      options: {
+        responsive: false,
+        cutout: '65%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} students` } }
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>

@@ -43,47 +43,9 @@ const tabIconMap = {
 
 // ─── Food & Drink Tab Sub-Component ─────────────────────────────────────
 
-const FOOD_FILTER_EN = [
-  { value: 'all', label: 'All' },
-  { value: 'food', label: 'Food' },
-  { value: 'drinks', label: 'Drinks' },
-];
-const FOOD_FILTER_ES = [
-  { value: 'all', label: 'Todos' },
-  { value: 'food', label: 'Comida' },
-  { value: 'drinks', label: 'Bebidas' },
-];
-const FOOD_TIME_EN = [
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
-];
-const FOOD_TIME_ES = [
-  { value: 'month', label: 'Mes' },
-  { value: 'quarter', label: 'Trimestre' },
-  { value: 'year', label: 'Año' },
-];
-
 function FoodTabContent({ data, isEs }: { data: ReviewDashboardData; isEs: boolean }) {
-  const [foodFilter, setFoodFilter] = useState('all');
-  const [foodTime, setFoodTime] = useState('month');
-
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3">
-        <TimePillBar
-          options={isEs ? FOOD_FILTER_ES : FOOD_FILTER_EN}
-          value={foodFilter}
-          onChange={setFoodFilter}
-        />
-        <div className="ml-auto">
-          <TimePillBar
-            options={isEs ? FOOD_TIME_ES : FOOD_TIME_EN}
-            value={foodTime}
-            onChange={setFoodTime}
-          />
-        </div>
-      </div>
       <TopItemsGrid
         title={isEs ? 'Más Mencionados' : 'Top Mentioned'}
         subtitle={isEs ? 'artículos más elogiados por restaurante' : 'most praised items by restaurant'}
@@ -106,31 +68,9 @@ function FoodTabContent({ data, isEs }: { data: ReviewDashboardData; isEs: boole
 
 // ─── Staff Tab Sub-Component ────────────────────────────────────────────
 
-const STAFF_TIME_EN = [
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
-  { value: 'all', label: 'All Time' },
-];
-const STAFF_TIME_ES = [
-  { value: 'month', label: 'Mes' },
-  { value: 'quarter', label: 'Trimestre' },
-  { value: 'year', label: 'Año' },
-  { value: 'all', label: 'Histórico' },
-];
-
 function StaffTabContent({ data, isEs }: { data: ReviewDashboardData; isEs: boolean }) {
-  const [staffTime, setStaffTime] = useState('month');
-
   return (
     <>
-      <div className="flex items-center gap-3">
-        <TimePillBar
-          options={isEs ? STAFF_TIME_ES : STAFF_TIME_EN}
-          value={staffTime}
-          onChange={setStaffTime}
-        />
-      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <StaffLeaderboard
           title={isEs ? 'Top 10 Personal — Este Mes' : 'Top 10 Staff — This Month'}
@@ -164,20 +104,8 @@ const CAT_SELECTOR_ES = [
   { value: 'ambience', label: 'Ambiente' },
   { value: 'value', label: 'Valor' },
 ];
-const CAT_TIME_EN = [
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
-];
-const CAT_TIME_ES = [
-  { value: 'month', label: 'Mes' },
-  { value: 'quarter', label: 'Trimestre' },
-  { value: 'year', label: 'Año' },
-];
-
 function CategoriesTabContent({ data, isEs }: { data: ReviewDashboardData; isEs: boolean }) {
   const [catView, setCatView] = useState('food');
-  const [catTime, setCatTime] = useState('month');
 
   const subItemsMap: Record<string, typeof data.subCategoriesFood> = {
     food: data.subCategoriesFood,
@@ -206,13 +134,6 @@ function CategoriesTabContent({ data, isEs }: { data: ReviewDashboardData; isEs:
           value={catView}
           onChange={setCatView}
         />
-        <div className="ml-auto">
-          <TimePillBar
-            options={isEs ? CAT_TIME_ES : CAT_TIME_EN}
-            value={catTime}
-            onChange={setCatTime}
-          />
-        </div>
       </div>
       <CategoryTrendChart
         title={isEs ? `${catLabel} — Puntuación en el Tiempo` : `${catLabel} — Score Over Time`}
@@ -239,55 +160,13 @@ function CategoriesTabContent({ data, isEs }: { data: ReviewDashboardData; isEs:
 
 // ─── Company Tab Sub-Component ──────────────────────────────────────────
 
-const COMPANY_METRIC_EN = [
-  { value: 'flavor', label: 'Flavor Index' },
-  { value: 'food', label: 'Food' },
-  { value: 'service', label: 'Service' },
-  { value: 'ambience', label: 'Ambience' },
-  { value: 'value', label: 'Value' },
-];
-const COMPANY_METRIC_ES = [
-  { value: 'flavor', label: 'Índice de Sabor' },
-  { value: 'food', label: 'Comida' },
-  { value: 'service', label: 'Servicio' },
-  { value: 'ambience', label: 'Ambiente' },
-  { value: 'value', label: 'Valor' },
-];
-const COMPANY_TIME_EN = [
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'year', label: 'Year' },
-  { value: 'last-year', label: 'Last Year' },
-];
-const COMPANY_TIME_ES = [
-  { value: 'quarter', label: 'Trimestre' },
-  { value: 'year', label: 'Año' },
-  { value: 'last-year', label: 'Año Pasado' },
-];
-
 function CompanyTabContent({ data, isEs }: { data: ReviewDashboardData; isEs: boolean }) {
-  const [metric, setMetric] = useState('flavor');
-  const [companyTime, setCompanyTime] = useState('quarter');
-
   const locations = data.companyCards
     .filter((c) => c.score !== null)
     .map((c) => ({ name: c.name.replace('Steakhouse', '').trim() + ' — ' + c.location.split(',')[0], color: '#F97316' }));
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3">
-        <TimePillBar
-          options={isEs ? COMPANY_METRIC_ES : COMPANY_METRIC_EN}
-          value={metric}
-          onChange={setMetric}
-        />
-        <div className="ml-auto">
-          <TimePillBar
-            options={isEs ? COMPANY_TIME_ES : COMPANY_TIME_EN}
-            value={companyTime}
-            onChange={setCompanyTime}
-          />
-        </div>
-      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.companyCards.map((card) => (
           <RestaurantScorecard key={card.name} card={card} isEs={isEs} />
@@ -309,15 +188,17 @@ const ReviewDashboard = () => {
   const { language, setLanguage } = useLanguage();
   const isEs = language === 'es';
 
-  // Date range state (default: last 30 days)
-  const [dateRange, setDateRange] = useState<DateRange>({
-    from: new Date(2026, 0, 8),   // Jan 08
-    to: new Date(2026, 1, 8),     // Feb 08
+  // Date range state (default: last 90 days)
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 90);
+    return { from, to };
   });
 
   // Live data from Supabase (safe: defaults always set, but guard anyway)
-  const safeFrom = dateRange.from ?? new Date(2026, 0, 8);
-  const safeTo = dateRange.to ?? new Date(2026, 1, 8);
+  const safeFrom = dateRange.from ?? (() => { const d = new Date(); d.setDate(d.getDate() - 90); return d; })();
+  const safeTo = dateRange.to ?? new Date();
   const { data, isLoading, error } = useReviewDashboard(
     { from: safeFrom, to: safeTo },
     isEs ? 'es-ES' : 'en-US',
@@ -394,7 +275,7 @@ const ReviewDashboard = () => {
                 </div>
                 <div className="lg:col-span-3">
                   <TrendSummaryCard
-                    delta={data.summary.delta ?? 0}
+                    delta={data.summary.delta}
                     currentScore={data.summary.score}
                     previousScore={data.summary.delta !== null ? data.summary.score - data.summary.delta : null}
                     lowRatingPercent={data.lowRatingPercent}
@@ -406,6 +287,7 @@ const ReviewDashboard = () => {
                 <div className="lg:col-span-6">
                   <FlavorIndexChart
                     monthlyScores={data.monthlyScores}
+                    monthlyScoresByRestaurant={data.monthlyScoresByRestaurant}
                     competitors={data.competitors}
                     isEs={isEs}
                   />

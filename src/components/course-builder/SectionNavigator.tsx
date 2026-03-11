@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { useState } from 'react';
-import { Plus, Trash2, ChevronRight } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,8 +31,13 @@ const STRINGS = {
 const statusColors: Record<string, string> = {
   empty: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
   outline: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  planned: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+  prose_ready: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  prose_error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
   generating: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
   generated: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+  incomplete: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  translated: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
   reviewed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
 };
 
@@ -82,7 +87,9 @@ export function SectionNavigator({ language }: SectionNavigatorProps) {
         <button
           key={section.id}
           type="button"
-          onClick={() => setActiveSection(section.id)}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('course-builder-scroll-to-section', { detail: section.id }));
+          }}
           className={cn(
             'flex items-center gap-2 w-full px-3 py-2 rounded-lg text-left',
             'text-sm transition-colors group',
@@ -91,9 +98,11 @@ export function SectionNavigator({ language }: SectionNavigatorProps) {
               : 'hover:bg-muted/80 text-foreground/80',
           )}
         >
-          <ChevronRight className={cn(
-            'h-3.5 w-3.5 shrink-0 transition-transform',
-            state.activeSectionId === section.id && 'rotate-90',
+          <span className={cn(
+            'h-1.5 w-1.5 rounded-full shrink-0 transition-colors',
+            state.activeSectionId === section.id
+              ? 'bg-primary'
+              : 'bg-muted-foreground/30',
           )} />
           <div className="flex-1 min-w-0">
             <p className="line-clamp-2 text-sm">

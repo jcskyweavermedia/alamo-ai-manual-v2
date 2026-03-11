@@ -1,7 +1,7 @@
 // =============================================================================
 // CourseBuilderTabBar — Horizontal tab bar for the course builder center column.
 //
-// 4 tabs: Elements, Settings, Quiz, Preview
+// 3 tabs: Elements, Settings, Quiz
 // Dispatches SET_ACTIVE_TAB on click. Active tab gets primary highlight.
 // Compact design: small icons, text-xs labels, minimal padding.
 // Pattern: mirrors form-builder/BuilderTabBar.tsx.
@@ -12,7 +12,6 @@ import {
   LayoutGrid,
   Settings,
   HelpCircle,
-  Eye,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -42,7 +41,6 @@ const TABS: TabDef[] = [
   { key: 'elements', labelEn: 'Elements', labelEs: 'Elementos', icon: LayoutGrid },
   { key: 'settings', labelEn: 'Settings', labelEs: 'Configuraci\u00f3n', icon: Settings },
   { key: 'quiz', labelEn: 'Quiz', labelEs: 'Quiz', icon: HelpCircle },
-  { key: 'preview', labelEn: 'Preview', labelEs: 'Vista previa', icon: Eye },
 ];
 
 // =============================================================================

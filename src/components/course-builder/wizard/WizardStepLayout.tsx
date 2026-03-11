@@ -63,7 +63,7 @@ export function WizardStepLayout({
   const t = STRINGS[language];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 max-h-[90dvh]">
       {/* Step indicator + header */}
       <div className="shrink-0 px-4 sm:px-6 pt-4 pb-3 border-b">
         {/* Step dots */}
@@ -74,9 +74,9 @@ export function WizardStepLayout({
               className={cn(
                 'h-2 rounded-full transition-all',
                 i === currentStep
-                  ? 'w-8 bg-primary'
+                  ? 'w-8 bg-orange-500'
                   : i < currentStep
-                    ? 'w-2 bg-primary/50'
+                    ? 'w-2 bg-orange-500/50'
                     : 'w-2 bg-muted',
               )}
             />
@@ -92,7 +92,7 @@ export function WizardStepLayout({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
         {children}
       </div>
 
@@ -122,6 +122,7 @@ export function WizardStepLayout({
               size="sm"
               onClick={onBuild}
               disabled={!canGoNext || isBuilding}
+              className="bg-orange-500 text-white hover:bg-orange-600"
             >
               {isBuilding ? (
                 <>
@@ -137,6 +138,7 @@ export function WizardStepLayout({
               size="sm"
               onClick={onNext}
               disabled={!canGoNext}
+              className="bg-orange-500 text-white hover:bg-orange-600"
             >
               {t.next}
             </Button>

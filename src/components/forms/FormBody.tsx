@@ -23,6 +23,7 @@ export function FormBody({
   onFieldChange,
   aiHighlightedFields,
   aiMissingFields,
+  readOnly,
 }: FormBodyProps) {
   // Derive sections from the template fields (header fields become dividers)
   const sections = useMemo(() => groupFieldsIntoSections(fields), [fields]);
@@ -58,10 +59,11 @@ export function FormBody({
           onChange={onChange}
           aiHighlighted={aiHighlighted}
           aiMissing={aiMissing}
+          readOnly={readOnly}
         />
       );
     },
-    [fieldMap, language],
+    [fieldMap, language, readOnly],
   );
 
   return (

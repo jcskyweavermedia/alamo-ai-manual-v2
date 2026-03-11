@@ -3,15 +3,6 @@
 // Only Menu Rollout is active; others show "Coming Soon".
 // =============================================================================
 
-import {
-  UtensilsCrossed,
-  ClipboardList,
-  Footprints,
-  ChefHat,
-  Wrench,
-  FileText,
-  X,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,16 +55,15 @@ const STRINGS = {
 
 const WIZARD_TYPES: Array<{
   type: CourseType;
-  icon: typeof UtensilsCrossed;
+  emoji: string;
   enabled: boolean;
-  color: string;
 }> = [
-  { type: 'menu_rollout', icon: UtensilsCrossed, enabled: true, color: 'text-orange-600 bg-orange-50 dark:bg-orange-950/30' },
-  { type: 'sop_review', icon: ClipboardList, enabled: false, color: 'text-blue-600 bg-blue-50 dark:bg-blue-950/30' },
-  { type: 'steps_of_service', icon: Footprints, enabled: false, color: 'text-green-600 bg-green-50 dark:bg-green-950/30' },
-  { type: 'line_cook', icon: ChefHat, enabled: false, color: 'text-red-600 bg-red-50 dark:bg-red-950/30' },
-  { type: 'custom', icon: Wrench, enabled: false, color: 'text-purple-600 bg-purple-50 dark:bg-purple-950/30' },
-  { type: 'blank', icon: FileText, enabled: false, color: 'text-gray-600 bg-gray-50 dark:bg-gray-950/30' },
+  { type: 'menu_rollout', emoji: '🍽️', enabled: true },
+  { type: 'sop_review', emoji: '📋', enabled: false },
+  { type: 'steps_of_service', emoji: '👣', enabled: false },
+  { type: 'line_cook', emoji: '👨‍🍳', enabled: false },
+  { type: 'custom', emoji: '🛠️', enabled: false },
+  { type: 'blank', emoji: '📄', enabled: false },
 ];
 
 interface CourseWizardDialogProps {
@@ -92,53 +82,41 @@ export function CourseWizardDialog({ open, onClose, onSelectType, language = 'en
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl">{t.title}</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 -mr-2"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            {/* Default close button from DialogContent is used */}
           </div>
           <p className="text-sm text-muted-foreground">{t.description}</p>
         </DialogHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          {WIZARD_TYPES.map((wt) => {
-            const Icon = wt.icon;
-            return (
-              <button
-                key={wt.type}
-                type="button"
-                disabled={!wt.enabled}
-                onClick={() => wt.enabled && onSelectType(wt.type)}
-                className={cn(
-                  'relative flex items-start gap-3 p-4 rounded-xl border text-left transition-all',
-                  !wt.enabled && 'opacity-50 cursor-not-allowed',
-                  wt.enabled && 'hover:border-primary/40 hover:shadow-md cursor-pointer',
-                  'border-border',
-                )}
-              >
-                <div className={cn('flex items-center justify-center h-11 w-11 rounded-xl shrink-0', wt.color)}>
-                  <Icon className="h-5 w-5" />
+          {WIZARD_TYPES.map((wt) => (
+            <button
+              key={wt.type}
+              type="button"
+              disabled={!wt.enabled}
+              onClick={() => wt.enabled && onSelectType(wt.type)}
+              className={cn(
+                'relative flex items-start gap-3 p-4 rounded-xl border text-left transition-all',
+                !wt.enabled && 'opacity-50 cursor-not-allowed',
+                wt.enabled && 'hover:border-orange-400 hover:shadow-md cursor-pointer',
+                'border-border',
+              )}
+            >
+              <span className="text-3xl shrink-0 leading-none" role="img">{wt.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold">{t[wt.type]}</p>
+                  {!wt.enabled && (
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
+                      {t.comingSoon}
+                    </Badge>
+                  )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{t[wt.type]}</p>
-                    {!wt.enabled && (
-                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
-                        {t.comingSoon}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    {t[`${wt.type}Desc` as keyof typeof t]}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  {t[`${wt.type}Desc` as keyof typeof t]}
+                </p>
+              </div>
+            </button>
+          ))}
         </div>
 
         <div className="flex justify-end pt-2">

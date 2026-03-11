@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Expand, X, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DishCategoryBadge } from './DishCategoryBadge';
@@ -12,6 +12,27 @@ import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { CrossNavButton } from '@/components/shared/CrossNavButton';
+import type { Language } from '@/hooks/use-language';
+import { getCommon } from '@/lib/common-strings';
+
+const STRINGS = {
+  en: {
+    keyIngredients: 'Key Ingredients',
+    flavorProfile: 'Flavor Profile',
+    allergyNotes: 'Allergy Notes',
+    upsellNotes: 'Upsell Notes',
+    detailedDescription: 'Detailed Description',
+    viewBohPlateSpec: 'View BOH Plate Spec',
+  },
+  es: {
+    keyIngredients: 'Ingredientes Clave',
+    flavorProfile: 'Perfil de Sabor',
+    allergyNotes: 'Notas de Alergia',
+    upsellNotes: 'Notas de Venta Sugestiva',
+    detailedDescription: 'Descripci\u00f3n Detallada',
+    viewBohPlateSpec: 'Ver Especificaci\u00f3n BOH',
+  },
+} as const;
 
 interface DishCardViewProps {
   dish: Dish;
@@ -21,19 +42,36 @@ interface DishCardViewProps {
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
   bohSlug?: string | null;
+  language: Language;
 }
 
-const INFO_CARDS: { key: string; label: string; emoji: string; bg: string; field: keyof Dish }[] = [
-  { key: 'ingredients', label: 'Ingredients', emoji: '\uD83E\uDD69', bg: 'bg-red-100 dark:bg-red-900/30', field: 'keyIngredients' },
-  { key: 'flavor', label: 'Flavor Profile', emoji: '\uD83C\uDFA8', bg: 'bg-violet-100 dark:bg-violet-900/30', field: 'flavorProfile' },
-  { key: 'allergy', label: 'Allergy Notes', emoji: '\u26A0\uFE0F', bg: 'bg-amber-100 dark:bg-amber-900/30', field: 'allergyNotes' },
-  { key: 'upsell', label: 'Upsell Notes', emoji: '\uD83D\uDCB0', bg: 'bg-green-100 dark:bg-green-900/30', field: 'upsellNotes' },
+type InfoCardDef = { key: string; labelKey: keyof typeof STRINGS['en']; emoji: string; bg: string; field: keyof Dish };
+
+const INFO_CARDS: InfoCardDef[] = [
+  { key: 'ingredients', labelKey: 'keyIngredients', emoji: '\uD83E\uDD69', bg: 'bg-red-100 dark:bg-red-900/30', field: 'keyIngredients' },
+  { key: 'flavor', labelKey: 'flavorProfile', emoji: '\uD83C\uDFA8', bg: 'bg-violet-100 dark:bg-violet-900/30', field: 'flavorProfile' },
+  { key: 'allergy', labelKey: 'allergyNotes', emoji: '\u26A0\uFE0F', bg: 'bg-amber-100 dark:bg-amber-900/30', field: 'allergyNotes' },
+  { key: 'upsell', labelKey: 'upsellNotes', emoji: '\uD83D\uDCB0', bg: 'bg-green-100 dark:bg-green-900/30', field: 'upsellNotes' },
 ];
 
-export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAction, onActionChange, bohSlug }: DishCardViewProps) {
+const PLATE_PLACEHOLDER: Record<string, { bg: string; emoji: string }> = {
+  entree:    { bg: 'bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-800/40', emoji: '🥩' },
+  appetizer: { bg: 'bg-gradient-to-br from-green-100 to-emerald-200 dark:from-green-900/40 dark:to-emerald-800/40', emoji: '🥗' },
+  side:      { bg: 'bg-gradient-to-br from-sky-100 to-blue-200 dark:from-sky-900/40 dark:to-blue-800/40', emoji: '🍽️' },
+  dessert:   { bg: 'bg-gradient-to-br from-pink-100 to-rose-200 dark:from-pink-900/40 dark:to-rose-800/40', emoji: '🍰' },
+};
+
+export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAction, onActionChange, bohSlug, language }: DishCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [imgErrored, setImgErrored] = useState(false);
+  const handleImgError = useCallback(() => setImgErrored(true), []);
+  const t = STRINGS[language];
+  const c = getCommon(language);
+
+  const hasImage = !!dish.image && !imgErrored;
+  const ph = PLATE_PLACEHOLDER[dish.plateType] ?? { bg: 'bg-muted', emoji: '🍴' };
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onSwipeNext,
@@ -53,15 +91,15 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
               {dish.menuName}
             </h1>
             <DishCategoryBadge category={dish.plateType} className="shrink-0 mt-1" />
-            {isAdmin && (
+            {isAdmin && dish.plateSpecId && (
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 px-2"
-                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/foh_plate_specs/${dish.id}`); }}
+                onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/plate_specs/${dish.plateSpecId}`); }}
                 title="Edit product"
               >
-                <span className="text-[14px] leading-none">✏️</span>
+                <span className="text-[14px] leading-none">{'\u270F\uFE0F'}</span>
               </Button>
             )}
           </div>
@@ -72,8 +110,8 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
               {dish.isTopSeller && <TopSellerBadge size="md" />}
               {dish.isFeatured && (
                 <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                  <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
-                  <span>Featured</span>
+                  <span className="text-[16px] h-[16px] leading-[16px]">{'\u2728'}</span>
+                  <span>{c.featured}</span>
                 </div>
               )}
             </div>
@@ -89,7 +127,7 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
                 <>
                   <div className="flex-1" />
                   <CrossNavButton
-                    label="View BOH Plate Spec"
+                    label={t.viewBohPlateSpec}
                     targetPath="/recipes"
                     targetSlug={bohSlug}
                   />
@@ -107,15 +145,25 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
         {/* Image */}
         <button
           type="button"
-          onClick={() => setLightboxOpen(true)}
-          className="relative group sm:w-[40%] shrink-0 rounded-[20px] overflow-hidden cursor-pointer bg-muted shadow-[3px_8px_14px_-3px_rgba(0,0,0,0.4),2px_5px_8px_-2px_rgba(0,0,0,0.25)]"
+          onClick={() => hasImage ? setLightboxOpen(true) : undefined}
+          className={cn(
+            "relative group sm:w-[40%] shrink-0 rounded-[20px] overflow-hidden bg-muted shadow-[3px_8px_14px_-3px_rgba(0,0,0,0.4),2px_5px_8px_-2px_rgba(0,0,0,0.25)] min-h-[180px]",
+            hasImage ? "cursor-pointer" : "cursor-default"
+          )}
         >
-          <img
-            src={dish.image}
-            alt={dish.menuName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
+          {hasImage ? (
+            <img
+              src={dish.image!}
+              alt={dish.menuName}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              onError={handleImgError}
+            />
+          ) : (
+            <div className={cn('w-full h-full min-h-[180px] flex items-center justify-center', ph.bg)}>
+              <span className="text-6xl select-none">{ph.emoji}</span>
+            </div>
+          )}
           <span
             className={cn(
               'absolute bottom-2 right-2',
@@ -178,7 +226,7 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
                 <span className="text-[22px] h-[22px] leading-[22px]">{card.emoji}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                {card.label}
+                {t[card.labelKey]}
               </h2>
               {card.key === 'ingredients' ? (
                 <>
@@ -202,8 +250,8 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
       {/* Detailed Description */}
       <section>
         <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
-          <span className="text-[14px] h-[14px] leading-[14px] inline-block mr-1">📋</span>
-          Detailed Description
+          <span className="text-[14px] h-[14px] leading-[14px] inline-block mr-1">{'\uD83D\uDCCB'}</span>
+          {t.detailedDescription}
         </h2>
         <p className="text-sm leading-relaxed text-foreground">
           {dish.detailedDescription}
@@ -214,8 +262,8 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
       {dish.notes && (
         <section>
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1">
-            <span className="text-[14px] h-[14px] leading-[14px] inline-block mr-1">📝</span>
-            Notes
+            <span className="text-[14px] h-[14px] leading-[14px] inline-block mr-1">{'\uD83D\uDCDD'}</span>
+            {c.notes}
           </h2>
           <p className="text-sm leading-relaxed text-foreground">
             {dish.notes}
@@ -242,12 +290,18 @@ export function DishCardView({ dish, onBack, onSwipePrev, onSwipeNext, activeAct
           >
             <X className="h-5 w-5" />
           </button>
-          <img
-            src={dish.image}
-            alt={dish.menuName}
-            className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
-            onClick={e => e.stopPropagation()}
-          />
+          {hasImage ? (
+            <img
+              src={dish.image!}
+              alt={dish.menuName}
+              className="min-w-[70vw] max-w-[85vw] max-h-[85vh] rounded-xl object-contain"
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <div className={cn('w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] rounded-xl flex items-center justify-center', ph.bg)} onClick={e => e.stopPropagation()}>
+              <span className="text-[100px] select-none">{ph.emoji}</span>
+            </div>
+          )}
         </div>
       )}
     </div>

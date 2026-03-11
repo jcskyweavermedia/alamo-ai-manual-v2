@@ -13,6 +13,11 @@ import type {
   FeatureElement,
   MediaElement,
   ProductViewerElement,
+  PageHeaderElement,
+  SectionHeaderElement,
+  CardGridElement,
+  ComparisonElement,
+  ScriptBlockElement,
   ProductTable,
   CourseSection,
   QuizConfig,
@@ -24,6 +29,7 @@ import {
   ShieldAlert,
   Sparkles,
   Star,
+  Megaphone,
 } from 'lucide-react';
 
 // =============================================================================
@@ -143,6 +149,55 @@ export function getDefaultElement(
       };
       return el;
     }
+    case 'page_header': {
+      const el: PageHeaderElement = {
+        ...base,
+        type: 'page_header',
+        title_en: '',
+        title_es: '',
+      };
+      return el;
+    }
+    case 'section_header': {
+      const el: SectionHeaderElement = {
+        ...base,
+        type: 'section_header',
+        title_en: '',
+        title_es: '',
+      };
+      return el;
+    }
+    case 'card_grid': {
+      const el: CardGridElement = {
+        ...base,
+        type: 'card_grid',
+        variant: 'icon_tile',
+        columns: 3,
+        cards: [],
+      };
+      return el;
+    }
+    case 'comparison': {
+      const el: ComparisonElement = {
+        ...base,
+        type: 'comparison',
+        variant: 'correct_incorrect',
+        pairs: [],
+        positive: { tag_en: 'Correct', tag_es: 'Correcto', items_en: [], items_es: [] },
+        negative: { tag_en: 'Incorrect', tag_es: 'Incorrecto', items_en: [], items_es: [] },
+      };
+      return el;
+    }
+    case 'script_block': {
+      const el: ScriptBlockElement = {
+        ...base,
+        type: 'script_block',
+        header_en: '',
+        header_es: '',
+        lines: [],
+      };
+      return el;
+    }
   }
 }
 
@@ -197,7 +252,11 @@ export interface FeatureVariantConfig {
   color: string;
   bgClass: string;
   borderClass: string;
-  icon: string; // Lucide icon name
+  icon: string;              // Lucide icon name
+  iconTileBg: string;        // gradient for 44px icon tile
+  iconTileColor: string;     // text color for icon tile emoji
+  tagColor: string;          // color for the uppercase tag label
+  cardBg?: string;           // override card background (e.g., did_you_know tinted)
 }
 
 export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
@@ -208,6 +267,9 @@ export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
     bgClass: 'bg-blue-50 dark:bg-blue-950/30',
     borderClass: 'border-l-4 border-blue-500',
     icon: 'Lightbulb',
+    iconTileBg: 'from-blue-50 to-blue-100',
+    iconTileColor: 'text-blue-600',
+    tagColor: 'text-blue-600',
   },
   best_practice: {
     labelEn: 'Best Practice',
@@ -216,6 +278,9 @@ export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
     bgClass: 'bg-green-50 dark:bg-green-950/30',
     borderClass: 'border-l-4 border-green-500',
     icon: 'CheckCircle',
+    iconTileBg: 'from-green-50 to-green-100',
+    iconTileColor: 'text-green-600',
+    tagColor: 'text-green-600',
   },
   caution: {
     labelEn: 'Caution',
@@ -224,6 +289,9 @@ export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
     bgClass: 'bg-amber-50 dark:bg-amber-950/30',
     borderClass: 'border-l-4 border-amber-500',
     icon: 'AlertTriangle',
+    iconTileBg: 'from-amber-50 to-amber-100',
+    iconTileColor: 'text-amber-600',
+    tagColor: 'text-amber-600',
   },
   warning: {
     labelEn: 'Warning',
@@ -232,14 +300,21 @@ export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
     bgClass: 'bg-red-50 dark:bg-red-950/30',
     borderClass: 'border-l-4 border-red-500',
     icon: 'ShieldAlert',
+    iconTileBg: 'from-red-50 to-red-100',
+    iconTileColor: 'text-red-600',
+    tagColor: 'text-red-600',
   },
   did_you_know: {
     labelEn: 'Did You Know?',
     labelEs: '¿Sabías Que?',
-    color: 'purple',
-    bgClass: 'bg-purple-50 dark:bg-purple-950/30',
-    borderClass: 'border-l-4 border-purple-500',
+    color: 'orange',
+    bgClass: 'bg-orange-50 dark:bg-orange-950/30',
+    borderClass: 'border-l-4 border-orange-500',
     icon: 'Sparkles',
+    iconTileBg: 'from-orange-50 to-orange-100',
+    iconTileColor: 'text-orange-600',
+    tagColor: 'text-orange-600',
+    cardBg: 'bg-orange-50',
   },
   key_point: {
     labelEn: 'Key Point',
@@ -248,6 +323,20 @@ export const FEATURE_VARIANTS: Record<FeatureVariant, FeatureVariantConfig> = {
     bgClass: 'bg-indigo-50 dark:bg-indigo-950/30',
     borderClass: 'border-l-4 border-indigo-500',
     icon: 'Star',
+    iconTileBg: 'from-indigo-50 to-indigo-100',
+    iconTileColor: 'text-indigo-600',
+    tagColor: 'text-indigo-600',
+  },
+  standout: {
+    labelEn: 'Standout',
+    labelEs: 'Destacado',
+    color: 'orange',
+    bgClass: 'bg-foreground',
+    borderClass: '',
+    icon: 'Megaphone',
+    iconTileBg: '',
+    iconTileColor: '',
+    tagColor: 'text-orange-400',
   },
 };
 
@@ -267,6 +356,7 @@ export const FEATURE_ICON_MAP: Record<string, React.ComponentType<{ className?: 
   ShieldAlert,
   Sparkles,
   Star,
+  Megaphone,
 };
 
 /**
@@ -336,3 +426,32 @@ export function getLocalizedField(
   }
   return ((element[fieldEn] as string)) ?? '';
 }
+
+// =============================================================================
+// CARD GRID VARIANT METADATA
+// =============================================================================
+
+import type { CardGridVariant, ComparisonVariant } from '@/types/course-builder';
+
+export const CARD_GRID_VARIANTS: Record<CardGridVariant, { labelEn: string; labelEs: string }> = {
+  icon_tile: { labelEn: 'Icon Tile', labelEs: 'Icono' },
+  menu_item: { labelEn: 'Menu Item', labelEs: 'Platillo' },
+  bilingual: { labelEn: 'Bilingual', labelEs: 'Bilingüe' },
+};
+
+export const COMPARISON_VARIANTS: Record<ComparisonVariant, { labelEn: string; labelEs: string }> = {
+  correct_incorrect: { labelEn: 'Correct / Incorrect', labelEs: 'Correcto / Incorrecto' },
+  miss_fix: { labelEn: 'Miss / Fix', labelEs: 'Error / Solución' },
+};
+
+// =============================================================================
+// ICON TILE GRADIENT MAP (for card_grid icon tiles)
+// =============================================================================
+
+export const ICON_BG_GRADIENTS: Record<string, string> = {
+  orange: 'linear-gradient(135deg, #FFF7ED, #FFEDD5)',
+  yellow: 'linear-gradient(135deg, #FEF3C7, #FDE68A)',
+  green: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
+  blue: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
+  purple: 'linear-gradient(135deg, #FAF5FF, #F3E8FF)',
+};

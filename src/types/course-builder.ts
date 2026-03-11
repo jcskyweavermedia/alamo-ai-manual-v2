@@ -8,9 +8,16 @@
 // ELEMENT TYPES
 // =============================================================================
 
-export type ElementType = 'content' | 'feature' | 'media' | 'product_viewer';
+export type ElementType =
+  | 'content' | 'feature' | 'media' | 'product_viewer'       // existing
+  | 'page_header' | 'section_header' | 'card_grid' | 'comparison' | 'script_block';  // new
+
 export type ElementStatus = 'outline' | 'generated' | 'reviewed';
-export type FeatureVariant = 'tip' | 'best_practice' | 'caution' | 'warning' | 'did_you_know' | 'key_point';
+
+export type FeatureVariant =
+  | 'tip' | 'best_practice' | 'caution' | 'warning'
+  | 'did_you_know' | 'key_point'                              // existing
+  | 'standout';                                                // new
 export type MediaType = 'image' | 'video' | 'youtube';
 export type ImageSource = 'upload' | 'ai_generated' | 'product_image' | 'external';
 export type ProductTable = 'foh_plate_specs' | 'wines' | 'cocktails' | 'prep_recipes' | 'beer_liquor_list';
@@ -37,6 +44,7 @@ export interface ContentElement extends BaseElement {
   title_es?: string;
   body_en: string;
   body_es: string;
+  lead?: boolean;           // NEW — renders as larger, lighter intro text
 }
 
 // --- Feature Element ---
@@ -75,12 +83,107 @@ export interface ProductViewerElement extends BaseElement {
   }>;
 }
 
+// --- Page Header Element (NEW) ---
+export interface PageHeaderElement extends BaseElement {
+  type: 'page_header';
+  badge_en?: string;
+  badge_es?: string;
+  badge_icon?: string;       // Emoji: "🎯"
+  title_en: string;          // "The One-Day Luxury Upgrade|Black Truffle Day" (light|bold split)
+  title_es: string;
+  tagline_en?: string;
+  tagline_es?: string;
+  icon?: string;             // Emoji: "🍄"
+  icon_label_en?: string;
+  icon_label_es?: string;
+}
+
+// --- Section Header Element (NEW) ---
+export interface SectionHeaderElement extends BaseElement {
+  type: 'section_header';
+  number_label?: string;     // "01 — The Vision"
+  title_en: string;          // Supports light|bold split via "|" delimiter
+  title_es: string;
+  subtitle_en?: string;
+  subtitle_es?: string;
+}
+
+// --- Card Grid Element (NEW) ---
+export type CardGridVariant = 'icon_tile' | 'menu_item' | 'bilingual';
+
+export interface CardGridItem {
+  icon?: string;             // Emoji
+  icon_bg?: string;          // 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
+  title_en: string;
+  title_es: string;
+  body_en: string;
+  body_es: string;
+}
+
+export interface CardGridElement extends BaseElement {
+  type: 'card_grid';
+  variant: CardGridVariant;
+  columns: 2 | 3;
+  cards: CardGridItem[];
+}
+
+// --- Comparison Element (NEW) ---
+export type ComparisonVariant = 'correct_incorrect' | 'miss_fix';
+
+export interface ComparisonSide {
+  tag_en: string;
+  tag_es: string;
+  title_en?: string;
+  title_es?: string;
+  items_en: string[];
+  items_es: string[];
+}
+
+export interface ComparisonElement extends BaseElement {
+  type: 'comparison';
+  variant: ComparisonVariant;
+  pairs: ComparisonSide[];         // For miss_fix: array of {negative, positive} pairs
+  positive: ComparisonSide;        // For correct_incorrect: dark side
+  negative: ComparisonSide;        // For correct_incorrect: light side
+}
+
+// --- Script Block Element (NEW) ---
+export interface ScriptLine {
+  text_en: string;
+  text_es?: string;
+}
+
+export interface ScriptBlockElement extends BaseElement {
+  type: 'script_block';
+  header_en: string;
+  header_es: string;
+  header_icon?: string;
+  lines: ScriptLine[];
+}
+
 // --- Union ---
-export type CourseElement = ContentElement | FeatureElement | MediaElement | ProductViewerElement;
+export type CourseElement =
+  | ContentElement | FeatureElement | MediaElement | ProductViewerElement
+  | PageHeaderElement | SectionHeaderElement | CardGridElement | ComparisonElement | ScriptBlockElement;
 
 // --- Type Guards ---
 export function isProductViewerElement(el: CourseElement): el is ProductViewerElement {
   return el.type === 'product_viewer';
+}
+export function isPageHeaderElement(el: CourseElement): el is PageHeaderElement {
+  return el.type === 'page_header';
+}
+export function isSectionHeaderElement(el: CourseElement): el is SectionHeaderElement {
+  return el.type === 'section_header';
+}
+export function isCardGridElement(el: CourseElement): el is CardGridElement {
+  return el.type === 'card_grid';
+}
+export function isComparisonElement(el: CourseElement): el is ComparisonElement {
+  return el.type === 'comparison';
+}
+export function isScriptBlockElement(el: CourseElement): el is ScriptBlockElement {
+  return el.type === 'script_block';
 }
 
 // =============================================================================
@@ -89,6 +192,20 @@ export function isProductViewerElement(el: CourseElement): el is ProductViewerEl
 
 export type QuizMode = 'multiple_choice' | 'voice_response' | 'interactive_ai' | 'mixed';
 export type TeacherLevel = 'friendly' | 'professional' | 'strict' | 'expert';
+
+export type CourseDepth = 'quick' | 'standard' | 'deep' | 'custom';
+
+export interface DepthTierPreview {
+  section_count: number;
+  summary: string;
+  topics: string[];
+}
+
+export interface DepthPreviewResponse {
+  quick: DepthTierPreview;
+  standard: DepthTierPreview;
+  deep: DepthTierPreview;
+}
 
 export interface QuizConfig {
   quiz_mode: QuizMode;
@@ -107,7 +224,7 @@ export interface QuizConfig {
 // =============================================================================
 
 export type CourseType = 'menu_rollout' | 'sop_review' | 'steps_of_service' | 'line_cook' | 'custom' | 'blank';
-export type CourseStatus = 'draft' | 'outline' | 'generating' | 'review' | 'published' | 'archived';
+export type CourseStatus = 'draft' | 'outline' | 'prose_ready' | 'generating' | 'review' | 'published' | 'archived';
 
 export interface Course {
   id: string;
@@ -140,7 +257,8 @@ export interface CourseSection {
   titleEs: string;
   elements: CourseElement[];
   sourceRefs: SourceRef[];
-  generationStatus: 'empty' | 'outline' | 'generating' | 'generated' | 'reviewed';
+  generationStatus: 'empty' | 'outline' | 'planned' | 'prose_ready' | 'prose_error' | 'generating' | 'generated' | 'incomplete' | 'translated' | 'reviewed';
+  draftContent?: Record<string, unknown> | null;
   sortOrder: number;
   estimatedMinutes: number;
   createdAt: string;
@@ -154,9 +272,7 @@ export interface CourseSection {
 export interface WizardConfig {
   courseType: CourseType;
   title: string;
-  titleEs: string;
   description: string;
-  descriptionEs: string;
   selectedSourceIds: SourceRef[];     // Items / sections picked in the wizard
   teacherLevel: TeacherLevel;
   teacherId: string | null;
@@ -165,10 +281,17 @@ export interface WizardConfig {
   assignTo: AssignmentTarget;
   deadline: string | null;
   expiresAt: string | null;
+  // Depth selector
+  depth: CourseDepth;
+  depth_notes: string;
+  depth_custom_prompt: string;
+  depth_preview: DepthPreviewResponse | null;
   // Edge-function-compatible fields (read by build-course handleOutline)
   ai_instructions?: string;
   source_sections?: string[];
   source_products?: Array<{ table: string; ids: string[] }>;
+  // Uploaded file attachments (storage paths)
+  attachments?: string[];
 }
 
 export interface AssignmentTarget {
@@ -181,9 +304,11 @@ export interface AssignmentTarget {
 // BUILDER STATE
 // =============================================================================
 
-export type CourseBuilderTab = 'elements' | 'settings' | 'quiz' | 'preview';
-export type CourseRightPanelMode = 'ai-chat' | 'element-properties' | 'quiz-config' | 'settings';
+export type CourseBuilderTab = 'elements' | 'settings' | 'quiz';
+export type CourseRightPanelMode = 'ai-chat' | 'element-properties' | 'quiz-config' | 'settings' | 'draft-content';
 export type CourseSaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';
+export type CanvasViewMode = 'source' | 'editor' | 'preview';
+export type PreviewDevice = 'desktop' | 'tablet' | 'tablet-landscape' | 'phone';
 
 export interface CourseBuilderSnapshot {
   sections: CourseSection[];
@@ -226,6 +351,13 @@ export interface CourseBuilderState {
   // UI Navigation
   activeTab: CourseBuilderTab;
   rightPanelMode: CourseRightPanelMode;
+  showAiInstructions: boolean;
+
+  // Preview / View Mode
+  canvasViewMode: CanvasViewMode;
+  previewDevice: PreviewDevice;
+  previewLang: 'en' | 'es';
+  previewEditingKey: string | null;  // element key being inline-edited in preview
 
   // Save lifecycle
   isDirty: boolean;
@@ -243,6 +375,9 @@ export interface CourseBuilderState {
   aiGenerating: boolean;
   aiGeneratingElementKey: string | null; // Which element is being generated (null = bulk)
   aiProgress: { completed: number; total: number } | null;
+
+  // Multiphase build state (3-pass pipeline)
+  multiphaseState: MultiphaseBuildState;
 
   // AI Chat
   builderChatMessages: CourseBuilderChatMessage[];
@@ -292,6 +427,14 @@ export type CourseBuilderAction =
   | { type: 'UPDATE_ELEMENT'; payload: { sectionId: string; key: string; updates: Partial<CourseElement> } }
   | { type: 'REMOVE_ELEMENT'; payload: { sectionId: string; key: string } }
   | { type: 'REORDER_ELEMENTS'; payload: { sectionId: string; elements: CourseElement[] } }
+  | { type: 'SET_SHOW_AI_INSTRUCTIONS'; payload: boolean }
+  | { type: 'UPDATE_ELEMENT_SILENT'; payload: { sectionId: string; key: string; updates: Partial<CourseElement> } }
+
+  // Preview / View Mode
+  | { type: 'SET_CANVAS_VIEW_MODE'; payload: CanvasViewMode }
+  | { type: 'SET_PREVIEW_DEVICE'; payload: PreviewDevice }
+  | { type: 'SET_PREVIEW_LANG'; payload: 'en' | 'es' }
+  | { type: 'SET_PREVIEW_EDITING_KEY'; payload: string | null }
 
   // Save lifecycle
   | { type: 'SAVE_START' }
@@ -311,6 +454,17 @@ export type CourseBuilderAction =
   | { type: 'AI_BUILD_ELEMENT_ERROR'; payload: { key: string } }
   | { type: 'AI_BUILD_ALL_COMPLETE' }
   | { type: 'AI_PROGRESS_UPDATE'; payload: { completed: number; total: number } }
+
+  // Multiphase pipeline
+  | { type: 'AI_MULTIPHASE_START'; payload: { phases: BuildPhase[]; estimatedSeconds: number } }
+  | { type: 'AI_PHASE_START'; payload: { phaseId: BuildPhaseId } }
+  | { type: 'AI_PHASE_PROGRESS'; payload: { phaseId: BuildPhaseId; completed: number; total: number } }
+  | { type: 'AI_PHASE_COMPLETE'; payload: { phaseId: BuildPhaseId } }
+  | { type: 'AI_PHASE_ERROR'; payload: { phaseId: BuildPhaseId; error: string } }
+  | { type: 'AI_MULTIPHASE_COMPLETE' }
+  | { type: 'AI_MULTIPHASE_CANCEL' }
+  | { type: 'AI_UPDATE_ESTIMATE'; payload: { estimatedSeconds: number } }
+  | { type: 'AI_HYDRATE_SECTIONS'; payload: { sections: Partial<CourseSection>[] } }
 
   // AI Chat
   | { type: 'BUILDER_CHAT_ADD_MESSAGE'; payload: CourseBuilderChatMessage }
@@ -353,6 +507,30 @@ export interface CourseBuilderChatUpdates {
 }
 
 // =============================================================================
+// MULTIPHASE BUILD STATE (3-pass pipeline)
+// =============================================================================
+
+export type BuildPhaseId = string;
+export type BuildPhaseStatus = 'waiting' | 'active' | 'complete' | 'error';
+
+export interface BuildPhase {
+  id: BuildPhaseId;
+  label: string;
+  status: BuildPhaseStatus;
+  startedAt?: number;
+  completedAt?: number;
+  progress?: { completed: number; total: number };
+}
+
+export interface MultiphaseBuildState {
+  isActive: boolean;
+  phases: BuildPhase[];
+  currentPhaseId: BuildPhaseId | null;
+  estimatedTotalSeconds: number;
+  error?: string;
+}
+
+// =============================================================================
 // CONTEXT API
 // =============================================================================
 
@@ -369,6 +547,8 @@ export interface CourseBuilderContextValue {
   // Convenience actions
   addElement: (type: ElementType, variant?: FeatureVariant) => void;
   addElementAtIndex: (type: ElementType, index: number, variant?: FeatureVariant) => void;
+  addElementToSection: (sectionId: string, type: ElementType, variant?: FeatureVariant) => void;
+  addElementAtIndexInSection: (sectionId: string, type: ElementType, index: number, variant?: FeatureVariant) => void;
   removeElement: (key: string) => void;
   updateElement: (key: string, updates: Partial<CourseElement>) => void;
   moveElementUp: (key: string) => void;
@@ -381,11 +561,19 @@ export interface CourseBuilderContextValue {
   // Title with auto-slug
   setTitleEn: (value: string) => void;
 
-  // Save + publish
+  // Save + publish + translate
   saveDraft: () => Promise<void>;
   publish: () => Promise<void>;
+  translateCourse: (onProgress?: (completed: number, total: number) => void) => Promise<{ translated: number; failed: number; total: number }>;
 
   // Undo / redo
   undo: () => void;
   redo: () => void;
+  toggleAiInstructions: () => void;
+  updateElementSilent: (key: string, updates: Partial<CourseElement>) => void;
+  setCanvasViewMode: (mode: CanvasViewMode) => void;
+  setPreviewDevice: (device: PreviewDevice) => void;
+  setPreviewLang: (lang: 'en' | 'es') => void;
+  setPreviewEditingKey: (key: string | null) => void;
+  findSectionByElementKey: (key: string) => CourseSection | null;
 }

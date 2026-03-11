@@ -1,7 +1,39 @@
+import { useState } from 'react';
 import { Bookmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePinnedRecipes } from '@/hooks/use-pinned-recipes';
 import type { Dish, DishCategory } from '@/types/products';
+
+const PLATE_TYPE_PLACEHOLDER: Record<string, { bg: string; emoji: string }> = {
+  entree:    { bg: 'bg-gradient-to-br from-amber-100 to-orange-200 dark:from-amber-900/40 dark:to-orange-800/40', emoji: '🥩' },
+  appetizer: { bg: 'bg-gradient-to-br from-green-100 to-emerald-200 dark:from-green-900/40 dark:to-emerald-800/40', emoji: '🥗' },
+  side:      { bg: 'bg-gradient-to-br from-sky-100 to-blue-200 dark:from-sky-900/40 dark:to-blue-800/40', emoji: '🍽️' },
+  dessert:   { bg: 'bg-gradient-to-br from-pink-100 to-rose-200 dark:from-pink-900/40 dark:to-rose-800/40', emoji: '🍰' },
+  default:   { bg: 'bg-gradient-to-br from-muted to-muted/60', emoji: '🍴' },
+};
+
+function DishImageTile({ image, menuName, plateType }: { image: string | null; menuName: string; plateType: string }) {
+  const [errored, setErrored] = useState(false);
+  const placeholder = PLATE_TYPE_PLACEHOLDER[plateType] ?? PLATE_TYPE_PLACEHOLDER.default;
+
+  if (image && !errored) {
+    return (
+      <img
+        src={image}
+        alt={menuName}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        loading="lazy"
+        onError={() => setErrored(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={cn('w-full h-full flex items-center justify-center', placeholder.bg)}>
+      <span className="text-3xl select-none">{placeholder.emoji}</span>
+    </div>
+  );
+}
 
 export type DishFilterMode = 'all' | DishCategory;
 
@@ -46,12 +78,7 @@ export function DishGrid({
                 {/* Image tile + bookmark */}
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-[72px] h-[72px] md:w-[88px] md:h-[88px] rounded-[14px] overflow-hidden shrink-0 shadow-[3px_8px_12px_-3px_rgba(0,0,0,0.4),2px_4px_8px_-2px_rgba(0,0,0,0.25)] bg-muted">
-                    <img
-                      src={dish.image}
-                      alt={dish.menuName}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
+                    <DishImageTile image={dish.image} menuName={dish.menuName} plateType={dish.plateType} />
                   </div>
                   <div className="flex-1" />
                   {/* Bookmark */}
@@ -79,10 +106,15 @@ export function DishGrid({
                   {dish.menuName}
                 </h3>
 
-                {/* Subtitle — plain text, same style as /recipes */}
-                <p className="text-sm text-muted-foreground capitalize mt-0.5">
-                  {dish.plateType}
-                </p>
+                {/* Subtitle */}
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm text-muted-foreground capitalize">{dish.plateType}</span>
+                  {dish.isFeatured && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white">
+                      Featured
+                    </span>
+                  )}
+                </div>
 
                 {/* Metadata row — anchored to bottom */}
                 <div className="flex items-center gap-3 mt-auto pt-3 text-[13px] leading-none text-muted-foreground">
@@ -103,14 +135,6 @@ export function DishGrid({
                       <span className="inline-flex items-center gap-1.5">
                         <span className="text-[16px] h-[16px] leading-[16px] shrink-0">⭐</span>
                         <span>Top Seller</span>
-                      </span>
-                    </>
-                  )}
-                  {dish.isFeatured && (
-                    <>
-                      <span className="text-black/10 dark:text-white/10">·</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-                        Featured
                       </span>
                     </>
                   )}

@@ -49,6 +49,8 @@ export interface UseRealtimeWebRTCOptions {
   inactivityWarningMs?: number;
   /** Called with seconds remaining before auto-disconnect */
   onInactivityWarning?: (secondsRemaining: number) => void;
+  /** Push-to-talk mode: mic is off by default, startTalk/stopTalk gate it */
+  pushToTalk?: boolean;
 }
 
 // Product search tool names that the realtime-search function supports
@@ -77,6 +79,8 @@ export interface UseRealtimeWebRTCReturn {
   transcript: TranscriptEntry[];
   connect: () => Promise<void>;
   disconnect: () => void;
+  startTalk: () => void;
+  stopTalk:  () => void;
   interruptAndAsk: () => void;
   error: string | null;
 }
@@ -98,6 +102,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     inactivityTimeoutMs = 0,
     inactivityWarningMs = 15_000,
     onInactivityWarning,
+    pushToTalk = false,
   } = options;
 
   // State
@@ -117,6 +122,8 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
   const messageHandlerRef = useRef<(event: MessageEvent) => void>(() => {});
   const micMuteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pushToTalkRef = useRef(pushToTalk);
+  useEffect(() => { pushToTalkRef.current = pushToTalk; });
 
   // Callback refs — always hold the latest caller-supplied callbacks without
   // appearing in useCallback dep arrays, which would cascade and recreate
@@ -226,6 +233,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
 
   // Mute the microphone (called when AI starts speaking to prevent echo)
   const muteMic = useCallback(() => {
+    if (pushToTalkRef.current) return; // PTT: mic gate controlled by button only, never by server
     mediaStreamRef.current?.getAudioTracks().forEach(track => {
       track.enabled = false;
     });
@@ -233,6 +241,7 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
 
   // Unmute the microphone after a 500ms deaf window to prevent echo pickup
   const unmuteMic = useCallback(() => {
+    if (pushToTalkRef.current) return;   // PTT: mic stays off; user controls it via button press
     if (micMuteTimerRef.current) {
       clearTimeout(micMuteTimerRef.current);
     }
@@ -428,7 +437,10 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
               resetInactivityTimer();
               setTimeout(() => {
                 if (pcRef.current?.connectionState === 'connected') {
-                  updateState('connected');
+                  // PTT: if mic gate is open (user is still holding), don't stomp 'listening'
+                  const micOpen = pushToTalkRef.current &&
+                    (mediaStreamRef.current?.getAudioTracks()?.[0]?.enabled ?? false);
+                  if (!micOpen) updateState('connected');
                 }
               }, 300);
             }
@@ -443,7 +455,10 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
           resetInactivityTimer();
           setTimeout(() => {
             if (pcRef.current?.connectionState === 'connected') {
-              updateState('connected');
+              // PTT: if mic gate is open (user is still holding), don't stomp 'listening'
+              const micOpen = pushToTalkRef.current &&
+                (mediaStreamRef.current?.getAudioTracks()?.[0]?.enabled ?? false);
+              if (!micOpen) updateState('connected');
             }
           }, 100);
           break;
@@ -471,6 +486,29 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
   useEffect(() => {
     messageHandlerRef.current = handleDataChannelMessage;
   }, [handleDataChannelMessage]);
+
+  // PTT: user pressed the hold-to-speak button
+  const startTalk = useCallback(() => {
+    if (!pushToTalkRef.current) return;
+    // Cancel any pending unmute timer (prevents race with response.done unmute path)
+    if (micMuteTimerRef.current) {
+      clearTimeout(micMuteTimerRef.current);
+      micMuteTimerRef.current = null;
+    }
+    mediaStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = true; });
+    if (audioElRef.current) audioElRef.current.volume = 0.25;
+    updateState('listening');
+  }, [updateState]);
+
+  // PTT: user released the hold-to-speak button
+  const stopTalk = useCallback(() => {
+    if (!pushToTalkRef.current) return;
+    mediaStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = false; });
+    if (audioElRef.current) audioElRef.current.volume = 1.0;
+    // Immediately reflect mic-closed in UI. If VAD already detected speech it will
+    // fire speech_stopped shortly after and drive state → processing → speaking.
+    updateState('connected');
+  }, [updateState]);
 
   // Connect
   const connect = useCallback(async () => {
@@ -579,6 +617,10 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
 
         mediaStreamRef.current = stream;
         pc.addTrack(stream.getTracks()[0]);
+        // PTT: start with mic muted — user enables it by holding the button
+        if (pushToTalkRef.current) {
+          stream.getAudioTracks().forEach(t => { t.enabled = false; });
+        }
         console.log('[WebRTC] Microphone connected');
       } else {
         // Add receive-only audio transceiver so SDP has an audio media section
@@ -712,6 +754,8 @@ export function useRealtimeWebRTC(options: UseRealtimeWebRTCOptions): UseRealtim
     transcript,
     connect,
     disconnect,
+    startTalk,
+    stopTalk,
     interruptAndAsk,
     error,
   };

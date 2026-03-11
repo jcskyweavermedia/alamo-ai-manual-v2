@@ -2,7 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { formatFlavorScore } from '@/lib/flavor-utils';
 
 interface TrendSummaryCardProps {
-  delta: number;
+  delta: number | null;
   currentScore: number;
   previousScore: number | null;
   lowRatingPercent: number;
@@ -40,7 +40,7 @@ export function TrendSummaryCard({
             className="text-3xl font-bold font-mono text-[#F97316]"
             style={{ fontVariantNumeric: 'tabular-nums' }}
           >
-            {formatFlavorScore(delta)}
+            {delta !== null ? formatFlavorScore(delta) : '—'}
           </span>
           <span className="text-xs font-medium text-muted-foreground">
             {isEs ? 'ptos' : 'pts'}

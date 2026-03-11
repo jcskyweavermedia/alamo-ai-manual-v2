@@ -13,6 +13,7 @@ import { useReducer, useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
 import { useFormAutosave } from '@/hooks/use-form-autosave';
 import { useFormValidation } from '@/hooks/use-form-validation';
@@ -120,6 +121,7 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { user, permissions } = useAuth();
+  const { language } = useLanguage();
   const queryClient = useQueryClient();
   const { validateForm } = useFormValidation();
 
@@ -153,13 +155,13 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
       setIsDirty(false);
       return true;
     } catch (err) {
-      console.error('Failed to save draft:', err);
-      toast.error('Failed to save draft. Your changes are preserved locally.');
+      console.error('[FormSubmit] Failed to save draft:', err);
+      toast.error(language === 'es' ? 'Error al guardar borrador. Tus cambios se conservan localmente.' : 'Failed to save draft. Your changes are preserved locally.');
       return false;
     } finally {
       setIsSaving(false);
     }
-  }, [state.submissionId, state.fieldValues, state.attachments, state.notes, isDirty]);
+  }, [state.submissionId, state.fieldValues, state.attachments, state.notes, isDirty, language]);
 
   // ---------------------------------------------------------------------------
   // Auto-save integration (3s debounce, hash tracking)
@@ -175,7 +177,7 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
   // ---------------------------------------------------------------------------
   const createDraft = useCallback(async (): Promise<string | null> => {
     if (!template || !user || !groupId) {
-      toast.error('Unable to create form. Please sign in and try again.');
+      toast.error(language === 'es' ? 'No se pudo crear el formulario. Inicia sesión e intenta de nuevo.' : 'Unable to create form. Please sign in and try again.');
       return null;
     }
 
@@ -255,12 +257,12 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
       return data.id;
     } catch (err) {
       console.error('Failed to create draft:', err);
-      toast.error('Failed to create form. Please try again.');
+      toast.error(language === 'es' ? 'Error al crear formulario. Intenta de nuevo.' : 'Failed to create form. Please try again.');
       return null;
     } finally {
       setIsCreating(false);
     }
-  }, [template, user, groupId]);
+  }, [template, user, groupId, language]);
 
   // ---------------------------------------------------------------------------
   // Auto-initialize when template changes
@@ -343,14 +345,20 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
   // ---------------------------------------------------------------------------
   const submit = useCallback(async (): Promise<boolean> => {
     if (!state.submissionId || !template || !user) {
-      toast.error('Unable to submit. Please try again.');
+      console.error('[FormSubmit] Precondition failed:', {
+        submissionId: state.submissionId ?? 'MISSING',
+        template: template ? 'ok' : 'MISSING',
+        user: user ? 'ok' : 'MISSING',
+      });
+      toast.error(language === 'es' ? 'No se pudo enviar. Intenta de nuevo.' : 'Unable to submit. Please try again.');
       return false;
     }
 
     // 1. Validate
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
-      toast.error('Please fill in all required fields.');
+      console.warn('[FormSubmit] Validation failed:', validationErrors);
+      toast.error(language === 'es' ? 'Completa todos los campos obligatorios.' : 'Please fill in all required fields.');
       return false;
     }
 
@@ -378,14 +386,20 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
         updatePayload.ai_session_id = aiSessionIdRef.current;
       }
 
+      console.info('[FormSubmit] Sending update:', { submissionId: state.submissionId, status: 'submitted', fieldsCount: template.fields.length });
+
       const { error } = await supabase
         .from('form_submissions')
         .update(updatePayload)
         .eq('id', state.submissionId)
         .eq('status', 'draft'); // Guard against double-submit
 
-      if (error) throw error;
+      if (error) {
+        console.error('[FormSubmit] Supabase update failed:', { code: error.code, message: error.message, details: error.details });
+        throw error;
+      }
 
+      console.info('[FormSubmit] Submission successful:', state.submissionId);
       dispatch({ type: 'SET_STATUS', status: 'submitted' });
       setIsDirty(false);
 
@@ -396,13 +410,13 @@ export function useFormSubmission({ template, aiSessionId }: UseFormSubmissionOp
 
       return true;
     } catch (err) {
-      console.error('Failed to submit form:', err);
-      toast.error('Failed to submit form. Please try again.');
+      console.error('[FormSubmit] Exception during submit:', err);
+      toast.error(language === 'es' ? 'Error al enviar formulario. Intenta de nuevo.' : 'Failed to submit form. Please try again.');
       return false;
     } finally {
       setIsSubmitting(false);
     }
-  }, [state.submissionId, state.fieldValues, template, user, isDirty, validate, saveDraft, queryClient]);
+  }, [state.submissionId, state.fieldValues, template, user, isDirty, validate, saveDraft, queryClient, language]);
 
   // ---------------------------------------------------------------------------
   // reset — clear state (e.g., after successful submission)

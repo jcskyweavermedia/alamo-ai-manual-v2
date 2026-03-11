@@ -1,12 +1,13 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, AlertCircle, Search, X, SearchX } from 'lucide-react';
+import { Loader2, AlertCircle, Search, X, SearchX, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
 import { useFormViewer } from '@/hooks/use-form-viewer';
 import { FormCard } from '@/components/forms/FormCard';
 import { FormsGridSkeleton } from '@/components/forms/FormsGridSkeleton';
+import { FilingCabinetSheet } from '@/components/filing-cabinet/FilingCabinetSheet';
 
 // =============================================================================
 // BILINGUAL STRINGS
@@ -61,6 +62,8 @@ const Forms = () => {
     error,
   } = useFormViewer();
 
+  const [filingCabinetOpen, setFilingCabinetOpen] = useState(false);
+
   const handleSelect = useCallback(
     (slug: string) => {
       navigate(`/forms/${slug}`);
@@ -104,6 +107,21 @@ const Forms = () => {
           </button>
         )}
       </div>
+      <button
+        type="button"
+        onClick={() => setFilingCabinetOpen(true)}
+        className={cn(
+          'h-9 px-3 rounded-lg flex items-center gap-1.5 shrink-0',
+          'text-xs font-medium',
+          'text-muted-foreground hover:text-foreground',
+          'bg-muted/60 hover:bg-muted',
+          'border border-border/50',
+          'transition-colors',
+        )}
+      >
+        <Archive className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{language === 'es' ? 'Archivero' : 'Filing Cabinet'}</span>
+      </button>
     </div>
   );
 
@@ -137,16 +155,45 @@ const Forms = () => {
         </div>
       ) : (
         <>
-          {/* Hero text */}
-          <div className="py-6">
-            <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
-              {t.heroLine1}
-              <br />
-              <span className="font-bold">{t.heroLine2}</span>
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              {t.tagline}
-            </p>
+          {/* Hero text + Filing Cabinet tile */}
+          <div className="py-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-2xl sm:text-3xl text-foreground leading-tight font-extralight">
+                {t.heroLine1}
+                <br />
+                <span className="font-bold">{t.heroLine2}</span>
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {t.tagline}
+              </p>
+            </div>
+
+            {/* Filing Cabinet emoji tile + label */}
+            <button
+              type="button"
+              onClick={() => setFilingCabinetOpen(true)}
+              className={cn(
+                'flex flex-col items-center gap-1.5 shrink-0',
+                'group cursor-pointer',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex items-center justify-center',
+                  'w-16 h-16 rounded-[16px]',
+                  'bg-amber-100 dark:bg-amber-900/30',
+                  'border border-black/[0.04] dark:border-white/[0.06]',
+                  'shadow-sm',
+                  'group-hover:shadow-md group-hover:scale-[1.04] group-active:scale-[0.97]',
+                  'transition-all duration-150',
+                )}
+              >
+                <span className="text-[32px] h-[32px] leading-[32px]">{'\uD83D\uDDC4\uFE0F'}</span>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                {language === 'es' ? 'Archivero' : 'Filing Cabinet'}
+              </span>
+            </button>
           </div>
 
           {/* Search with no results */}
@@ -212,6 +259,11 @@ const Forms = () => {
           )}
         </>
       )}
+      <FilingCabinetSheet
+        open={filingCabinetOpen}
+        onOpenChange={setFilingCabinetOpen}
+        language={language}
+      />
     </AppShell>
   );
 };

@@ -19,20 +19,16 @@ import Wines from "./pages/Wines";
 import Cocktails from "./pages/Cocktails";
 import BeerLiquor from "./pages/BeerLiquor";
 import StepsOfService from "./pages/StepsOfService";
-import TrainingHome from "./pages/TrainingHome";
-import ProgramDetail from "./pages/ProgramDetail";
-import CourseDetail from "./pages/CourseDetail";
-import LearningSession from "./pages/LearningSession";
-import QuizPage from "./pages/QuizPage";
-import ModuleTestPage from "./pages/ModuleTestPage";
-import PracticeTutorPage from "./pages/PracticeTutorPage";
-import ManagerTrainingDashboard from "./pages/ManagerTrainingDashboard";
+import CourseComingSoonPage from "./pages/CourseComingSoonPage";
 import IngestDashboard from "./pages/IngestDashboard";
 import IngestWizard from "./pages/IngestWizard";
 import IngestPage from "./pages/IngestPage";
 const AdminFormsListPage = React.lazy(() => import("./pages/admin/AdminFormsListPage"));
 const AdminFormBuilderPage = React.lazy(() => import("./pages/admin/AdminFormBuilderPage"));
+const AdminCourseListPage = React.lazy(() => import("./pages/admin/AdminCourseListPage"));
+const AdminCourseBuilderPage = React.lazy(() => import("./pages/admin/AdminCourseBuilderPage"));
 const ReviewDashboard = React.lazy(() => import("./pages/ReviewDashboard"));
+const FormSubmissionView = React.lazy(() => import("./pages/FormSubmissionView"));
 import Forms from "./pages/Forms";
 import FormDetail from "./pages/FormDetail";
 import NotFound from "./pages/NotFound";
@@ -51,7 +47,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/sign-in" element={<SignIn />} />
             <Route path="/join/:slug" element={<JoinGroup />} />
-            
+
             {/* Protected routes - require authentication */}
             <Route path="/manual" element={
               <ProtectedRoute>
@@ -98,45 +94,23 @@ const App = () => (
                 <StepsOfService />
               </ProtectedRoute>
             } />
+            {/* Courses — stub page while Course Builder is under construction */}
             <Route path="/courses" element={
               <ProtectedRoute>
-                <TrainingHome />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug" element={
-              <ProtectedRoute>
-                <ProgramDetail />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug/:courseSlug" element={
-              <ProtectedRoute>
-                <CourseDetail />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug/:courseSlug/test" element={
-              <ProtectedRoute>
-                <ModuleTestPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug/:courseSlug/practice" element={
-              <ProtectedRoute>
-                <PracticeTutorPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug/:courseSlug/:sectionSlug" element={
-              <ProtectedRoute>
-                <LearningSession />
-              </ProtectedRoute>
-            } />
-            <Route path="/courses/:programSlug/:courseSlug/:sectionSlug/quiz" element={
-              <ProtectedRoute>
-                <QuizPage />
+                <CourseComingSoonPage />
               </ProtectedRoute>
             } />
             {/* Forms */}
             <Route path="/forms" element={
               <ProtectedRoute>
                 <Forms />
+              </ProtectedRoute>
+            } />
+            <Route path="/forms/view/:submissionId" element={
+              <ProtectedRoute>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <FormSubmissionView />
+                </Suspense>
               </ProtectedRoute>
             } />
             <Route path="/forms/:slug" element={
@@ -154,18 +128,11 @@ const App = () => (
                 <Profile />
               </ProtectedRoute>
             } />
-            
+
             {/* Admin route - requires admin role */}
             <Route path="/admin" element={
               <ProtectedRoute requiredRole="admin">
                 <Admin />
-              </ProtectedRoute>
-            } />
-
-            {/* Manager Training Dashboard - requires manager role */}
-            <Route path="/admin/training" element={
-              <ProtectedRoute requiredRole="manager">
-                <ManagerTrainingDashboard />
               </ProtectedRoute>
             } />
 
@@ -190,7 +157,7 @@ const App = () => (
                 <IngestPage />
               </ProtectedRoute>
             } />
-            
+
             {/* Form Builder Admin - requires manager or admin role (lazy-loaded) */}
             <Route path="/admin/forms" element={
               <ProtectedRoute requiredRole={['manager', 'admin']}>
@@ -210,6 +177,29 @@ const App = () => (
               <ProtectedRoute requiredRole={['manager', 'admin']}>
                 <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
                   <AdminFormBuilderPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
+            {/* Course Builder Admin - requires admin role (lazy-loaded) */}
+            <Route path="/admin/courses" element={
+              <ProtectedRoute requiredRole="admin">
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminCourseListPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/courses/new" element={
+              <ProtectedRoute requiredRole="admin">
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminCourseBuilderPage />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/courses/:id/edit" element={
+              <ProtectedRoute requiredRole="admin">
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminCourseBuilderPage />
                 </Suspense>
               </ProtectedRoute>
             } />

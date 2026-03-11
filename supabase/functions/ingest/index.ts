@@ -545,11 +545,68 @@ const COCKTAIL_DRAFT_SCHEMA = {
 // PROMPT SLUG MAP — productTable → {chat, extract} prompt slugs
 // =============================================================================
 
+// =============================================================================
+// OPENAI STRUCTURED OUTPUT SCHEMA (BeerLiquorDraft — interactive chat)
+// =============================================================================
+
+const BEER_LIQUOR_DRAFT_SCHEMA = {
+  name: "beer_liquor_draft",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      category: { type: "string", enum: ["Beer", "Liquor"] },
+      subcategory: {
+        type: "string",
+        description: "Beer: IPA, Lager, Stout, Pilsner, Wheat, Ale, Bock, Porter, Sour, Pale Ale, Amber, Blonde, Hefeweizen. Liquor: Bourbon, Scotch, Vodka, Gin, Rum, Tequila, Mezcal, Whiskey, Rye, Brandy, Cognac, Aperitif, Digestif, Amaro.",
+      },
+      producer: { type: "string", description: "Brewery or distillery name" },
+      country: { type: "string" },
+      style: {
+        type: "string",
+        description: "Specific style and flavor profile (e.g., 'Pale Lager, crisp and refreshing with mild bitterness')",
+      },
+      description: { type: "string", description: "1-3 professional sentences for staff training" },
+      notes: {
+        type: "string",
+        description: "Service notes, tasting notes, food pairings, serving temperature",
+      },
+      isFeatured: { type: "boolean" },
+      confidence: { type: "number", description: "0-1 confidence score based on how complete the profile is" },
+      missingFields: {
+        type: "array",
+        items: { type: "string" },
+        description: "Fields still missing or incomplete",
+      },
+      aiMessage: {
+        type: "string",
+        description: "Brief summary of what was extracted or updated in this turn",
+      },
+      isDuplicate: {
+        type: "boolean",
+        description: "true if search_products found an existing item with the same or very similar name — flag the item but still return its full profile",
+      },
+    },
+    required: [
+      "name", "category", "subcategory", "producer", "country",
+      "style", "description", "notes", "isFeatured",
+      "confidence", "missingFields", "aiMessage", "isDuplicate",
+    ],
+    additionalProperties: false,
+  },
+};
+
+// =============================================================================
+// PROMPT SLUG MAP — productTable → {chat, extract} prompt slugs
+// =============================================================================
+
 const PROMPT_SLUG_MAP: Record<string, { chat: string; extract: string }> = {
   prep_recipes: { chat: "ingest-chat-prep-recipe", extract: "ingest-extract-prep-recipe" },
   wines: { chat: "ingest-chat-wine", extract: "ingest-extract-wine" },
   cocktails: { chat: "ingest-chat-cocktail", extract: "ingest-extract-cocktail" },
   plate_specs: { chat: "ingest-chat-plate-spec", extract: "ingest-extract-plate-spec" },
+  beer_liquor_list: { chat: "ingest-chat-beer-liquor", extract: "ingest-extract-beer-liquor" },
 };
 
 /** Bar prep uses separate prompts when department === 'bar' */
@@ -674,11 +731,13 @@ const DISH_GUIDE_SCHEMA = {
     properties: {
       shortDescription: { type: "string" },
       detailedDescription: { type: "string" },
+      keyIngredients: { type: "array", items: { type: "string" } },
+      ingredients: { type: "array", items: { type: "string" } },
       flavorProfile: { type: "array", items: { type: "string" } },
       allergyNotes: { type: "string" },
       upsellNotes: { type: "string" },
     },
-    required: ["shortDescription", "detailedDescription", "flavorProfile", "allergyNotes", "upsellNotes"],
+    required: ["shortDescription", "detailedDescription", "keyIngredients", "ingredients", "flavorProfile", "allergyNotes", "upsellNotes"],
     additionalProperties: false,
   },
 };
@@ -695,6 +754,8 @@ function buildExtractResponseSchema(productTable: string) {
     draftSchema = COCKTAIL_DRAFT_SCHEMA.schema;
   } else if (productTable === "plate_specs") {
     draftSchema = PLATE_SPEC_DRAFT_SCHEMA.schema;
+  } else if (productTable === "beer_liquor_list") {
+    draftSchema = BEER_LIQUOR_DRAFT_SCHEMA.schema;
   } else {
     draftSchema = PREP_RECIPE_DRAFT_SCHEMA.schema;
   }
@@ -959,6 +1020,9 @@ async function handlePipeline(
   // deno-lint-ignore no-explicit-any
   let aiData: any = await aiResponse.json();
 
+  // Accumulate prep recipe results from search_recipes calls (for plate_spec linking)
+  const linkedRecipes: Array<{ slug: string; name: string }> = [];
+
   // Tool loop (max MAX_TOOL_ROUNDS rounds) for search_recipes, search_products
   // web_search_call items are handled server-side by OpenAI — we skip them
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -1009,6 +1073,15 @@ async function handlePipeline(
             source_table: r.source_table,
             snippet: r.snippet,
           }));
+
+          // Collect prep_recipe results for plate_spec linking (skip plate_specs entries)
+          for (const r of results) {
+            if (r.source_table === "prep_recipes" && r.slug && r.name) {
+              if (!linkedRecipes.some((lr) => lr.slug === r.slug)) {
+                linkedRecipes.push({ slug: r.slug, name: r.name });
+              }
+            }
+          }
 
           toolResults.push({
             type: "function_call_output",
@@ -1160,61 +1233,131 @@ async function handlePipeline(
     ? JSON.stringify(currentDraft, null, 2)
     : "{}";
 
-  const extractUserContent = `CURRENT DRAFT:\n${draftJson}\n\nUSER MESSAGE:\n${content}\n\nASSISTANT RESPONSE:\n${call1Text}`;
-
-  console.log("[ingest] Call 2 — Extract (gpt-5-mini-2025-08-07, json_schema)...");
-
-  const extractResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openaiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-5-mini-2025-08-07",
-      messages: [
-        { role: "system", content: extractSystemPrompt },
-        { role: "user", content: extractUserContent },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: buildExtractResponseSchema(productTable),
-      },
-      max_completion_tokens: 4000,
-    }),
-  });
-
-  if (!extractResponse.ok) {
-    const errText = await extractResponse.text();
-    console.error(`[ingest] Call 2 OpenAI error ${extractResponse.status}:`, errText);
-    // Non-fatal: return chat response with current draft
-    return jsonResponse({
-      sessionId,
-      message: call1Text,
-      draft: Object.keys(currentDraft).length > 0 ? currentDraft as unknown as ProductDraft : null,
-    });
+  // Build linked recipes section for plate_spec / cocktail Call 2 input
+  let linkedRecipesSection = "";
+  if ((productTable === "plate_specs" || productTable === "cocktails") && linkedRecipes.length > 0) {
+    const lines = linkedRecipes.map(
+      (lr) => `- slug: "${lr.slug}" → name: "${lr.name}"`
+    );
+    linkedRecipesSection =
+      `\n\nLINKED PREP RECIPES (use ONLY these slugs for prep_recipe_ref, and use the exact name):\n${lines.join("\n")}`;
+    console.log(`[ingest] Injecting ${linkedRecipes.length} linked recipe(s) into Call 2`);
   }
 
-  const extractData = await extractResponse.json();
-  const extractRaw = extractData.choices?.[0]?.message?.content;
+  const extractUserContent = `CURRENT DRAFT:\n${draftJson}\n\nUSER MESSAGE:\n${content}\n\nASSISTANT RESPONSE:\n${call1Text}${linkedRecipesSection}`;
 
-  if (!extractRaw) {
-    console.error("[ingest] Call 2 returned empty content");
-    return jsonResponse({
-      sessionId,
-      message: call1Text,
-      draft: Object.keys(currentDraft).length > 0 ? currentDraft as unknown as ProductDraft : null,
-    });
+  const MAX_EXTRACT_RETRIES = 2;
+  const EXTRACT_MAX_TOKENS = 10000;
+  const EXTRACT_TIMEOUT_MS = 250000;
+  let extractResult: { has_updates: boolean; draft: ProductDraft } | null = null;
+
+  for (let attempt = 1; attempt <= MAX_EXTRACT_RETRIES; attempt++) {
+    console.log(
+      `[ingest] Call 2 — Extract attempt ${attempt}/${MAX_EXTRACT_RETRIES} (gpt-5-mini-2025-08-07, json_schema, max_tokens=${EXTRACT_MAX_TOKENS})...`
+    );
+
+    const extractStart = Date.now();
+    let extractResponse: Response;
+    const abortCtrl = new AbortController();
+    const timeout = setTimeout(() => abortCtrl.abort(), EXTRACT_TIMEOUT_MS);
+
+    try {
+      extractResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-5-mini-2025-08-07",
+          messages: [
+            { role: "system", content: extractSystemPrompt },
+            { role: "user", content: extractUserContent },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: buildExtractResponseSchema(productTable),
+          },
+          max_completion_tokens: EXTRACT_MAX_TOKENS,
+        }),
+        signal: abortCtrl.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      const elapsed = Date.now() - extractStart;
+      const isTimeout = (fetchError as Error)?.name === "AbortError";
+      console.error(
+        `[ingest] Call 2 attempt ${attempt} ${isTimeout ? "TIMED OUT" : "fetch error"} after ${elapsed}ms:`,
+        isTimeout ? `exceeded ${EXTRACT_TIMEOUT_MS}ms` : fetchError
+      );
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
+    clearTimeout(timeout);
+
+    const elapsed = Date.now() - extractStart;
+
+    if (!extractResponse.ok) {
+      const errText = await extractResponse.text();
+      console.error(
+        `[ingest] Call 2 attempt ${attempt} HTTP ${extractResponse.status} after ${elapsed}ms:`,
+        errText.slice(0, 500)
+      );
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
+
+    // deno-lint-ignore no-explicit-any
+    const extractData: any = await extractResponse.json();
+    const choice = extractData.choices?.[0];
+    const finishReason = choice?.finish_reason;
+    const refusal = choice?.message?.refusal;
+    const extractRaw = choice?.message?.content;
+
+    console.log(
+      `[ingest] Call 2 attempt ${attempt} completed in ${elapsed}ms — finish_reason=${finishReason}, ` +
+      `content_length=${extractRaw?.length ?? 0}, refusal=${refusal ?? "none"}`
+    );
+
+    if (refusal) {
+      console.error(`[ingest] Call 2 attempt ${attempt} REFUSED: ${refusal}`);
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
+
+    if (finishReason === "length") {
+      console.error(`[ingest] Call 2 attempt ${attempt} truncated (finish_reason=length) — token limit may be too low`);
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
+
+    if (!extractRaw) {
+      console.error(
+        `[ingest] Call 2 attempt ${attempt} returned empty content — ` +
+        `finish_reason=${finishReason}, keys=${Object.keys(extractData).join(",")}`
+      );
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
+
+    // Parse JSON
+    try {
+      extractResult = JSON.parse(extractRaw);
+      console.log(`[ingest] Call 2 parsed OK on attempt ${attempt}`);
+      break; // success
+    } catch (parseError) {
+      console.error(
+        `[ingest] Call 2 attempt ${attempt} invalid JSON (${extractRaw.length} chars):`,
+        extractRaw.slice(0, 300)
+      );
+      if (attempt < MAX_EXTRACT_RETRIES) continue;
+      break;
+    }
   }
 
-  // -------------------------------------------------------------------------
-  // 9. Parse extraction result
-  // -------------------------------------------------------------------------
-  let extractResult: { has_updates: boolean; draft: ProductDraft };
-  try {
-    extractResult = JSON.parse(extractRaw);
-  } catch (parseError) {
-    console.error("[ingest] Call 2 returned invalid JSON:", extractRaw);
+  // All retries exhausted — return chat response with whatever draft we have
+  if (!extractResult) {
+    console.error("[ingest] Call 2 FAILED after all retries — returning chat response only");
     return jsonResponse({
       sessionId,
       message: call1Text,
@@ -1229,6 +1372,7 @@ async function handlePipeline(
   // -------------------------------------------------------------------------
   // 10. If has_updates, save updated draft to session
   // -------------------------------------------------------------------------
+  let newVersion = draftVersion;
   if (extractResult.has_updates && extractResult.draft) {
     // Preserve fields that AI extraction never returns (images, dishGuide, etc.)
     // because `additionalProperties: false` strips them from the schema output.
@@ -1251,6 +1395,10 @@ async function handlePipeline(
         (currentDraft as Record<string, unknown>).image ?? preservedImage ?? null;
     } else if (productTable === "cocktails") {
       // Cocktail uses single `image` field — preserve user-uploaded image
+      (currentDraft as Record<string, unknown>).image =
+        (currentDraft as Record<string, unknown>).image ?? preservedImage ?? null;
+    } else if (productTable === "beer_liquor_list") {
+      // Beer/Liquor uses single `image` field — preserve user-uploaded image
       (currentDraft as Record<string, unknown>).image =
         (currentDraft as Record<string, unknown>).image ?? preservedImage ?? null;
     } else {
@@ -1281,9 +1429,122 @@ async function handlePipeline(
         // If AI updated the BOH draft, mark dishGuide as stale
         (currentDraft as any).dishGuideStale = preservedDishGuide ? true : false;
       }
+
+      // Validate & correct prep_recipe_ref slugs in components
+      // deno-lint-ignore no-explicit-any
+      const draft = currentDraft as any;
+      if (Array.isArray(draft.components)) {
+        // Build a quick lookup from linkedRecipes
+        const linkedMap = new Map(linkedRecipes.map((lr) => [lr.slug, lr.name]));
+
+        for (const group of draft.components) {
+          if (!Array.isArray(group.items)) continue;
+          for (const item of group.items) {
+            if (item.type !== "prep_recipe" || !item.prep_recipe_ref) continue;
+
+            const ref = item.prep_recipe_ref;
+
+            // Check 1: slug exists in linkedRecipes from search_recipes calls
+            if (linkedMap.has(ref)) {
+              const exactName = linkedMap.get(ref)!;
+              if (item.name !== exactName) {
+                console.log(`[ingest] prep_recipe_ref fix: "${item.name}" → "${exactName}" (from linkedRecipes)`);
+                item.name = exactName;
+              }
+              continue;
+            }
+
+            // Check 2: query the DB for this slug
+            try {
+              const { data: dbRecipe } = await supabase
+                .from("prep_recipes")
+                .select("name")
+                .eq("slug", ref)
+                .eq("status", "published")
+                .maybeSingle();
+
+              if (dbRecipe) {
+                if (item.name !== dbRecipe.name) {
+                  console.log(`[ingest] prep_recipe_ref fix: "${item.name}" → "${dbRecipe.name}" (from DB)`);
+                  item.name = dbRecipe.name;
+                }
+              } else {
+                // Slug not found → clear the link, revert to raw
+                console.warn(`[ingest] prep_recipe_ref "${ref}" not found — clearing to raw`);
+                item.prep_recipe_ref = null;
+                item.type = "raw";
+              }
+            } catch (dbErr) {
+              console.error(`[ingest] prep_recipe_ref DB lookup error for "${ref}":`, dbErr);
+              // On error, leave as-is rather than break the draft
+            }
+          }
+        }
+      }
     }
 
-    const newVersion = draftVersion + 1;
+    // Validate & correct prep_recipe_ref slugs in cocktail ingredients
+    if (productTable === "cocktails") {
+      // deno-lint-ignore no-explicit-any
+      const cocktailDraft = currentDraft as any;
+      if (Array.isArray(cocktailDraft.ingredients)) {
+        const linkedMap = new Map(linkedRecipes.map((lr) => [lr.slug, lr.name]));
+
+        for (const group of cocktailDraft.ingredients) {
+          if (!Array.isArray(group.items)) continue;
+          for (const item of group.items) {
+            if (!item.prep_recipe_ref) continue;
+
+            const ref = item.prep_recipe_ref as string;
+
+            // Check 1: slug in linkedRecipes cache from search_recipes calls
+            if (linkedMap.has(ref)) {
+              const exactName = linkedMap.get(ref)!;
+              if (item.name !== exactName) {
+                console.log(`[ingest] cocktail prep_recipe_ref fix: "${item.name}" → "${exactName}" (from linkedRecipes)`);
+                item.name = exactName;
+              }
+              continue;
+            }
+
+            // Check 2: query DB for this slug
+            try {
+              const { data: dbRecipe } = await supabase
+                .from("prep_recipes")
+                .select("name")
+                .eq("slug", ref)
+                .eq("status", "published")
+                .maybeSingle();
+
+              if (dbRecipe) {
+                if (item.name !== dbRecipe.name) {
+                  console.log(`[ingest] cocktail prep_recipe_ref fix: "${item.name}" → "${dbRecipe.name}" (from DB)`);
+                  item.name = dbRecipe.name;
+                }
+              } else {
+                // Slug not found → clear the link
+                console.warn(`[ingest] cocktail prep_recipe_ref "${ref}" not found — clearing`);
+                item.prep_recipe_ref = null;
+              }
+            } catch (dbErr) {
+              console.error(`[ingest] cocktail prep_recipe_ref DB lookup error for "${ref}":`, dbErr);
+              // On error, leave as-is rather than break the draft
+            }
+          }
+        }
+      }
+    }
+
+    // Use the latest version from DB to avoid conflicts with client auto-saves.
+    // Fetch current version first, then increment it atomically.
+    const { data: currentSession } = await supabase
+      .from("ingestion_sessions")
+      .select("draft_version")
+      .eq("id", sessionId)
+      .single();
+
+    const latestVersion = currentSession?.draft_version || draftVersion;
+    newVersion = latestVersion + 1;
 
     const { error: updateError } = await supabase
       .from("ingestion_sessions")
@@ -1298,7 +1559,7 @@ async function handlePipeline(
     if (updateError) {
       console.error("[ingest] Failed to update session draft:", updateError.message);
     } else {
-      console.log(`[ingest] Draft updated to version ${newVersion}`);
+      console.log(`[ingest] Draft updated to version ${newVersion} (was ${latestVersion})`);
     }
 
     // Save extraction as a message for audit trail
@@ -1358,6 +1619,8 @@ async function handlePipeline(
     sessionId,
     message: call1Text,
     draft: draftToReturn,
+    draftVersion: newVersion,
+    hasUpdates: extractResult.has_updates,
     confidence: extractResult.draft?.confidence,
     missingFields: extractResult.draft?.missingFields,
   });
@@ -1574,6 +1837,8 @@ Given a detailed plate spec (components, assembly procedure, allergens, and link
 Output:
 - shortDescription: A natural, enthusiastic 2-3 sentence sales pitch a server would say to a guest. Include flavor highlights and what makes this dish special. Write it as confident, warm dialogue — the kind of thing a top-performing server at a premium steakhouse would actually say tableside.
 - detailedDescription: 4-6 sentences that tell the story of the dish. Weave in notable preparation details (e.g., "marinated for 24 hours", "slow-roasted over mesquite", "hand-pulled daily") and any nuances that make it unique. The tone should educate the server while also selling the dish — a server who reads this should feel the passion behind the plate and be able to relay that excitement to the guest.
+- keyIngredients: The 3-5 most important ingredients a server MUST know to describe the dish. Include: the main protein or star component, the primary sauce or glaze, and any "money ingredients" that help sell the dish (e.g., "wagyu beef", "truffle butter", "port wine reduction"). Use clean, guest-facing names — never BOH codes, recipe references, equipment, or plate names.
+- ingredients: A supporting list of 4-8 additional notable ingredients that round out the dish. This gives the server a fuller picture without overwhelming detail. Include sides, garnishes worth mentioning, and secondary components. Omit trivial items like basic seasonings (salt, pepper), cooking oil, plate/equipment names, and minor garnish details. Use clean, guest-facing names — never BOH codes or recipe reference numbers.
 - flavorProfile: 3-6 flavor descriptors (e.g., "smoky", "rich", "herbaceous", "bright acidity").
 - allergyNotes: Practical allergy guidance for servers. List ALL allergens found in components and linked recipes. Include cross-contamination notes if relevant.
 - upsellNotes: 2-3 selling points and pairing suggestions using GENERAL CATEGORIES ONLY. Never recommend a specific wine, cocktail, or menu item by name — items may change. Instead suggest categories like "a bold red wine", "a full-bodied Malbec-style red", "a refreshing citrus cocktail", "one of our signature sides", "a classic accompaniment like creamed spinach or roasted potatoes". If the dish already includes sides, focus on beverage pairings. If it has no sides, suggest adding one.
@@ -1583,7 +1848,8 @@ Rules:
 - Include ALL allergens from both raw ingredients and linked prep recipes
 - Use warm, appetizing language appropriate for an upscale steakhouse
 - Do not invent ingredients or details not present in the plate spec
-- NEVER reference specific menu items by name in upsellNotes — use general categories only`;
+- NEVER reference specific menu items by name in upsellNotes — use general categories only
+- For keyIngredients and ingredients: translate BOH component names into clean, guest-appropriate language. "PR-1: House Steak Seasoning" → "house steak seasoning". "Dinner plate (heated)" → omit entirely. "8oz USDA Prime NY Strip" → "USDA Prime New York strip".`;
 
   let systemPrompt: string;
   if (promptError || !promptRow) {
@@ -1601,48 +1867,91 @@ Rules:
   console.log(`[ingest] Dish guide context: ${contextText.length} chars`);
 
   // -------------------------------------------------------------------------
-  // 5. Call OpenAI with structured output
+  // 5. Call OpenAI with structured output (with retry on transient failures)
   // -------------------------------------------------------------------------
-  console.log("[ingest] Dish guide: calling OpenAI (gpt-5-mini-2025-08-07, json_schema)...");
+  const OPENAI_MAX_RETRIES = 2;
+  const OPENAI_RETRY_DELAY_MS = 2_000;
+  const startTime = Date.now();
+
+  console.log(`[ingest] Dish guide: calling OpenAI (gpt-5.2, json_schema, context=${contextText.length} chars)...`);
 
   try {
-    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini-2025-08-07",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate a Front-of-House Dish Guide for the following plate spec:\n\n${contextText}` },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: DISH_GUIDE_SCHEMA,
-        },
-        max_completion_tokens: 2000,
-      }),
-    });
+    let aiResponse: Response | null = null;
+    let lastOpenAIError = "";
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error(`[ingest] Dish guide OpenAI error ${aiResponse.status}:`, errText);
-      return errorResponse("ai_error", `AI error: ${errText.slice(0, 200)}`, 500);
+    for (let attempt = 0; attempt <= OPENAI_MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        console.warn(`[ingest] Dish guide: OpenAI retry ${attempt}/${OPENAI_MAX_RETRIES} after ${OPENAI_RETRY_DELAY_MS}ms…`);
+        await new Promise((r) => setTimeout(r, OPENAI_RETRY_DELAY_MS));
+      }
+
+      const attemptStart = Date.now();
+      try {
+        aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-5.2",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Generate a Front-of-House Dish Guide for the following plate spec:\n\n${contextText}` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: DISH_GUIDE_SCHEMA,
+            },
+            max_completion_tokens: 2000,
+          }),
+        });
+        const attemptMs = Date.now() - attemptStart;
+        console.log(`[ingest] Dish guide: OpenAI responded ${aiResponse.status} in ${attemptMs}ms (attempt ${attempt + 1})`);
+      } catch (fetchErr) {
+        const attemptMs = Date.now() - attemptStart;
+        lastOpenAIError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+        console.error(`[ingest] Dish guide: OpenAI fetch failed in ${attemptMs}ms (attempt ${attempt + 1}): ${lastOpenAIError}`);
+        if (attempt < OPENAI_MAX_RETRIES) continue;
+        return errorResponse("ai_error", `OpenAI unreachable after ${OPENAI_MAX_RETRIES + 1} attempts: ${lastOpenAIError}`, 500);
+      }
+
+      // Retry on 5xx or 429 (rate limit)
+      if (aiResponse.status >= 500 || aiResponse.status === 429) {
+        lastOpenAIError = await aiResponse.text();
+        console.warn(`[ingest] Dish guide: retryable OpenAI error ${aiResponse.status}: ${lastOpenAIError.slice(0, 200)}`);
+        if (attempt < OPENAI_MAX_RETRIES) continue;
+        return errorResponse("ai_error", `AI error after ${OPENAI_MAX_RETRIES + 1} attempts (${aiResponse.status}): ${lastOpenAIError.slice(0, 200)}`, 500);
+      }
+
+      // Non-retryable error (4xx except 429)
+      if (!aiResponse.ok) {
+        const errText = await aiResponse.text();
+        console.error(`[ingest] Dish guide: non-retryable OpenAI error ${aiResponse.status}: ${errText.slice(0, 300)}`);
+        return errorResponse("ai_error", `AI error: ${errText.slice(0, 200)}`, 500);
+      }
+
+      break; // Success — exit retry loop
     }
 
+    if (!aiResponse) {
+      return errorResponse("ai_error", "OpenAI call failed unexpectedly", 500);
+    }
+
+    const totalMs = Date.now() - startTime;
     const aiData = await aiResponse.json();
     const raw = aiData.choices?.[0]?.message?.content;
 
     if (!raw) {
-      console.error("[ingest] Dish guide returned empty content");
+      console.error(`[ingest] Dish guide returned empty content after ${totalMs}ms`);
       return errorResponse("ai_error", "Dish guide generation returned empty response", 500);
     }
 
     let aiOutput: {
       shortDescription: string;
       detailedDescription: string;
+      keyIngredients: string[];
+      ingredients: string[];
       flavorProfile: string[];
       allergyNotes: string;
       upsellNotes: string;
@@ -1685,22 +1994,6 @@ Rules:
     }
     const allergens = [...allergenSet];
 
-    // All component item names
-    const ingredientsList: string[] = [];
-    for (const group of plateSpec.components || []) {
-      for (const item of group.items || []) {
-        ingredientsList.push(item.name);
-      }
-    }
-
-    // Key ingredients: first item from each component group (most prominent per station)
-    const keyIngredients: string[] = [];
-    for (const group of plateSpec.components || []) {
-      if (group.items?.length) {
-        keyIngredients.push(group.items[0].name);
-      }
-    }
-
     // Image: first plate spec image URL if any
     const image = plateSpec.images?.length ? plateSpec.images[0].url : null;
 
@@ -1714,8 +2007,8 @@ Rules:
       plateSpecId: null, // set at publish time
       shortDescription: aiOutput.shortDescription,
       detailedDescription: aiOutput.detailedDescription,
-      ingredients: ingredientsList,
-      keyIngredients,
+      ingredients: aiOutput.ingredients,
+      keyIngredients: aiOutput.keyIngredients,
       flavorProfile: aiOutput.flavorProfile,
       allergens,
       allergyNotes: aiOutput.allergyNotes,
@@ -1726,7 +2019,8 @@ Rules:
       isFeatured: false,
     };
 
-    console.log(`[ingest] Dish guide generated: "${menuName}", ${allergens.length} allergens, ${keyIngredients.length} key ingredients`);
+    const totalElapsed = Date.now() - startTime;
+    console.log(`[ingest] Dish guide generated: "${menuName}", ${allergens.length} allergens, ${aiOutput.keyIngredients.length} key ingredients, ${totalElapsed}ms total`);
 
     // -------------------------------------------------------------------------
     // 8. Return response
@@ -1736,7 +2030,8 @@ Rules:
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("[ingest] Dish guide generation exception:", err);
+    const totalElapsed = Date.now() - startTime;
+    console.error(`[ingest] Dish guide generation exception after ${totalElapsed}ms:`, err);
     return errorResponse("server_error", "Dish guide generation failed unexpectedly", 500);
   }
 }
@@ -1824,7 +2119,7 @@ Rules:
           type: "json_schema",
           json_schema: translationSchema,
         },
-        max_completion_tokens: 4000,
+        max_completion_tokens: 10000,
       }),
     });
 

@@ -1,22 +1,29 @@
 import { cn } from '@/lib/utils';
 import type { MobileMode } from '@/types/ingestion';
 
-const MODE_OPTIONS: { value: MobileMode; label: string }[] = [
-  { value: 'chat', label: 'Chat' },
+const ALL_MODE_OPTIONS: { value: MobileMode; label: string }[] = [
+  { value: 'list',    label: 'List' },
+  { value: 'chat',    label: 'Chat' },
   { value: 'preview', label: 'Preview' },
-  { value: 'edit', label: 'Edit' },
+  { value: 'edit',    label: 'Edit' },
 ];
 
 interface MobileModeTabsProps {
   activeMode: MobileMode;
   onModeChange: (mode: MobileMode) => void;
+  /** Restrict which tabs appear. Defaults to ['chat','preview','edit']. */
+  modes?: MobileMode[];
   className?: string;
 }
 
-export function MobileModeTabs({ activeMode, onModeChange, className }: MobileModeTabsProps) {
+export function MobileModeTabs({ activeMode, onModeChange, modes, className }: MobileModeTabsProps) {
+  const defaultModes: MobileMode[] = ['chat', 'preview', 'edit'];
+  const activeModes = modes ?? defaultModes;
+  const options = ALL_MODE_OPTIONS.filter((o) => activeModes.includes(o.value));
+
   return (
     <div className={cn('flex gap-1 rounded-xl p-1', className)}>
-      {MODE_OPTIONS.map((opt) => (
+      {options.map((opt) => (
         <button
           key={opt.value}
           type="button"

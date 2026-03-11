@@ -1,11 +1,11 @@
 /**
  * SignUpForm
- * 
+ *
  * Email + password + name sign-up form for new users.
  * Per docs/plans/step-3-authentication-roles.md Phase 3.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,9 +22,63 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage, type Language } from '@/hooks/use-language';
 
 // =============================================================================
-// VALIDATION SCHEMA
+// STRINGS
+// =============================================================================
+
+const STRINGS = {
+  en: {
+    fullName: 'Full Name',
+    optional: '(optional)',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    createAccount: 'Create Account',
+    createAccountJoin: 'Create Account & Join',
+    creatingAccount: 'Creating account...',
+    alreadyExists: 'An account with this email already exists. Please sign in instead.',
+    rateLimit: 'Too many attempts. Please wait a moment and try again.',
+    unexpectedError: 'An unexpected error occurred. Please try again.',
+    // Zod messages
+    nameMax: 'Name must be less than 100 characters',
+    emailRequired: 'Email is required',
+    emailInvalid: 'Please enter a valid email',
+    emailMax: 'Email must be less than 255 characters',
+    passwordMin: 'Password must be at least 8 characters',
+    passwordMax: 'Password must be less than 128 characters',
+    passwordComplexity: 'Password must include uppercase, lowercase, and a number',
+    confirmRequired: 'Please confirm your password',
+    passwordsMismatch: 'Passwords do not match',
+  },
+  es: {
+    fullName: 'Nombre Completo',
+    optional: '(opcional)',
+    email: 'Correo electr\u00f3nico',
+    password: 'Contrase\u00f1a',
+    confirmPassword: 'Confirmar Contrase\u00f1a',
+    createAccount: 'Crear Cuenta',
+    createAccountJoin: 'Crear Cuenta y Unirse',
+    creatingAccount: 'Creando cuenta...',
+    alreadyExists: 'Ya existe una cuenta con este correo. Inicia sesi\u00f3n en su lugar.',
+    rateLimit: 'Demasiados intentos. Espera un momento e int\u00e9ntalo de nuevo.',
+    unexpectedError: 'Ocurri\u00f3 un error inesperado. Int\u00e9ntalo de nuevo.',
+    // Zod messages
+    nameMax: 'El nombre debe tener menos de 100 caracteres',
+    emailRequired: 'El correo es obligatorio',
+    emailInvalid: 'Ingresa un correo v\u00e1lido',
+    emailMax: 'El correo debe tener menos de 255 caracteres',
+    passwordMin: 'La contrase\u00f1a debe tener al menos 8 caracteres',
+    passwordMax: 'La contrase\u00f1a debe tener menos de 128 caracteres',
+    passwordComplexity: 'La contrase\u00f1a debe incluir may\u00fasculas, min\u00fasculas y un n\u00famero',
+    confirmRequired: 'Confirma tu contrase\u00f1a',
+    passwordsMismatch: 'Las contrase\u00f1as no coinciden',
+  },
+} as const;
+
+// =============================================================================
+// VALIDATION SCHEMA (static for type inference)
 // =============================================================================
 
 const signUpSchema = z.object({
@@ -66,14 +120,47 @@ interface SignUpFormProps {
   signInLink?: React.ReactNode;
   /** Group slug for auto-join (from /join/:slug route) */
   groupSlug?: string;
+  /** Language override (if parent already has it) */
+  language?: Language;
 }
 
-export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps) {
+export function SignUpForm({ onSuccess, signInLink, groupSlug, language: languageProp }: SignUpFormProps) {
+  const { language: hookLanguage } = useLanguage();
+  const language = languageProp ?? hookLanguage;
+  const t = STRINGS[language];
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Rebuild schema when language changes so validation messages match
+  const localizedSchema = useMemo(() => z.object({
+    fullName: z
+      .string()
+      .trim()
+      .max(100, t.nameMax)
+      .optional(),
+    email: z
+      .string()
+      .trim()
+      .min(1, t.emailRequired)
+      .email(t.emailInvalid)
+      .max(255, t.emailMax),
+    password: z
+      .string()
+      .min(8, t.passwordMin)
+      .max(128, t.passwordMax)
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+        t.passwordComplexity
+      ),
+    confirmPassword: z.string().min(1, t.confirmRequired),
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: t.passwordsMismatch,
+    path: ['confirmPassword'],
+  }), [t]);
+
   const form = useForm<SignUpValues>({
-    resolver: zodResolver(signUpSchema),
+    resolver: zodResolver(localizedSchema),
     defaultValues: {
       fullName: '',
       email: '',
@@ -102,9 +189,9 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
       if (signUpError) {
         // Handle common error cases with friendly messages
         if (signUpError.message.includes('already registered')) {
-          setError('An account with this email already exists. Please sign in instead.');
+          setError(t.alreadyExists);
         } else if (signUpError.message.includes('rate limit')) {
-          setError('Too many attempts. Please wait a moment and try again.');
+          setError(t.rateLimit);
         } else {
           setError(signUpError.message);
         }
@@ -132,7 +219,7 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
 
       onSuccess?.();
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setError(t.unexpectedError);
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +236,7 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Full Name <span className="text-muted-foreground">(optional)</span>
+                  {t.fullName} <span className="text-muted-foreground">{t.optional}</span>
                 </FormLabel>
                 <FormControl>
                   <div className="relative">
@@ -175,7 +262,7 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t.email}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -200,7 +287,7 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{t.password}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -225,7 +312,7 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirm Password</FormLabel>
+                <FormLabel>{t.confirmPassword}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -258,12 +345,12 @@ export function SignUpForm({ onSuccess, signInLink, groupSlug }: SignUpFormProps
             {isLoading ? (
               <>
                 <Loader2 className="animate-spin" />
-                Creating account...
+                {t.creatingAccount}
               </>
             ) : groupSlug ? (
-              'Create Account & Join'
+              t.createAccountJoin
             ) : (
-              'Create Account'
+              t.createAccount
             )}
           </Button>
 

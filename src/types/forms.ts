@@ -179,6 +179,12 @@ export interface FormSubmission {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  // Archive metadata (populated when status → 'archived')
+  archiveReason: string | null;
+  archiveManagerName: string | null;
+  archiveSignature: SignatureValue | null;
+  archivedBy: string | null;
+  archivedAt: string | null;
 }
 
 export interface FormAttachment {
@@ -280,6 +286,8 @@ export interface FormBodyProps {
   aiHighlightedFields?: Set<string>;
   /** Set of field keys identified as missing by AI */
   aiMissingFields?: Set<string>;
+  /** When true, renders all fields as non-interactive (for submission viewing) */
+  readOnly?: boolean;
 }
 
 export interface FormSectionProps {
@@ -442,4 +450,38 @@ export interface UseFormSubmissionsReturn {
   setPage: (page: number) => void;
   statusFilter: FormSubmissionStatus | 'all';
   setStatusFilter: (filter: FormSubmissionStatus | 'all') => void;
+}
+
+// =============================================================================
+// FILING CABINET — Search & Viewer types (Phase 1: UI Shell)
+// =============================================================================
+
+export interface FilingCabinetResult {
+  id: string;
+  templateId: string;
+  templateSlug: string;
+  templateTitleEn: string;
+  templateTitleEs: string;
+  templateIcon: string | null;
+  templateIconColor: string | null;
+  status: FormSubmissionStatus;
+  filledById: string;
+  filledByName: string | null;
+  subjectUserId: string | null;
+  subjectName: string | null;
+  mainFieldLabel: string | null;
+  mainFieldValue: string | null;
+  submittedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FilingCabinetSearchResponse {
+  results: FilingCabinetResult[];
+  totalCount: number;
+  parsedFilters?: {
+    templateName?: string;
+    subjectName?: string;
+    dateRange?: string;
+  };
 }

@@ -10,6 +10,21 @@ import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 import { AI_ACTION_ICONS } from '@/data/ai-action-icons';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
+import type { Language } from '@/hooks/use-language';
+import { getCommon } from '@/lib/common-strings';
+
+const STRINGS = {
+  en: {
+    method: 'Method',
+    tastingNotes: 'Tasting Notes',
+    glass: 'glass',
+  },
+  es: {
+    method: 'M\u00e9todo',
+    tastingNotes: 'Notas de Cata',
+    glass: 'copa',
+  },
+} as const;
 
 interface CocktailCardViewProps {
   cocktail: Cocktail;
@@ -19,12 +34,15 @@ interface CocktailCardViewProps {
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
   onTapPrepRecipe?: (slug: string) => void;
+  language: Language;
 }
 
-export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeAction, onActionChange, onTapPrepRecipe }: CocktailCardViewProps) {
+export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeAction, onActionChange, onTapPrepRecipe, language }: CocktailCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const t = STRINGS[language];
+  const c = getCommon(language);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -54,7 +72,7 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
               onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/cocktails/${cocktail.id}`); }}
               title="Edit product"
             >
-              <span className="text-[14px] leading-none">✏️</span>
+              <span className="text-[14px] leading-none">{'\u270F\uFE0F'}</span>
             </Button>
           )}
         </div>
@@ -64,14 +82,14 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
           <div className="flex items-center gap-3">
             {cocktail.isTopSeller && (
               <div className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
-                <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
-                <span>Top Seller</span>
+                <span className="text-[16px] h-[16px] leading-[16px]">{'\u2B50'}</span>
+                <span>{c.topSeller}</span>
               </div>
             )}
             {cocktail.isFeatured && (
               <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
-                <span>Featured</span>
+                <span className="text-[16px] h-[16px] leading-[16px]">{'\u2728'}</span>
+                <span>{c.featured}</span>
               </div>
             )}
           </div>
@@ -81,7 +99,7 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{cocktail.keyIngredients}</span>
           <span className="text-border">&middot;</span>
-          <span>{cocktail.glass} glass</span>
+          <span>{cocktail.glass} {t.glass}</span>
         </div>
       </div>
 
@@ -157,7 +175,7 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
                 'w-10 h-10 rounded-full',
                 'bg-amber-100 dark:bg-amber-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">🥃</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83E\uDD43'}</span>
               </span>
               <IngredientsColumn
                 groups={cocktail.ingredients}
@@ -181,10 +199,10 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
                 'w-10 h-10 rounded-full',
                 'bg-sky-100 dark:bg-sky-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">📋</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83D\uDCCB'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Method
+                {t.method}
               </h2>
               <ol className="text-sm leading-relaxed text-foreground space-y-1">
                 {cocktail.procedure.map(({ step, instruction }) => (
@@ -206,10 +224,10 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
                 'w-10 h-10 rounded-full',
                 'bg-pink-100 dark:bg-pink-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">🍹</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83C\uDF79'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Tasting Notes
+                {t.tastingNotes}
               </h2>
               <p className="text-sm leading-relaxed text-foreground">
                 {cocktail.tastingNotes}
@@ -226,10 +244,10 @@ export function CocktailCardView({ cocktail, onBack, onPrev, onNext, activeActio
                 'w-10 h-10 rounded-full',
                 'bg-green-100 dark:bg-green-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">📝</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83D\uDCDD'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Notes
+                {c.notes}
               </h2>
               <p className="text-sm leading-relaxed text-foreground">
                 {cocktail.notes}

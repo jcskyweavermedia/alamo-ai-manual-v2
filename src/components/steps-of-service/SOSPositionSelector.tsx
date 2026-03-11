@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { UtensilsCrossed, Wine, Brush, PackageOpen, GlassWater, ChefHat, Bookmark } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { ProgressRing } from '@/components/training/ProgressRing';
+import { ProgressRing } from '@/components/ui/progress-ring';
 import type { SOSPosition } from '@/hooks/use-sos-scroll-viewer';
 import { SOS_COURSES, type SOSCourse } from '@/constants/sos-courses';
 import { cn } from '@/lib/utils';

@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
+import { useAuth } from '@/hooks/use-auth';
 import { useFormTemplate } from '@/hooks/use-form-template';
 import { useFormSubmission } from '@/hooks/use-form-submission';
 import { useAskForm } from '@/hooks/use-ask-form';
@@ -12,11 +14,13 @@ import { FormHeader } from '@/components/forms/FormHeader';
 import { FormProgressBar } from '@/components/forms/FormProgressBar';
 import { FormBody } from '@/components/forms/FormBody';
 import { FormToolbar } from '@/components/forms/FormToolbar';
+import { FormFloatingSubmit } from '@/components/forms/FormFloatingSubmit';
 import { FormSkeleton } from '@/components/forms/FormSkeleton';
 import { DockedFormAIPanel } from '@/components/forms/DockedFormAIPanel';
 import { FormAIContent } from '@/components/forms/FormAIContent';
 import { showAIFillToast } from '@/components/forms/ai/AIFillToast';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +54,11 @@ const STRINGS = {
     clearConfirmDescription: 'This will erase all fields and AI conversation. This cannot be undone.',
     clearConfirmCancel: 'Cancel',
     clearConfirmClear: 'Clear',
+    deleteConfirmTitle: 'Delete Draft?',
+    deleteConfirmDescription: 'This will permanently delete this draft. This cannot be undone.',
+    deleteConfirmCancel: 'Cancel',
+    deleteConfirmDelete: 'Delete',
+    draftSaved: 'Draft saved',
   },
   es: {
     loadError: 'Error al cargar el formulario',
@@ -67,6 +76,11 @@ const STRINGS = {
     clearConfirmDescription: 'Esto borrara todos los campos y la conversacion de IA. No se puede deshacer.',
     clearConfirmCancel: 'Cancelar',
     clearConfirmClear: 'Limpiar',
+    deleteConfirmTitle: 'Eliminar Borrador?',
+    deleteConfirmDescription: 'Esto eliminara permanentemente este borrador. No se puede deshacer.',
+    deleteConfirmCancel: 'Cancelar',
+    deleteConfirmDelete: 'Eliminar',
+    draftSaved: 'Borrador guardado',
   },
 } as const;
 
@@ -99,6 +113,7 @@ const FormDetail = () => {
   const location = useLocation();
   const prefillState = location.state as FormPrefillState | null;
   const { language, setLanguage } = useLanguage();
+  const { permissions } = useAuth();
   const t = STRINGS[language];
   const isDesktop = useIsDesktop();
 
@@ -112,6 +127,7 @@ const FormDetail = () => {
   const aiSessionIdRef = useRef<string | null>(null);
 
   const {
+    submissionId,
     fieldValues,
     errors,
     isDirty,
@@ -374,6 +390,37 @@ const FormDetail = () => {
   }, [reset, aiWithCurrentValues]);
 
   // ---------------------------------------------------------------------------
+  // Delete draft handler (admin only)
+  // ---------------------------------------------------------------------------
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  const handleConfirmDelete = useCallback(async () => {
+    setShowDeleteDialog(false);
+    if (!submissionId) return;
+
+    try {
+      const { error } = await supabase
+        .from('form_submissions')
+        .delete()
+        .eq('id', submissionId);
+
+      if (error) throw error;
+      toast.success(language === 'es' ? 'Borrador eliminado' : 'Draft deleted');
+      navigate('/forms');
+    } catch (err) {
+      console.error('Failed to delete draft:', err);
+      toast.error(language === 'es' ? 'Error al eliminar borrador' : 'Failed to delete draft');
+    }
+  }, [submissionId, language, navigate]);
+
+  // ---------------------------------------------------------------------------
+  // Print handler
+  // ---------------------------------------------------------------------------
+  const handlePrint = useCallback(() => {
+    window.print();
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // View mode: form vs chat (mobile uses this to swap content, desktop toggles docked panel)
   // ---------------------------------------------------------------------------
   const [viewMode, setViewMode] = useState<'form' | 'chat'>('form');
@@ -439,6 +486,7 @@ const FormDetail = () => {
     // Validate (uses useFormValidation which skips hidden conditional fields -- C5 fix)
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
+      console.warn('[FormDetail] Submit blocked — validation errors:', validationErrors);
       // Scroll to first error (N7 fix: match data-field-id="field-{key}")
       const firstErrorKey = Object.keys(validationErrors)[0];
       const el = document.querySelector(`[data-field-id="field-${firstErrorKey}"]`);
@@ -457,11 +505,22 @@ const FormDetail = () => {
   }, [submit]);
 
   // ---------------------------------------------------------------------------
-  // Save draft handler (for manual save button)
+  // Save draft handler (in-place, no navigation)
   // ---------------------------------------------------------------------------
   const handleSaveDraft = useCallback(async () => {
     await saveDraft();
   }, [saveDraft]);
+
+  // ---------------------------------------------------------------------------
+  // Save and close handler (saves, shows toast, navigates to /forms)
+  // ---------------------------------------------------------------------------
+  const handleSaveAndClose = useCallback(async () => {
+    const saved = await saveDraft();
+    if (saved) {
+      toast.success(t.draftSaved);
+      navigate('/forms');
+    }
+  }, [saveDraft, t.draftSaved, navigate]);
 
   // ---------------------------------------------------------------------------
   // Navigation
@@ -470,6 +529,15 @@ const FormDetail = () => {
     // Auto-save flush on unmount will handle saving
     navigate('/forms');
   }, [navigate]);
+
+  // ---------------------------------------------------------------------------
+  // Auto-redirect after submit (2s delay for success screen visibility)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (status !== 'submitted') return;
+    const timer = setTimeout(() => navigate('/forms'), 2000);
+    return () => clearTimeout(timer);
+  }, [status, navigate]);
 
   // ---------------------------------------------------------------------------
   // Usage info for the AI panel (from the last result)
@@ -610,6 +678,14 @@ const FormDetail = () => {
             lastSavedAt={lastSavedAt}
             onClear={handleClearForm}
             clearDisabled={!hasFieldContent}
+            onDelete={permissions?.isAdmin ? () => setShowDeleteDialog(true) : undefined}
+            onSaveDraft={handleSaveAndClose}
+            isDirty={isDirty}
+            onSubmit={handleSubmitRequest}
+            onPrint={handlePrint}
+            isSubmitting={isSubmitting}
+            canSubmit={canSubmit}
+            showEmailPlaceholder
           />
 
           {/* Content area — form fields or AI chat based on viewMode */}
@@ -658,6 +734,19 @@ const FormDetail = () => {
       {/* Bottom spacer on mobile (form mode only — chat fills viewport naturally) */}
       {(isDesktop || viewMode === 'form') && <div className="h-32 md:h-0" />}
 
+      {/* Floating submit — visible on desktop when AI panel hides FormToolbar */}
+      {isDesktop && aiPanelOpen && (
+        <FormFloatingSubmit
+          language={language}
+          isSubmitting={isSubmitting}
+          canSubmit={canSubmit}
+          onSubmit={handleSubmitRequest}
+          isDirty={isDirty}
+          isSaving={isSaving}
+          onSaveDraft={handleSaveAndClose}
+        />
+      )}
+
         </div>{/* end max-w-reading */}
       </div>{/* end scroll container */}
 
@@ -678,7 +767,7 @@ const FormDetail = () => {
           isSaving={isSaving}
           isSubmitting={isSubmitting}
           canSubmit={canSubmit}
-          onSaveDraft={handleSaveDraft}
+          onSaveDraft={handleSaveAndClose}
           onSubmit={handleSubmitRequest}
         />
       )}
@@ -724,6 +813,27 @@ const FormDetail = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {t.clearConfirmClear}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete draft confirmation dialog (admin only) */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.deleteConfirmTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t.deleteConfirmDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.deleteConfirmCancel}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t.deleteConfirmDelete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

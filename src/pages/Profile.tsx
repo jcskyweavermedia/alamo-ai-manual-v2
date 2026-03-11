@@ -5,15 +5,29 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Bell } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
-import { 
-  ProfileHeader, 
-  LanguagePreference, 
+import {
+  ProfileHeader,
+  LanguagePreference,
   ThemePreference,
-  SignOutButton 
+  SignOutButton
 } from "@/components/profile";
+
+const STRINGS = {
+  en: {
+    pageTitle: 'Profile',
+    settings: 'Settings',
+    notifications: 'Notifications',
+  },
+  es: {
+    pageTitle: 'Perfil',
+    settings: 'Configuración',
+    notifications: 'Notificaciones',
+  },
+} as const;
 
 const Profile = () => {
   const { language, setLanguage } = useLanguage();
+  const t = STRINGS[language];
 
   return (
     <AppShell
@@ -22,7 +36,7 @@ const Profile = () => {
       showSearch={false}
     >
       <div className="space-y-xl">
-        <PageTitle>Profile</PageTitle>
+        <PageTitle>{t.pageTitle}</PageTitle>
 
         {/* User Info */}
         <ProfileHeader />
@@ -30,7 +44,7 @@ const Profile = () => {
         {/* Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Settings</CardTitle>
+            <CardTitle>{t.settings}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-lg">
             {/* Language Preference - syncs to database */}
@@ -42,7 +56,7 @@ const Profile = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-md">
                 <Bell className="h-5 w-5 text-muted-foreground" />
-                <Label htmlFor="notifications">Notifications</Label>
+                <Label htmlFor="notifications">{t.notifications}</Label>
               </div>
               <Switch
                 id="notifications"

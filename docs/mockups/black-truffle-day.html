@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Black Truffle Day — Alamo Prime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* ─── RESET ─── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Canvas & Surfaces — matches your app */
+    --bg-canvas: #F7F7FA;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #FFFFFF;
+
+    /* Text */
+    --text-primary: #111114;
+    --text-secondary: #5A5A66;
+    --text-tertiary: #8A8A96;
+    --text-hint: #B0B0BA;
+
+    /* Orange Accent (vibrant, not muted) */
+    --orange-600: #EA580C;
+    --orange-500: #F97316;
+    --orange-400: #FB923C;
+    --orange-300: #FDBA74;
+    --orange-200: #FED7AA;
+    --orange-100: #FFEDD5;
+    --orange-50:  #FFF7ED;
+
+    /* Borders */
+    --border: rgba(0, 0, 0, 0.06);
+    --border-light: rgba(0, 0, 0, 0.04);
+
+    /* Shadows — your shadow tokens */
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-elevated: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    --shadow-floating: 0 10px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06);
+
+    /* Radius — matches your app */
+    --radius-card: 20px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+    --radius-pill: 9999px;
+
+    /* Font */
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font);
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  /* ─── LAYOUT ─── */
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 3.5rem 0 2rem;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--orange-50);
+    color: var(--orange-600);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius-pill);
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.01em;
+  }
+
+  .hero-title {
+    font-size: clamp(1.85rem, 6vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    color: var(--text-primary);
+  }
+
+  .hero-title .light {
+    font-weight: 300;
+    display: block;
+  }
+
+  .hero-title .bold {
+    font-weight: 900;
+    display: block;
+  }
+
+  .hero-tagline {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    line-height: 1.5;
+    max-width: 50ch;
+  }
+
+  .hero-icon-tile {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%);
+    box-shadow: 0 2px 8px rgb(249 115 22 / 0.12);
+  }
+
+  .hero-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .hero-icon-wrap {
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .hero-icon-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    margin-top: 0.5rem;
+  }
+
+  /* ─── SECTION ─── */
+  .section {
+    margin-top: 2rem;
+  }
+
+  .section-header {
+    margin-bottom: 1rem;
+  }
+
+  .section-number {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--orange-500);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.25rem;
+  }
+
+  .section-title {
+    font-size: clamp(1.5rem, 4vw, 1.75rem);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .section-title .light {
+    font-weight: 300;
+    display: block;
+  }
+
+  .section-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    line-height: 1.5;
+  }
+
+  /* ─── CARD ─── */
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* ─── BODY TEXT ─── */
+  .body {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+  }
+
+  .body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .body + .body {
+    margin-top: 0.75rem;
+  }
+
+  .body-lead {
+    font-size: 1.05rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 58ch;
+  }
+
+  /* ─── GOAL CARDS (3-col grid) ─── */
+  .goal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .goal-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem;
+    text-align: left;
+  }
+
+  .goal-card .icon-tile {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 0.75rem;
+  }
+
+  .goal-card h4 {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    line-height: 1.3;
+  }
+
+  .goal-card p {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ─── MENU ITEM CARDS ─── */
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .menu-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .menu-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--orange-500), var(--orange-300));
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .menu-card .emoji-lg {
+    font-size: 2rem;
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+
+  .menu-card h4 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-bottom: 0.3rem;
+  }
+
+  .menu-card p {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ─── SPLIT PANEL (correct/incorrect) ─── */
+  .split-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .split-card {
+    border-radius: var(--radius-card);
+    padding: 1.5rem;
+    position: relative;
+  }
+
+  .split-card.correct {
+    background: var(--text-primary);
+    color: #fff;
+  }
+
+  .split-card.incorrect {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+  }
+
+  .split-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.6rem;
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+  }
+
+  .correct .split-tag {
+    background: rgba(249, 115, 22, 0.2);
+    color: var(--orange-400);
+  }
+
+  .incorrect .split-tag {
+    background: rgba(0,0,0,0.05);
+    color: var(--text-tertiary);
+  }
+
+  .split-card h4 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin-bottom: 0.6rem;
+    line-height: 1.2;
+  }
+
+  .split-card ul {
+    list-style: none;
+    font-size: 0.8125rem;
+    line-height: 1.9;
+  }
+
+  .correct ul li::before {
+    content: '+ ';
+    color: var(--orange-400);
+    font-weight: 700;
+  }
+
+  .incorrect ul li {
+    color: var(--text-secondary);
+  }
+
+  .incorrect ul li::before {
+    content: '- ';
+    color: var(--text-hint);
+    font-weight: 700;
+  }
+
+  /* ─── CALLOUT BOX ─── */
+  .callout {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .callout .callout-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .callout .callout-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--orange-600);
+    margin-bottom: 0.15rem;
+  }
+
+  .callout h4 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+  }
+
+  .callout p {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ─── CALLOUT VARIANTS ─── */
+  .callout-orange {
+    background: var(--orange-50);
+    border-color: var(--orange-200);
+  }
+
+  .callout-dark {
+    background: var(--text-primary);
+    border-color: transparent;
+    color: #fff;
+  }
+
+  .callout-dark h4 { color: #fff; }
+  .callout-dark p { color: rgba(255,255,255,0.7); }
+  .callout-dark .callout-tag { color: var(--orange-400); }
+
+  /* ─── PILL ROW ─── */
+  .pill-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-pill);
+    letter-spacing: 0.01em;
+  }
+
+  .pill-solid {
+    background: var(--orange-500);
+    color: #fff;
+  }
+
+  .pill-ghost {
+    background: var(--orange-50);
+    color: var(--orange-600);
+  }
+
+  /* ─── SCRIPT CARD ─── */
+  .script-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    margin-top: 1.25rem;
+  }
+
+  .script-card-header {
+    padding: 0.8rem 1.5rem;
+    background: var(--orange-50);
+    border-bottom: 1px solid var(--orange-100);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--orange-600);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .script-item {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .script-item:last-child {
+    border-bottom: none;
+  }
+
+  .script-en {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.55;
+  }
+
+  .script-es {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+    line-height: 1.55;
+    margin-top: 0.2rem;
+    font-style: italic;
+  }
+
+  /* ─── BILINGUAL MINI CARDS ─── */
+  .lang-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .lang-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1rem 1.25rem;
+  }
+
+  .lang-card .lang-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-hint);
+    margin-bottom: 0.35rem;
+  }
+
+  .lang-card p {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  /* ─── MISFIRE LIST ─── */
+  .misfire-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+  }
+
+  .misfire-pair {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+
+  .misfire-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .misfire-row + .misfire-row {
+    border-top: 1px solid var(--border-light);
+  }
+
+  .misfire-tag {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-pill);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+
+  .misfire-tag.miss {
+    background: #FEF2F2;
+    color: #DC2626;
+  }
+
+  .misfire-tag.fix {
+    background: #F0FDF4;
+    color: #16A34A;
+  }
+
+  .misfire-text {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .misfire-text strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* ─── BANNER (non-negotiable) ─── */
+  .banner {
+    background: var(--text-primary);
+    border-radius: var(--radius-card);
+    padding: 2rem 1.75rem;
+    margin-top: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .banner::after {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -15%;
+    width: 55%;
+    height: 180%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--orange-600) 0%, transparent 65%);
+    opacity: 0.08;
+    pointer-events: none;
+  }
+
+  .banner .banner-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--orange-400);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .banner h3 {
+    font-size: clamp(1.25rem, 3.5vw, 1.5rem);
+    font-weight: 800;
+    line-height: 1.2;
+    color: #fff;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.6rem;
+    position: relative;
+    z-index: 1;
+    max-width: 32ch;
+  }
+
+  .banner p {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.6);
+    max-width: 52ch;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    padding: 3rem 0 4rem;
+    text-align: center;
+  }
+
+  .footer-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--orange-400);
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+  }
+
+  .footer p {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-hint);
+  }
+
+  /* ─── DIVIDER ─── */
+  .sep {
+    height: 1px;
+    background: var(--border);
+    margin: 2rem 0;
+    border: none;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .goal-grid, .menu-grid { grid-template-columns: 1fr; }
+    .split-row { grid-template-columns: 1fr; }
+    .lang-row { grid-template-columns: 1fr; }
+    .hero-icon-wrap { display: none; }
+    .container { padding: 0 1rem; }
+  }
+
+  @media (min-width: 641px) and (max-width: 900px) {
+    .goal-grid { grid-template-columns: repeat(3, 1fr); }
+    .menu-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <section class="hero">
+    <span class="hero-badge">&#x1F3AF; One-Day Rollout</span>
+    <div class="hero-row">
+      <div>
+        <h1 class="hero-title">
+          <span class="light">The One-Day Luxury Upgrade</span>
+          <span class="bold">Black Truffle Day</span>
+        </h1>
+        <p class="hero-tagline">A limited-run experience in aroma, timing, and tableside excellence.</p>
+      </div>
+      <div class="hero-icon-wrap">
+        <div class="hero-icon-tile">&#x1F344;</div>
+        <div class="hero-icon-label">Truffle<br>Service</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SECTION 1 — WHY THIS EXISTS ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">01 &mdash; The Vision</div>
+      <h2 class="section-title">
+        <span class="light">Why This Rollout</span>
+        Exists
+      </h2>
+      <p class="section-subtitle">And why it's the biggest single-day opportunity on our calendar</p>
+    </div>
+
+    <p class="body-lead">
+      Black Truffle Day is designed to feel like a premium, can't-miss experience&mdash;something guests notice the moment they sit at the mesa. It's not a new menu. It's a high-impact enhancement to what we already do best.
+    </p>
+
+    <div class="goal-grid">
+      <div class="goal-card">
+        <div class="icon-tile" style="background: linear-gradient(135deg, #FFF7ED, #FFEDD5);">
+          &#x1F4AB;
+        </div>
+        <h4>Aroma &amp; Atmosphere</h4>
+        <p>A presence that feels rare, elevated, and unmistakably upscale from the first moment.</p>
+      </div>
+      <div class="goal-card">
+        <div class="icon-tile" style="background: linear-gradient(135deg, #FEF3C7, #FDE68A);">
+          &#x2B50;
+        </div>
+        <h4>Guest Excitement</h4>
+        <p>"This is special today"&mdash;without slowing down the dining experience one second.</p>
+      </div>
+      <div class="goal-card">
+        <div class="icon-tile" style="background: linear-gradient(135deg, #ECFDF5, #D1FAE5);">
+          &#x1F4B0;
+        </div>
+        <h4>Higher Check Average</h4>
+        <p>Intentional add-ons and pairings guests are genuinely happy to say yes to.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ═══════════ SECTION 2 — WHAT'S BEING ROLLED OUT ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">02 &mdash; The Rollout</div>
+      <h2 class="section-title">
+        <span class="light">What Guests Will</span>
+        Experience
+      </h2>
+      <p class="section-subtitle">Truffle-focused finishes tied to our existing menu</p>
+    </div>
+
+    <p class="body">
+      Your conversations stay simple and confident: a guest already loves these dishes&mdash;today we offer the luxury upgrade.
+    </p>
+
+    <div class="menu-grid">
+      <div class="menu-card">
+        <span class="emoji-lg">&#x1F969;</span>
+        <h4>14 oz Bone-In Ribeye</h4>
+        <p>The flagship steak that becomes even more premium with a truffle finish.</p>
+      </div>
+      <div class="menu-card">
+        <span class="emoji-lg">&#x1F96C;</span>
+        <h4>Creamed Spinach</h4>
+        <p>Classic side ideal <em>para compartir</em>&mdash;fits the "add a luxe touch" story.</p>
+      </div>
+      <div class="menu-card">
+        <span class="emoji-lg">&#x1F990;</span>
+        <h4>Shrimp Cocktail</h4>
+        <p>Familiar starter elevated with a truffle-forward recommendation.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ═══════════ VISUAL STANDARD ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">Visual Standard</div>
+      <h2 class="section-title">
+        <span class="light">The Finish,</span>
+        Perfected
+      </h2>
+      <p class="section-subtitle">Timing, aroma, and clean presentation&mdash;side by side</p>
+    </div>
+
+    <div class="split-row">
+      <div class="split-card correct">
+        <span class="split-tag">The Standard</span>
+        <h4>Correct Finish</h4>
+        <ul>
+          <li>Microplane truffle tableside, on a hot item</li>
+          <li>Clean, wiped rim&mdash;no drips</li>
+          <li>Immediate aroma hits the guest</li>
+          <li>Served the moment it's finished</li>
+        </ul>
+      </div>
+      <div class="split-card incorrect">
+        <span class="split-tag">The Misfire</span>
+        <h4>What to Avoid</h4>
+        <ul>
+          <li>Truffle added too early in the kitchen</li>
+          <li>Dull, flat presentation&mdash;no drama</li>
+          <li>Messy rim, sauce drips, smears</li>
+          <li>Delayed service kills the aroma</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ DID YOU KNOW ═══════════ -->
+  <div class="callout callout-orange" style="margin-top: 2rem;">
+    <div class="callout-icon" style="background: linear-gradient(135deg, #FFF7ED, #FFEDD5);">
+      &#x1F525;
+    </div>
+    <div>
+      <div class="callout-tag">Did You Know</div>
+      <h4>Heat = Aroma = Tips</h4>
+      <p>Truffle aroma peaks on heat&mdash;<strong>right now</strong>. The moment it hits warm food, guests smell it before they taste it. Finish tableside and serve immediately. Nail the timing and you'll see the delight&mdash;and you can upsell truffle with real confidence.</p>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <!-- ═══════════ SECTION 3 — FOH MINDSET ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">03 &mdash; The FOH Mindset</div>
+      <h2 class="section-title">
+        <span class="light">Sell the</span>
+        "Only Today" Moment
+      </h2>
+      <p class="section-subtitle">Language that creates urgency without pressure</p>
+    </div>
+
+    <div class="script-card">
+      <div class="script-card-header">&#x1F4AC; Use These Lines Verbatim</div>
+      <div class="script-item">
+        <div class="script-en">"Today we're doing a Black Truffle Day luxury finish&mdash;if you want the full Alamo Prime experience, this is the day."</div>
+      </div>
+      <div class="script-item">
+        <div class="script-en">"If you're celebrating, this is the perfect upgrade for the table <em>para compartir</em>."</div>
+      </div>
+      <div class="script-item">
+        <div class="script-en">"It's the kind of aroma you'll remember&mdash;especially with a steak like the 14 oz bone-in ribeye."</div>
+      </div>
+    </div>
+
+    <p class="body" style="margin-top: 1.25rem;">
+      <strong>Bottom line:</strong> Black Truffle Day is a one-day opportunity to make the dining room feel elevated and unforgettable&mdash;and to confidently recommend high-value enhancements guests will be happy to say yes to.
+    </p>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ═══════════ SECTION 4 — TIMING ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">04 &mdash; Schedule</div>
+      <h2 class="section-title">
+        <span class="light">Timing &amp;</span>
+        Availability
+      </h2>
+      <p class="section-subtitle">One day. Both dayparts. While supplies last.</p>
+    </div>
+
+    <div class="pill-row">
+      <span class="pill pill-solid">One Day Only</span>
+      <span class="pill pill-ghost">Lunch + Dinner</span>
+      <span class="pill pill-ghost">While Supplies Last</span>
+    </div>
+
+    <div class="script-card" style="margin-top: 1.25rem;">
+      <div class="script-card-header">&#x1F399; Expectation-Setting Lines</div>
+      <div class="script-item">
+        <div class="script-en">"Just a heads-up: our Black Truffle Day dishes are today only and limited, so they're available while supplies last."</div>
+      </div>
+      <div class="script-item">
+        <div class="script-en">"We're doing truffle dishes for Black Truffle Day today only&mdash;once we sell out, they're gone."</div>
+      </div>
+    </div>
+
+    <div class="lang-row">
+      <div class="lang-card">
+        <div class="lang-label">English</div>
+        <p>"Black Truffle Day is [DATE] only, available at lunch and dinner, while supplies last."</p>
+      </div>
+      <div class="lang-card">
+        <div class="lang-label">Espa&ntilde;ol</div>
+        <p>"El D&iacute;a de la Trufa Negra es solo el [DATE], disponible en comida y cena, hasta agotar existencias."</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ═══════════ SECTION 5 — TABLESIDE LINES ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">05 &mdash; The Script</div>
+      <h2 class="section-title">
+        <span class="light">Tableside Lines</span>
+        That Convert
+      </h2>
+      <p class="section-subtitle">Lead with a verb. Say these verbatim tonight.</p>
+    </div>
+
+    <div class="script-card">
+      <div class="script-card-header">&#x1F91D; Bilingual Service Scripts</div>
+
+      <div class="script-item">
+        <div class="script-en">"Quick heads-up for the table: the ribeye is rich, buttery, and silky&mdash;if you want to go big, it's a jumbo size."</div>
+        <div class="script-es">"R&aacute;pido para la mesa: el ribeye es rico, mantequilloso y sedoso&mdash;si quieren algo grande, viene en tama&ntilde;o jumbo."</div>
+      </div>
+
+      <div class="script-item">
+        <div class="script-en">"If you're doing the ribeye, I'd pair it with our creamed spinach&mdash;silky, buttery, and it balances the steak perfectly."</div>
+        <div class="script-es">"Si van por el ribeye, se los recomiendo con la espinaca a la crema&mdash;sedosa, mantequillosa y le va perfecto al steak."</div>
+      </div>
+
+      <div class="script-item">
+        <div class="script-en">"For a bright balance, a crisp white or something sparkling with zippy acidity cuts through that buttery richness."</div>
+        <div class="script-es">"Para un balance m&aacute;s fresco, un blanco crujiente o algo espumoso con acidez viva corta esa riqueza mantequillosa."</div>
+      </div>
+
+      <div class="script-item">
+        <div class="script-en">"Want the classic move? Cabernet with the ribeye&mdash;or an Old Fashioned if you want it bold and smooth."</div>
+        <div class="script-es">"&iquest;Quieren lo cl&aacute;sico? Un Cabernet con el ribeye&mdash;o un Old Fashioned si lo quieren intenso y suave."</div>
+      </div>
+
+      <div class="script-item">
+        <div class="script-en">"And if anyone's thinking seafood to start, our jumbo shrimp come with house-made cocktail sauce."</div>
+        <div class="script-es">"Y si alguien quiere mariscos para empezar, los camarones jumbo vienen con salsa c&oacute;ctel hecha en casa."</div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="sep">
+
+  <!-- ═══════════ SECTION 6 — COMMON MISFIRES ═══════════ -->
+  <section class="section">
+    <div class="section-header">
+      <div class="section-number">06 &mdash; Avoid These</div>
+      <h2 class="section-title">
+        <span class="light">Common</span>
+        Misfires
+      </h2>
+      <p class="section-subtitle">And exactly how to fix each one</p>
+    </div>
+
+    <div class="misfire-grid">
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Overpromising truffle availability or timing.</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">Set expectations up front&mdash;confirm what's available <strong>right now</strong> before you sell it.</span>
+        </div>
+      </div>
+
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Offering truffle or creamed spinach after the food's already cooling.</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">Time the offer before the fire so it lands piping hot in a pre-warmed bowl.</span>
+        </div>
+      </div>
+
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Vague upcharge language: "Do you want truffle?"</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">Use clear pricing: <strong>"We can add truffle for $X&mdash;would you like that today?"</strong></span>
+        </div>
+      </div>
+
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Skipping allergy prompts when it matters.</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">"Any allergies or dairy concerns?" (Creamed Spinach contains dairy).</span>
+        </div>
+      </div>
+
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Sloppy presentation&mdash;drips, smeared rims, messy bowls.</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">Follow foh_plate_specs: clean, wiped rims; neat, intentional finish; hot bowl.</span>
+        </div>
+      </div>
+
+      <div class="misfire-pair">
+        <div class="misfire-row">
+          <span class="misfire-tag miss">Miss</span>
+          <span class="misfire-text">Delayed firing and table gaps.</span>
+        </div>
+        <div class="misfire-row">
+          <span class="misfire-tag fix">Fix</span>
+          <span class="misfire-text">Coordinate with kitchen early so sides and mains hit together&mdash;<strong>hot and on pace</strong>.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ NON-NEGOTIABLE ═══════════ -->
+  <div class="banner">
+    <div class="banner-tag">&#x26A0;&#xFE0F; Non-Negotiable</div>
+    <h3>Sell the Aroma Moment Before the Order Locks</h3>
+    <p>Mention Black Truffle Day before the order locks, position it as a limited luxury upgrade, and time it with heat so the aroma hits immediately. If you wait until after they've decided, you've missed the sell.</p>
+  </div>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="footer">
+    <div class="footer-dot"></div>
+    <p>Alamo Prime Steakhouse &bull; Training Manual</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

@@ -13,47 +13,11 @@ import { useVoiceRecording, formatRecordingTime, isRecordingSupported } from '@/
 import { useLanguage } from '@/hooks/use-language';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Components } from 'react-markdown';
+import { chatMdComponents } from '@/lib/chat-markdown';
 import { DraftPreviewCard } from './DraftPreviewCard';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import type { ChatMessage, PrepRecipeDraft, WineDraft, QueuedAttachment } from '@/types/ingestion';
 
-/** Compact markdown components for chat bubbles */
-const chatMdComponents: Components = {
-  h1: ({ children, ...props }) => (
-    <h1 className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h1>
-  ),
-  h2: ({ children, ...props }) => (
-    <h2 className="text-sm font-bold mt-2 mb-1" {...props}>{children}</h2>
-  ),
-  h3: ({ children, ...props }) => (
-    <h3 className="text-sm font-semibold mt-1.5 mb-0.5" {...props}>{children}</h3>
-  ),
-  p: ({ children, ...props }) => (
-    <p className="text-sm leading-relaxed mb-1.5 last:mb-0" {...props}>{children}</p>
-  ),
-  ul: ({ children, ...props }) => (
-    <ul className="list-disc pl-4 mb-1.5 space-y-0.5 text-sm" {...props}>{children}</ul>
-  ),
-  ol: ({ children, ...props }) => (
-    <ol className="list-decimal pl-4 mb-1.5 space-y-0.5 text-sm" {...props}>{children}</ol>
-  ),
-  li: ({ children, ...props }) => (
-    <li className="text-sm leading-relaxed" {...props}>{children}</li>
-  ),
-  strong: ({ children, ...props }) => (
-    <strong className="font-bold" {...props}>{children}</strong>
-  ),
-  em: ({ children, ...props }) => (
-    <em className="italic" {...props}>{children}</em>
-  ),
-  blockquote: ({ children, ...props }) => (
-    <blockquote className="border-l-2 border-primary/30 pl-2 my-1 text-muted-foreground italic text-sm" {...props}>{children}</blockquote>
-  ),
-  code: ({ children, ...props }) => (
-    <code className="bg-background/50 rounded px-1 py-0.5 text-xs font-mono" {...props}>{children}</code>
-  ),
-};
 
 // =============================================================================
 // MOCK DATA (Phase 1A -- replaced by AI in Phase 2A)

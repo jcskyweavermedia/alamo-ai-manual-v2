@@ -1,12 +1,12 @@
 // =============================================================================
 // AdminCourseBuilderPage — Main course builder page
-// Desktop: three-column layout (palette / canvas / right panel)
-// Mobile: single column with tab switching (Canvas / Elements / AI)
-// Follows the pattern of AdminFormBuilderPage with BuilderProvider
+// Preview mode: section nav + clean preview canvas (no palette, no right panel)
+// Editor mode: three-column layout (palette / canvas / right panel)
+// Mobile: single column with tab switching (Canvas only in Preview, +Elements/AI in Editor)
 // =============================================================================
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -28,9 +28,10 @@ import { CourseBuilderCanvas } from '@/components/course-builder/CourseBuilderCa
 import { SectionNavigator } from '@/components/course-builder/SectionNavigator';
 import { ElementPropertiesPanel } from '@/components/course-builder/ElementPropertiesPanel';
 import { CourseAIBuilderPanel } from '@/components/course-builder/CourseAIBuilderPanel';
+import { DraftContentViewer } from '@/components/course-builder/DraftContentViewer';
+import { DraftCanvasView } from '@/components/course-builder/DraftCanvasView';
 import { AIProgressOverlay } from '@/components/course-builder/AIProgressOverlay';
 import { CourseBuilderTabBar } from '@/components/course-builder/CourseBuilderTabBar';
-import { CoursePreviewPanel } from '@/components/course-builder/CoursePreviewPanel';
 import { QuizBuilderView } from '@/components/course-builder/QuizBuilderView';
 import { useBuildCourse } from '@/hooks/use-build-course';
 import type { ElementType, FeatureVariant } from '@/types/course-builder';
@@ -78,11 +79,22 @@ function CourseBuilderPageContent() {
   const { language = 'en', user } = useAuth();
   const lang = (language === 'es' ? 'es' : 'en') as 'en' | 'es';
   const t = STRINGS[lang];
-  const { state, dispatch, addElement, addElementAtIndex, saveDraft } = useCourseBuilder();
+  const { state, dispatch, addElement, addElementToSection, addElementAtIndexInSection, saveDraft } = useCourseBuilder();
   const groupId = useGroupId();
-  const { generateOutline, buildAllContent, cancelBuild, isBuilding: isBuildingContent } = useBuildCourse();
+  const location = useLocation();
+  const { buildCourse3Pass, cancelBuild } = useBuildCourse();
+  const hasTriggeredBuildRef = useRef(false);
   const [initialLoading, setInitialLoading] = useState(!!id);
   const [mobileView, setMobileView] = useState<MobileView>('canvas');
+
+  const isSource = state.canvasViewMode === 'source';
+  const isEditor = state.canvasViewMode === 'editor';
+  const isPreview = state.canvasViewMode === 'preview';
+
+  // Reset mobile view to canvas when switching to source/preview mode
+  useEffect(() => {
+    if (!isEditor) setMobileView('canvas');
+  }, [isEditor]);
 
   // --- Page-level DnD sensors ---
   const sensors = useSensors(
@@ -102,7 +114,6 @@ function CourseBuilderPageContent() {
       // Palette -> canvas: insert new element
       if (activeId.startsWith(COURSE_PALETTE_DRAG_PREFIX)) {
         const raw = activeId.replace(COURSE_PALETTE_DRAG_PREFIX, '');
-        // Format: "type" or "feature:variant"
         let elementType: ElementType;
         let variant: FeatureVariant | undefined;
 
@@ -114,24 +125,29 @@ function CourseBuilderPageContent() {
         }
 
         const overId = String(over.id);
-        const section = state.sections.find(s => s.id === state.activeSectionId);
-        if (!section) {
-          addElement(elementType, variant);
+
+        // Check if dropped on a section-level drop target
+        if (overId.startsWith('section-drop-')) {
+          const sectionId = overId.replace('section-drop-', '');
+          addElementToSection(sectionId, elementType, variant);
           return;
         }
 
-        const overIndex = section.elements.findIndex(e => e.key === overId);
-        if (overIndex !== -1) {
-          addElementAtIndex(elementType, overIndex, variant);
-        } else {
-          addElement(elementType, variant);
+        // Check if dropped on an element within any section
+        for (const section of state.sections) {
+          const overIndex = section.elements.findIndex(e => e.key === overId);
+          if (overIndex !== -1) {
+            addElementAtIndexInSection(section.id, elementType, overIndex, variant);
+            return;
+          }
         }
+
+        // Fallback: add to active section
+        addElement(elementType, variant);
         return;
       }
-
-      // Canvas reorder is handled by arrow buttons, NOT drag-and-drop
     },
-    [state.sections, state.activeSectionId, addElement, addElementAtIndex],
+    [state.sections, addElement, addElementToSection, addElementAtIndexInSection],
   );
 
   // Load existing course on mount (edit mode)
@@ -139,7 +155,6 @@ function CourseBuilderPageContent() {
     if (!id) return;
 
     async function loadCourse() {
-      // Load course
       const { data: courseData, error: courseError } = await supabase
         .from('courses')
         .select('*')
@@ -152,7 +167,6 @@ function CourseBuilderPageContent() {
         return;
       }
 
-      // Load sections
       const { data: sectionsData } = await supabase
         .from('course_sections')
         .select('*')
@@ -173,6 +187,7 @@ function CourseBuilderPageContent() {
         estimatedMinutes: (s.estimated_minutes as number) || 0,
         createdAt: s.created_at as string,
         updatedAt: s.updated_at as string,
+        draftContent: (s.draft_content as Record<string, unknown>) || null,
       }));
 
       dispatch({
@@ -193,6 +208,7 @@ function CourseBuilderPageContent() {
           teacherLevel: courseData.teacher_level || 'professional',
           teacherId: courseData.teacher_id || null,
           quizConfig: (courseData.quiz_config as Record<string, unknown>) ? courseData.quiz_config : getDefaultQuizConfig(),
+          wizardConfig: (courseData.wizard_config as Record<string, unknown>) || null,
           sections,
           activeSectionId: sections[0]?.id ?? null,
           serverUpdatedAt: courseData.updated_at,
@@ -203,6 +219,28 @@ function CourseBuilderPageContent() {
 
     loadCourse();
   }, [id, dispatch, navigate]);
+
+  // Auto-build: trigger 3-pass pipeline when arriving from wizard
+  useEffect(() => {
+    if (
+      hasTriggeredBuildRef.current ||
+      initialLoading ||
+      !(location.state as { autoBuild?: boolean })?.autoBuild ||
+      !state.courseId
+    ) return;
+
+    hasTriggeredBuildRef.current = true;
+
+    // Clear nav state so refresh/back doesn't re-trigger
+    window.history.replaceState({}, '');
+
+    // Small delay to let UI render before the build overlay appears
+    const timer = setTimeout(() => {
+      void buildCourse3Pass(state.courseId!, lang);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [initialLoading, location.state, state.courseId]);
 
   // Create new course on mount (new mode)
   useEffect(() => {
@@ -247,7 +285,6 @@ function CourseBuilderPageContent() {
         preserveUIState: true,
       });
 
-      // Update URL without full navigation
       window.history.replaceState(null, '', `/admin/courses/${data.id}/edit`);
     }
 
@@ -255,7 +292,11 @@ function CourseBuilderPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, state.courseId, user?.id, dispatch, groupId]);
 
-  // Manual save
+  const handleCancelBuild = useCallback(() => {
+    cancelBuild();
+    navigate('/admin/courses');
+  }, [cancelBuild, navigate]);
+
   const handleManualSave = useCallback(async () => {
     await saveDraft();
   }, [saveDraft]);
@@ -272,18 +313,20 @@ function CourseBuilderPageContent() {
     );
   }
 
-  // Mobile tabs
-  const mobileTabs: { key: MobileView; label: string }[] = [
-    { key: 'canvas', label: t.canvas },
-    { key: 'elements', label: t.elements },
-    { key: 'ai', label: t.ai },
-  ];
+  // Mobile tabs — only show Elements/AI in Editor mode
+  const mobileTabs: { key: MobileView; label: string }[] = isEditor
+    ? [
+        { key: 'canvas', label: t.canvas },
+        { key: 'elements', label: t.elements },
+        { key: 'ai', label: t.ai },
+      ]
+    : [{ key: 'canvas', label: t.canvas }];
 
-  // Right panel: element properties or AI chat stub
-  const selectedElement = state.selectedElementKey && state.activeSectionId
+  // Right panel: element properties or AI chat
+  const selectedElement = state.selectedElementKey
     ? state.sections
-        .find(s => s.id === state.activeSectionId)
-        ?.elements.find(e => e.key === state.selectedElementKey) ?? null
+        .flatMap(s => s.elements)
+        .find(e => e.key === state.selectedElementKey) ?? null
     : null;
 
   const showPropertiesPanel = state.rightPanelMode === 'element-properties' && !!selectedElement;
@@ -300,53 +343,57 @@ function CourseBuilderPageContent() {
         <CourseBuilderTopBar
           language={lang}
           onSave={handleManualSave}
-          onGenerateOutline={state.courseId ? () => void generateOutline(state.courseId!) : undefined}
-          onBuildAllContent={state.courseId ? () => void buildAllContent(state.courseId!, lang) : undefined}
+          onBuildCourse3Pass={state.courseId ? () => void buildCourse3Pass(state.courseId!, lang) : undefined}
         />
 
-        {/* Desktop layout: palette + canvas + right panel */}
+        {/* Desktop layout */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-          {/* LEFT SIDEBAR — Element Palette + Section Navigator (desktop only) */}
+          {/* LEFT SIDEBAR (desktop only) */}
           <div className="hidden lg:flex lg:flex-col lg:w-56 shrink-0 border-r min-h-0">
             <div className="flex-1 overflow-y-auto">
-              <ElementPalette language={lang} onClickAdd={addElement} />
+              {/* Editor mode: palette + section nav. Source/Preview: section nav only */}
+              {isEditor && <ElementPalette language={lang} onClickAdd={addElement} />}
               <SectionNavigator language={lang} />
             </div>
           </div>
 
-          {/* CENTER COLUMN — Canvas / Preview / Quiz */}
+          {/* CENTER COLUMN */}
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
-            {/* Desktop: Tab bar */}
-            <div className="hidden lg:block border-b shrink-0">
-              <CourseBuilderTabBar language={lang} />
-            </div>
+            {/* Desktop: Tab bar (editor mode only) */}
+            {isEditor && (
+              <div className="hidden lg:block border-b shrink-0">
+                <CourseBuilderTabBar language={lang} />
+              </div>
+            )}
 
             {/* Mobile: segmented tab bar */}
-            <div className="lg:hidden border-b shrink-0">
-              <div className="flex gap-0 px-4 py-1">
-                {mobileTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setMobileView(tab.key)}
-                    className={cn(
-                      'flex-1 py-2 text-sm font-medium text-center rounded-lg transition-colors',
-                      mobileView === tab.key
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+            {mobileTabs.length > 1 && (
+              <div className="lg:hidden border-b shrink-0">
+                <div className="flex gap-0 px-4 py-1">
+                  {mobileTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setMobileView(tab.key)}
+                      className={cn(
+                        'flex-1 py-2 text-sm font-medium text-center rounded-lg transition-colors',
+                        mobileView === tab.key
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Desktop: content based on activeTab */}
             <div className="hidden lg:block flex-1 overflow-y-auto min-h-0 p-4">
-              {state.activeTab === 'elements' && <CourseBuilderCanvas language={lang} />}
-              {state.activeTab === 'preview' && <CoursePreviewPanel language={lang} />}
-              {state.activeTab === 'quiz' && <QuizBuilderView language={lang} />}
-              {state.activeTab === 'settings' && (
+              {isSource && <DraftCanvasView language={lang} />}
+              {(isPreview || (isEditor && state.activeTab === 'elements')) && <CourseBuilderCanvas language={lang} />}
+              {isEditor && state.activeTab === 'quiz' && <QuizBuilderView language={lang} />}
+              {isEditor && state.activeTab === 'settings' && (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   <p className="text-sm">{lang === 'es' ? 'Configuración del curso — Próximamente' : 'Course settings — Coming soon'}</p>
                 </div>
@@ -355,21 +402,22 @@ function CourseBuilderPageContent() {
 
             {/* Mobile: content based on mobileView */}
             <div className="lg:hidden flex-1 min-h-0 overflow-y-auto p-4">
-              {mobileView === 'canvas' && <CourseBuilderCanvas language={lang} />}
-              {mobileView === 'elements' && (
+              {mobileView === 'canvas' && isSource && <DraftCanvasView language={lang} />}
+              {mobileView === 'canvas' && !isSource && <CourseBuilderCanvas language={lang} />}
+              {mobileView === 'elements' && isEditor && (
                 <div className="space-y-4">
                   <ElementPalette language={lang} onClickAdd={addElement} />
                   <SectionNavigator language={lang} />
                 </div>
               )}
-              {mobileView === 'ai' && (
+              {mobileView === 'ai' && isEditor && (
                 <CourseAIBuilderPanel language={lang} />
               )}
             </div>
           </div>
 
-          {/* RIGHT COLUMN — Properties / AI (desktop only, hidden on quiz/preview tabs) */}
-          {state.activeTab === 'elements' && (
+          {/* RIGHT COLUMN — Properties / AI (editor mode only, desktop only) */}
+          {isEditor && state.activeTab === 'elements' && (
             <div className={cn(
               'hidden lg:flex lg:flex-col',
               'lg:basis-[35%] shrink-0',
@@ -380,6 +428,8 @@ function CourseBuilderPageContent() {
               <div className="flex-1 min-h-0 overflow-y-auto p-4">
                 {showPropertiesPanel && selectedElement ? (
                   <ElementPropertiesPanel element={selectedElement} language={lang} />
+                ) : state.rightPanelMode === 'draft-content' ? (
+                  <DraftContentViewer language={lang} />
                 ) : (
                   <CourseAIBuilderPanel language={lang} />
                 )}
@@ -388,7 +438,7 @@ function CourseBuilderPageContent() {
           )}
         </div>
 
-        {/* AI Progress Overlay (shown during bulk content generation) */}
+        {/* AI Progress Overlay */}
         <AIProgressOverlay
           isActive={state.aiGenerating && !!state.aiProgress}
           progress={state.aiProgress}
@@ -400,8 +450,9 @@ function CourseBuilderPageContent() {
                   ?.title_en
               : undefined
           }
-          onCancel={cancelBuild}
+          onCancel={handleCancelBuild}
           language={lang}
+          multiphaseState={state.multiphaseState}
         />
       </div>
     </DndContext>

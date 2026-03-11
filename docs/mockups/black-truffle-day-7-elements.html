@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Black Truffle Day — 7 Elements Only</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-canvas: #F7F7FA;
+    --bg-card: #FFFFFF;
+    --text-primary: #111114;
+    --text-secondary: #5A5A66;
+    --text-tertiary: #8A8A96;
+    --text-hint: #B0B0BA;
+    --orange-600: #EA580C;
+    --orange-500: #F97316;
+    --orange-400: #FB923C;
+    --orange-300: #FDBA74;
+    --orange-200: #FED7AA;
+    --orange-100: #FFEDD5;
+    --orange-50:  #FFF7ED;
+    --border: rgba(0, 0, 0, 0.06);
+    --border-light: rgba(0, 0, 0, 0.04);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+    --shadow-elevated: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.04);
+    --radius-card: 20px;
+    --radius-md: 14px;
+    --radius-pill: 9999px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+  body { background: var(--bg-canvas); color: var(--text-primary); font-family: var(--font); line-height: 1.6; }
+  .container { max-width: 760px; margin: 0 auto; padding: 0 1.25rem; }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT LEGEND (debug strip — remove in production)
+     ═══════════════════════════════════════════════════════ */
+  .element-tag {
+    display: inline-block;
+    font-size: 0.55rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    font-family: monospace;
+  }
+  .element-tag.e1 { background: #EFF6FF; color: #2563EB; } /* Section Header */
+  .element-tag.e2 { background: #F0FDF4; color: #16A34A; } /* Mini Cards */
+  .element-tag.e3 { background: #FDF4FF; color: #A855F7; } /* Intro Para */
+  .element-tag.e4 { background: #F5F5F5; color: #737373; } /* Content */
+  .element-tag.e5 { background: #FEF3C7; color: #B45309; } /* Medium Cards */
+  .element-tag.e6 { background: #FEE2E2; color: #DC2626; } /* Large Cards */
+  .element-tag.e7 { background: #DBEAFE; color: #1D4ED8; } /* Script Card */
+
+  /* ═══════════════════════════════════════════════════════
+     PAGE HEADER (course-level — not an element)
+     ═══════════════════════════════════════════════════════ */
+  .page-header {
+    padding: 3.5rem 0 1.5rem;
+  }
+
+  .page-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--orange-50);
+    color: var(--orange-600);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius-pill);
+    margin-bottom: 1.25rem;
+  }
+
+  .page-header-title {
+    font-size: clamp(1.85rem, 6vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  .page-header-title .light { font-weight: 300; display: block; }
+  .page-header-title .bold { font-weight: 900; display: block; }
+
+  .page-header-tagline {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    max-width: 50ch;
+  }
+
+  .page-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .page-header-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    background: linear-gradient(135deg, #FFF7ED, #FFEDD5);
+    box-shadow: 0 2px 8px rgb(249 115 22 / 0.12);
+    flex-shrink: 0;
+  }
+
+  .page-header-icon-label {
+    font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-tertiary);
+    margin-top: 0.5rem; text-align: center;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 1: SECTION HEADER
+     Number label + light/bold title + subtitle
+     Auto-inserts a divider above (except first)
+     ═══════════════════════════════════════════════════════ */
+  .section-header {
+    margin-top: 2.5rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+    margin-bottom: 1.25rem;
+  }
+
+  .section-header:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+
+  .section-number {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--orange-500);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.25rem;
+  }
+
+  .section-title {
+    font-size: clamp(1.5rem, 4vw, 1.75rem);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .section-title .light { font-weight: 300; display: block; }
+
+  .section-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    line-height: 1.5;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 2: MINI CARDS
+     Variant A: icon-tile (goal cards)
+     Variant B: menu-item (large emoji + orange top bar)
+     ═══════════════════════════════════════════════════════ */
+  .mini-card-grid {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .mini-card-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .mini-card-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  /* Variant A: icon-tile */
+  .mini-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.25rem;
+  }
+
+  .mini-card .icon-tile {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 0.75rem;
+  }
+
+  .mini-card h4 {
+    font-size: 0.875rem; font-weight: 700;
+    color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1.3;
+  }
+
+  .mini-card p {
+    font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.5;
+  }
+
+  /* Variant B: menu-item (orange top bar + large emoji) */
+  .mini-card.menu-item {
+    position: relative; overflow: hidden;
+  }
+
+  .mini-card.menu-item::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--orange-500), var(--orange-300));
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+  }
+
+  .mini-card .emoji-lg {
+    font-size: 2rem; margin-bottom: 0.6rem; display: block;
+  }
+
+  .mini-card.menu-item h4 { font-size: 0.9375rem; }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 3: INTRO PARAGRAPH
+     Larger, lighter lead text
+     ═══════════════════════════════════════════════════════ */
+  .intro {
+    font-size: 1.05rem;
+    font-weight: 300;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    max-width: 58ch;
+    margin-top: 0.5rem;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 4: CONTENT (main body text)
+     Regular paragraph — markdown rendered
+     ═══════════════════════════════════════════════════════ */
+  .content {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    margin-top: 0.75rem;
+  }
+
+  .content strong { color: var(--text-primary); font-weight: 600; }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 5: MEDIUM CARDS (paired, with bullet points)
+     Variant A: correct/incorrect (side-by-side, dark + light)
+     Variant B: miss/fix (stacked pairs with colored tags)
+     ═══════════════════════════════════════════════════════ */
+
+  /* Variant A: side-by-side */
+  .medium-card-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .medium-card {
+    border-radius: var(--radius-card);
+    padding: 1.5rem;
+  }
+
+  .medium-card.positive {
+    background: var(--text-primary);
+    color: #fff;
+  }
+
+  .medium-card.negative {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+  }
+
+  .medium-card .card-tag {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 0.6rem;
+    display: inline-block; padding: 0.2rem 0.6rem; border-radius: var(--radius-pill);
+  }
+
+  .medium-card.positive .card-tag { background: rgba(249,115,22,0.2); color: var(--orange-400); }
+  .medium-card.negative .card-tag { background: rgba(0,0,0,0.05); color: var(--text-tertiary); }
+
+  .medium-card h4 { font-size: 1rem; font-weight: 800; margin-bottom: 0.6rem; line-height: 1.2; }
+  .medium-card ul { list-style: none; font-size: 0.8125rem; line-height: 1.9; }
+  .medium-card.positive ul li::before { content: '+ '; color: var(--orange-400); font-weight: 700; }
+  .medium-card.negative ul li { color: var(--text-secondary); }
+  .medium-card.negative ul li::before { content: '- '; color: var(--text-hint); font-weight: 700; }
+
+  /* Variant B: miss/fix stacked */
+  .medium-card-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+  }
+
+  .medium-card-pair {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+
+  .medium-card-pair-row {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .medium-card-pair-row + .medium-card-pair-row {
+    border-top: 1px solid var(--border-light);
+  }
+
+  .pair-tag {
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-pill); flex-shrink: 0; margin-top: 0.1rem;
+  }
+
+  .pair-tag.miss { background: #FEF2F2; color: #DC2626; }
+  .pair-tag.fix { background: #F0FDF4; color: #16A34A; }
+
+  .pair-text { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.55; }
+  .pair-text strong { color: var(--text-primary); font-weight: 600; }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 6: LARGE CARDS
+     Variant A: Callout (icon tile + colored bg — Did You Know, Tip, etc.)
+     Variant B: Standout (dark banner — Non-Negotiable, Key Point)
+     ═══════════════════════════════════════════════════════ */
+
+  /* Variant A: Callout */
+  .large-card-callout {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .large-card-callout.bg-orange {
+    background: var(--orange-50);
+    border-color: var(--orange-200);
+  }
+
+  .large-card-callout .lc-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+
+  .large-card-callout .lc-tag {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--orange-600); margin-bottom: 0.15rem;
+  }
+
+  .large-card-callout h4 {
+    font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.2rem;
+  }
+
+  .large-card-callout p {
+    font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6;
+  }
+
+  /* Variant B: Standout (dark banner) */
+  .large-card-standout {
+    background: var(--text-primary);
+    border-radius: var(--radius-card);
+    padding: 2rem 1.75rem;
+    margin-top: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .large-card-standout::after {
+    content: ''; position: absolute;
+    top: -40%; right: -15%; width: 55%; height: 180%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--orange-600) 0%, transparent 65%);
+    opacity: 0.08; pointer-events: none;
+  }
+
+  .large-card-standout .lc-tag {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--orange-400);
+    margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.35rem;
+    position: relative; z-index: 1;
+  }
+
+  .large-card-standout h3 {
+    font-size: clamp(1.25rem, 3.5vw, 1.5rem); font-weight: 800; line-height: 1.2;
+    color: #fff; letter-spacing: -0.01em; margin-bottom: 0.6rem;
+    position: relative; z-index: 1; max-width: 32ch;
+  }
+
+  .large-card-standout p {
+    font-size: 0.875rem; line-height: 1.65; color: rgba(255,255,255,0.6);
+    max-width: 52ch; position: relative; z-index: 1;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     ELEMENT 7: SCRIPT / LIST CARD
+     Card with colored header + bulleted lines (EN + optional ES)
+     ═══════════════════════════════════════════════════════ */
+  .script-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+    margin-top: 1.25rem;
+  }
+
+  .script-card-header {
+    padding: 0.8rem 1.5rem;
+    background: var(--orange-50);
+    border-bottom: 1px solid var(--orange-100);
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--orange-600);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+
+  .script-item {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .script-item:last-child { border-bottom: none; }
+
+  .script-en {
+    font-size: 0.9375rem; font-weight: 500;
+    color: var(--text-primary); line-height: 1.55;
+  }
+
+  .script-es {
+    font-size: 0.8125rem; color: var(--text-tertiary);
+    line-height: 1.55; margin-top: 0.2rem; font-style: italic;
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     FOOTER (page chrome — not an element)
+     ═══════════════════════════════════════════════════════ */
+  .footer {
+    padding: 3rem 0 4rem; text-align: center;
+  }
+
+  .footer-dot {
+    width: 6px; height: 6px; background: var(--orange-400);
+    border-radius: 50%; margin: 0 auto 1rem;
+  }
+
+  .footer p {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-hint);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     RESPONSIVE
+     ═══════════════════════════════════════════════════════ */
+  @media (max-width: 640px) {
+    .mini-card-grid.cols-3, .mini-card-grid.cols-2 { grid-template-columns: 1fr; }
+    .medium-card-row { grid-template-columns: 1fr; }
+    .page-header-icon { display: none; }
+    .container { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ═══════════ PAGE HEADER (course metadata — not an element) ═══════════ -->
+  <header class="page-header">
+    <span class="page-header-badge">&#x1F3AF; One-Day Rollout</span>
+    <div class="page-header-row">
+      <div>
+        <h1 class="page-header-title">
+          <span class="light">The One-Day Luxury Upgrade</span>
+          <span class="bold">Black Truffle Day</span>
+        </h1>
+        <p class="page-header-tagline">A limited-run experience in aroma, timing, and tableside excellence.</p>
+      </div>
+      <div style="text-align:center; flex-shrink:0;">
+        <div class="page-header-icon">&#x1F344;</div>
+        <div class="page-header-icon-label">Truffle<br>Service</div>
+      </div>
+    </div>
+  </header>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header" style="border-top:none; padding-top:0;">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">01 &mdash; The Vision</div>
+    <h2 class="section-title">
+      <span class="light">Why This Rollout</span>
+      Exists
+    </h2>
+    <p class="section-subtitle">And why it's the biggest single-day opportunity on our calendar</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 3: INTRO PARAGRAPH
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e3">3 &mdash; Intro Paragraph</span>
+  <p class="intro">
+    Black Truffle Day is designed to feel like a premium, can't-miss experience&mdash;something guests notice the moment they sit at the mesa. It's not a new menu. It's a high-impact enhancement to what we already do best.
+  </p>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 2: MINI CARDS (icon-tile variant)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e2">2 &mdash; Mini Cards (icon-tile)</span>
+  <div class="mini-card-grid cols-3">
+    <div class="mini-card">
+      <div class="icon-tile" style="background: linear-gradient(135deg, #FFF7ED, #FFEDD5);">&#x1F4AB;</div>
+      <h4>Aroma &amp; Atmosphere</h4>
+      <p>A presence that feels rare, elevated, and unmistakably upscale from the first moment.</p>
+    </div>
+    <div class="mini-card">
+      <div class="icon-tile" style="background: linear-gradient(135deg, #FEF3C7, #FDE68A);">&#x2B50;</div>
+      <h4>Guest Excitement</h4>
+      <p>"This is special today"&mdash;without slowing down the dining experience one second.</p>
+    </div>
+    <div class="mini-card">
+      <div class="icon-tile" style="background: linear-gradient(135deg, #ECFDF5, #D1FAE5);">&#x1F4B0;</div>
+      <h4>Higher Check Average</h4>
+      <p>Intentional add-ons and pairings guests are genuinely happy to say yes to.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       (divider auto-inserted via border-top)
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">02 &mdash; The Rollout</div>
+    <h2 class="section-title">
+      <span class="light">What Guests Will</span>
+      Experience
+    </h2>
+    <p class="section-subtitle">Truffle-focused finishes tied to our existing menu</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 4: CONTENT
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e4">4 &mdash; Content</span>
+  <p class="content">
+    Your conversations stay simple and confident: a guest already loves these dishes&mdash;today we offer the luxury upgrade.
+  </p>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 2: MINI CARDS (menu-item variant)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e2">2 &mdash; Mini Cards (menu-item)</span>
+  <div class="mini-card-grid cols-3">
+    <div class="mini-card menu-item">
+      <span class="emoji-lg">&#x1F969;</span>
+      <h4>14 oz Bone-In Ribeye</h4>
+      <p>The flagship steak that becomes even more premium with a truffle finish.</p>
+    </div>
+    <div class="mini-card menu-item">
+      <span class="emoji-lg">&#x1F96C;</span>
+      <h4>Creamed Spinach</h4>
+      <p>Classic side ideal <em>para compartir</em>&mdash;fits the "add a luxe touch" story.</p>
+    </div>
+    <div class="mini-card menu-item">
+      <span class="emoji-lg">&#x1F990;</span>
+      <h4>Shrimp Cocktail</h4>
+      <p>Familiar starter elevated with a truffle-forward recommendation.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">Visual Standard</div>
+    <h2 class="section-title">
+      <span class="light">The Finish,</span>
+      Perfected
+    </h2>
+    <p class="section-subtitle">Timing, aroma, and clean presentation&mdash;side by side</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 5: MEDIUM CARDS (correct/incorrect variant)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e5">5 &mdash; Medium Cards (correct / incorrect)</span>
+  <div class="medium-card-row">
+    <div class="medium-card positive">
+      <span class="card-tag">The Standard</span>
+      <h4>Correct Finish</h4>
+      <ul>
+        <li>Microplane truffle tableside, on a hot item</li>
+        <li>Clean, wiped rim&mdash;no drips</li>
+        <li>Immediate aroma hits the guest</li>
+        <li>Served the moment it's finished</li>
+      </ul>
+    </div>
+    <div class="medium-card negative">
+      <span class="card-tag">The Misfire</span>
+      <h4>What to Avoid</h4>
+      <ul>
+        <li>Truffle added too early in the kitchen</li>
+        <li>Dull, flat presentation&mdash;no drama</li>
+        <li>Messy rim, sauce drips, smears</li>
+        <li>Delayed service kills the aroma</li>
+      </ul>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 6: LARGE CARD (callout variant — "Did You Know")
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e6" style="margin-top:1.5rem; display:inline-block;">6 &mdash; Large Card (callout)</span>
+  <div class="large-card-callout bg-orange">
+    <div class="lc-icon" style="background: linear-gradient(135deg, #FFF7ED, #FFEDD5);">&#x1F525;</div>
+    <div>
+      <div class="lc-tag">Did You Know</div>
+      <h4>Heat = Aroma = Tips</h4>
+      <p>Truffle aroma peaks on heat&mdash;<strong>right now</strong>. The moment it hits warm food, guests smell it before they taste it. Finish tableside and serve immediately. Nail the timing and you'll see the delight&mdash;and you can upsell truffle with real confidence.</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">03 &mdash; The FOH Mindset</div>
+    <h2 class="section-title">
+      <span class="light">Sell the</span>
+      "Only Today" Moment
+    </h2>
+    <p class="section-subtitle">Language that creates urgency without pressure</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 7: SCRIPT / LIST CARD
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e7">7 &mdash; Script Card</span>
+  <div class="script-card">
+    <div class="script-card-header">&#x1F4AC; Use These Lines Verbatim</div>
+    <div class="script-item">
+      <div class="script-en">"Today we're doing a Black Truffle Day luxury finish&mdash;if you want the full Alamo Prime experience, this is the day."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"If you're celebrating, this is the perfect upgrade for the table <em>para compartir</em>."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"It's the kind of aroma you'll remember&mdash;especially with a steak like the 14 oz bone-in ribeye."</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 4: CONTENT
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e4" style="margin-top:1.25rem; display:inline-block;">4 &mdash; Content</span>
+  <p class="content">
+    <strong>Bottom line:</strong> Black Truffle Day is a one-day opportunity to make the dining room feel elevated and unforgettable&mdash;and to confidently recommend high-value enhancements guests will be happy to say yes to.
+  </p>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">04 &mdash; Schedule</div>
+    <h2 class="section-title">
+      <span class="light">Timing &amp;</span>
+      Availability
+    </h2>
+    <p class="section-subtitle">One day. Both dayparts. While supplies last.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 7: SCRIPT CARD
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e7">7 &mdash; Script Card</span>
+  <div class="script-card">
+    <div class="script-card-header">&#x1F399; Expectation-Setting Lines</div>
+    <div class="script-item">
+      <div class="script-en">"Just a heads-up: our Black Truffle Day dishes are today only and limited, so they're available while supplies last."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"We're doing truffle dishes for Black Truffle Day today only&mdash;once we sell out, they're gone."</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 2: MINI CARDS (bilingual pair)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e2" style="margin-top:1rem; display:inline-block;">2 &mdash; Mini Cards (bilingual pair)</span>
+  <div class="mini-card-grid cols-2">
+    <div class="mini-card">
+      <div style="font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-hint); margin-bottom:0.35rem;">English</div>
+      <p>"Black Truffle Day is [DATE] only, available at lunch and dinner, while supplies last."</p>
+    </div>
+    <div class="mini-card">
+      <div style="font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-hint); margin-bottom:0.35rem;">Espa&ntilde;ol</div>
+      <p>"El D&iacute;a de la Trufa Negra es solo el [DATE], disponible en comida y cena, hasta agotar existencias."</p>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">05 &mdash; The Script</div>
+    <h2 class="section-title">
+      <span class="light">Tableside Lines</span>
+      That Convert
+    </h2>
+    <p class="section-subtitle">Lead with a verb. Say these verbatim tonight.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 7: SCRIPT CARD (bilingual)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e7">7 &mdash; Script Card (bilingual)</span>
+  <div class="script-card">
+    <div class="script-card-header">&#x1F91D; Bilingual Service Scripts</div>
+    <div class="script-item">
+      <div class="script-en">"Quick heads-up for the table: the ribeye is rich, buttery, and silky&mdash;if you want to go big, it's a jumbo size."</div>
+      <div class="script-es">"R&aacute;pido para la mesa: el ribeye es rico, mantequilloso y sedoso&mdash;si quieren algo grande, viene en tama&ntilde;o jumbo."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"If you're doing the ribeye, I'd pair it with our creamed spinach&mdash;silky, buttery, and it balances the steak perfectly."</div>
+      <div class="script-es">"Si van por el ribeye, se los recomiendo con la espinaca a la crema&mdash;sedosa, mantequillosa y le va perfecto al steak."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"For a bright balance, a crisp white or something sparkling with zippy acidity cuts through that buttery richness."</div>
+      <div class="script-es">"Para un balance m&aacute;s fresco, un blanco crujiente o algo espumoso con acidez viva corta esa riqueza mantequillosa."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"Want the classic move? Cabernet with the ribeye&mdash;or an Old Fashioned if you want it bold and smooth."</div>
+      <div class="script-es">"&iquest;Quieren lo cl&aacute;sico? Un Cabernet con el ribeye&mdash;o un Old Fashioned si lo quieren intenso y suave."</div>
+    </div>
+    <div class="script-item">
+      <div class="script-en">"And if anyone's thinking seafood to start, our jumbo shrimp come with house-made cocktail sauce."</div>
+      <div class="script-es">"Y si alguien quiere mariscos para empezar, los camarones jumbo vienen con salsa c&oacute;ctel hecha en casa."</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 1: SECTION HEADER
+       ═══════════════════════════════════════════════════ -->
+  <div class="section-header">
+    <span class="element-tag e1">1 &mdash; Section Header</span>
+    <div class="section-number">06 &mdash; Avoid These</div>
+    <h2 class="section-title">
+      <span class="light">Common</span>
+      Misfires
+    </h2>
+    <p class="section-subtitle">And exactly how to fix each one</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 5: MEDIUM CARDS (miss/fix variant)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e5">5 &mdash; Medium Cards (miss / fix)</span>
+  <div class="medium-card-stack">
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Overpromising truffle availability or timing.</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">Set expectations up front&mdash;confirm what's available <strong>right now</strong> before you sell it.</span>
+      </div>
+    </div>
+
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Offering truffle or creamed spinach after the food's already cooling.</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">Time the offer before the fire so it lands piping hot in a pre-warmed bowl.</span>
+      </div>
+    </div>
+
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Vague upcharge language: "Do you want truffle?"</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">Use clear pricing: <strong>"We can add truffle for $X&mdash;would you like that today?"</strong></span>
+      </div>
+    </div>
+
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Skipping allergy prompts when it matters.</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">"Any allergies or dairy concerns?" (Creamed Spinach contains dairy).</span>
+      </div>
+    </div>
+
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Sloppy presentation&mdash;drips, smeared rims, messy bowls.</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">Follow foh_plate_specs: clean, wiped rims; neat, intentional finish; hot bowl.</span>
+      </div>
+    </div>
+
+    <div class="medium-card-pair">
+      <div class="medium-card-pair-row">
+        <span class="pair-tag miss">Miss</span>
+        <span class="pair-text">Delayed firing and table gaps.</span>
+      </div>
+      <div class="medium-card-pair-row">
+        <span class="pair-tag fix">Fix</span>
+        <span class="pair-text">Coordinate with kitchen early so sides and mains hit together&mdash;<strong>hot and on pace</strong>.</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       ELEMENT 6: LARGE CARD (standout variant — dark banner)
+       ═══════════════════════════════════════════════════ -->
+  <span class="element-tag e6" style="margin-top:2rem; display:inline-block;">6 &mdash; Large Card (standout)</span>
+  <div class="large-card-standout">
+    <div class="lc-tag">&#x26A0;&#xFE0F; Non-Negotiable</div>
+    <h3>Sell the Aroma Moment Before the Order Locks</h3>
+    <p>Mention Black Truffle Day before the order locks, position it as a limited luxury upgrade, and time it with heat so the aroma hits immediately. If you wait until after they've decided, you've missed the sell.</p>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════
+       FOOTER (page chrome — not an element)
+       ═══════════════════════════════════════════════════ -->
+  <footer class="footer">
+    <div class="footer-dot"></div>
+    <p>Alamo Prime Steakhouse &bull; Training Manual</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

@@ -13,6 +13,7 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
 
 // =============================================================================
@@ -68,6 +69,7 @@ export interface UploadResult {
 export function useFormAttachments() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { language } = useLanguage();
 
   // ---------------------------------------------------------------------------
   // uploadFile — upload a file (image, pdf, etc.) to the storage bucket
@@ -80,7 +82,9 @@ export function useFormAttachments() {
     ): Promise<UploadResult | null> => {
       // Validate file type
       if (!ACCEPTED_FILE_TYPES.has(file.type)) {
-        const message = 'Unsupported file type. Please use images, PDF, Word, Excel, or text files.';
+        const message = language === 'es'
+          ? 'Tipo de archivo no compatible. Usa imágenes, PDF, Word, Excel o archivos de texto.'
+          : 'Unsupported file type. Please use images, PDF, Word, Excel, or text files.';
         toast.error(message);
         setError(message);
         return null;
@@ -90,7 +94,9 @@ export function useFormAttachments() {
       const maxSize = ACCEPTED_IMAGE_TYPES.has(file.type) ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
       if (file.size > maxSize) {
         const limitMB = Math.round(maxSize / (1024 * 1024));
-        const message = `File exceeds the ${limitMB}MB size limit.`;
+        const message = language === 'es'
+          ? `El archivo excede el límite de ${limitMB}MB.`
+          : `File exceeds the ${limitMB}MB size limit.`;
         toast.error(message);
         setError(message);
         return null;
@@ -141,7 +147,7 @@ export function useFormAttachments() {
           signedUrl: signedUrlData.signedUrl,
         };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Upload failed';
+        const message = err instanceof Error ? err.message : (language === 'es' ? 'Error al subir archivo' : 'Upload failed');
         console.error('File upload failed:', err);
         toast.error(message);
         setError(message);
@@ -150,7 +156,7 @@ export function useFormAttachments() {
         setIsUploading(false);
       }
     },
-    [],
+    [language],
   );
 
   // ---------------------------------------------------------------------------
@@ -189,7 +195,7 @@ export function useFormAttachments() {
           signedUrl: signedUrlData.signedUrl,
         };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Signature upload failed';
+        const message = err instanceof Error ? err.message : (language === 'es' ? 'Error al subir firma' : 'Signature upload failed');
         console.error('Signature upload failed:', err);
         toast.error(message);
         setError(message);
@@ -198,7 +204,7 @@ export function useFormAttachments() {
         setIsUploading(false);
       }
     },
-    [],
+    [language],
   );
 
   // ---------------------------------------------------------------------------
@@ -211,10 +217,10 @@ export function useFormAttachments() {
       return true;
     } catch (err) {
       console.error('File removal failed:', err);
-      toast.error('Failed to remove file.');
+      toast.error(language === 'es' ? 'Error al eliminar archivo.' : 'Failed to remove file.');
       return false;
     }
-  }, []);
+  }, [language]);
 
   return {
     uploadFile,

@@ -62,3 +62,15 @@ verify_jwt = false
 
 [functions.generate-form-template]
 verify_jwt = false
+
+[functions.build-course]
+verify_jwt = false
+
+[functions.build-course-element]
+verify_jwt = false
+
+[functions.form-builder-chat]
+verify_jwt = false
+
+[functions.analyze-review]
+verify_jwt = false

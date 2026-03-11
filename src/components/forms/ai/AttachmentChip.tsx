@@ -13,6 +13,8 @@ export interface AttachmentData {
   name: string;
   type: string;
   previewUrl?: string;
+  file?: File;
+  storagePath?: string;
 }
 
 interface AttachmentChipProps {

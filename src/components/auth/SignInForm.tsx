@@ -1,11 +1,11 @@
 /**
  * SignInForm
- * 
+ *
  * Email + password sign-in form for returning users.
  * Per docs/plans/step-3-authentication-roles.md Phase 3.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,9 +22,47 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { supabase } from '@/integrations/supabase/client';
+import { useLanguage, type Language } from '@/hooks/use-language';
 
 // =============================================================================
-// VALIDATION SCHEMA
+// STRINGS
+// =============================================================================
+
+const STRINGS = {
+  en: {
+    email: 'Email',
+    password: 'Password',
+    signIn: 'Sign In',
+    signingIn: 'Signing in...',
+    invalidCredentials: 'Invalid email or password. Please try again.',
+    emailNotConfirmed: 'Please verify your email address before signing in.',
+    unexpectedError: 'An unexpected error occurred. Please try again.',
+    // Zod messages
+    emailRequired: 'Email is required',
+    emailInvalid: 'Please enter a valid email',
+    emailMax: 'Email must be less than 255 characters',
+    passwordRequired: 'Password is required',
+    passwordMax: 'Password must be less than 128 characters',
+  },
+  es: {
+    email: 'Correo electr\u00f3nico',
+    password: 'Contrase\u00f1a',
+    signIn: 'Iniciar Sesi\u00f3n',
+    signingIn: 'Iniciando sesi\u00f3n...',
+    invalidCredentials: 'Correo o contrase\u00f1a incorrectos. Int\u00e9ntalo de nuevo.',
+    emailNotConfirmed: 'Verifica tu correo electr\u00f3nico antes de iniciar sesi\u00f3n.',
+    unexpectedError: 'Ocurri\u00f3 un error inesperado. Int\u00e9ntalo de nuevo.',
+    // Zod messages
+    emailRequired: 'El correo es obligatorio',
+    emailInvalid: 'Ingresa un correo v\u00e1lido',
+    emailMax: 'El correo debe tener menos de 255 caracteres',
+    passwordRequired: 'La contrase\u00f1a es obligatoria',
+    passwordMax: 'La contrase\u00f1a debe tener menos de 128 caracteres',
+  },
+} as const;
+
+// =============================================================================
+// VALIDATION SCHEMA (static for type inference)
 // =============================================================================
 
 const signInSchema = z.object({
@@ -51,14 +89,34 @@ interface SignInFormProps {
   onSuccess?: () => void;
   /** Link to sign-up page (optional) */
   signUpLink?: React.ReactNode;
+  /** Language override (if parent already has it) */
+  language?: Language;
 }
 
-export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
+export function SignInForm({ onSuccess, signUpLink, language: languageProp }: SignInFormProps) {
+  const { language: hookLanguage } = useLanguage();
+  const language = languageProp ?? hookLanguage;
+  const t = STRINGS[language];
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Rebuild schema when language changes so validation messages match
+  const localizedSchema = useMemo(() => z.object({
+    email: z
+      .string()
+      .trim()
+      .min(1, t.emailRequired)
+      .email(t.emailInvalid)
+      .max(255, t.emailMax),
+    password: z
+      .string()
+      .min(1, t.passwordRequired)
+      .max(128, t.passwordMax),
+  }), [t]);
+
   const form = useForm<SignInValues>({
-    resolver: zodResolver(signInSchema),
+    resolver: zodResolver(localizedSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -78,9 +136,9 @@ export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
       if (signInError) {
         // Handle common error cases with friendly messages
         if (signInError.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please try again.');
+          setError(t.invalidCredentials);
         } else if (signInError.message.includes('Email not confirmed')) {
-          setError('Please verify your email address before signing in.');
+          setError(t.emailNotConfirmed);
         } else {
           setError(signInError.message);
         }
@@ -89,7 +147,7 @@ export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
 
       onSuccess?.();
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      setError(t.unexpectedError);
     } finally {
       setIsLoading(false);
     }
@@ -105,7 +163,7 @@ export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t.email}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -130,7 +188,7 @@ export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{t.password}</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -163,10 +221,10 @@ export function SignInForm({ onSuccess, signUpLink }: SignInFormProps) {
             {isLoading ? (
               <>
                 <Loader2 className="animate-spin" />
-                Signing in...
+                {t.signingIn}
               </>
             ) : (
-              'Sign In'
+              t.signIn
             )}
           </Button>
 

@@ -1,28 +1,23 @@
 // =============================================================================
-// ElementPropertiesPanel — Right panel when an element is selected
-// Shows type-specific properties: title, ai_instructions, source_refs, status,
-// variant selector (feature), media fields, etc.
-// "Close" button returns right panel to AI chat mode.
+// ElementPropertiesPanel — Right panel when an element is selected.
+// Shows metadata only (type, status, key, source_refs) for inline-editable
+// types. Media and product_viewer keep their type-specific fields since
+// those types are NOT inline-edited on the canvas.
 // =============================================================================
 
 import { X } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useCourseBuilder } from '@/contexts/CourseBuilderContext';
-import { FEATURE_VARIANTS } from '@/lib/course-builder/builder-utils';
 import { PRODUCT_TABLE_META } from '@/lib/course-builder/builder-utils';
 import type {
   CourseElement,
-  ContentElement,
-  FeatureElement,
   MediaElement,
   ProductViewerElement,
   ProductTable,
-  FeatureVariant,
   ElementStatus,
   MediaType,
 } from '@/types/course-builder';
@@ -34,16 +29,8 @@ const STRINGS = {
     type: 'Type',
     status: 'Status',
     elementKey: 'Key',
-    aiInstructions: 'AI Instructions',
-    aiInstructionsPlaceholder: 'Instructions for AI generation...',
     sourceRefs: 'Source References',
     noSources: 'No sources linked',
-    titleEn: 'Title (EN)',
-    titleEs: 'Title (ES)',
-    bodyEn: 'Body (EN)',
-    bodyEs: 'Body (ES)',
-    variant: 'Variant',
-    icon: 'Icon',
     mediaType: 'Media Type',
     imageUrl: 'Image URL',
     videoUrl: 'Video URL',
@@ -56,12 +43,15 @@ const STRINGS = {
     feature: 'Feature',
     media: 'Media',
     product_viewer: 'Product Viewer',
+    page_header: 'Page Header',
+    section_header: 'Section Header',
+    card_grid: 'Card Grid',
+    comparison: 'Comparison',
+    script_block: 'Script Block',
     image: 'Image',
     video: 'Video',
     youtube: 'YouTube',
     linkedProduct: 'Linked Product',
-    changeProduct: 'Change Product',
-    selectProduct: 'Select Product',
     noProduct: 'No product selected',
     productId: 'Product ID',
     productTable: 'Table',
@@ -72,16 +62,8 @@ const STRINGS = {
     type: 'Tipo',
     status: 'Estado',
     elementKey: 'Clave',
-    aiInstructions: 'Instrucciones para IA',
-    aiInstructionsPlaceholder: 'Instrucciones para generacion con IA...',
     sourceRefs: 'Referencias de Origen',
     noSources: 'Sin referencias',
-    titleEn: 'Titulo (EN)',
-    titleEs: 'Titulo (ES)',
-    bodyEn: 'Cuerpo (EN)',
-    bodyEs: 'Cuerpo (ES)',
-    variant: 'Variante',
-    icon: 'Icono',
     mediaType: 'Tipo de Medio',
     imageUrl: 'URL de Imagen',
     videoUrl: 'URL de Video',
@@ -94,12 +76,15 @@ const STRINGS = {
     feature: 'Destacado',
     media: 'Multimedia',
     product_viewer: 'Visor de Producto',
+    page_header: 'Encabezado',
+    section_header: 'Sub-Sección',
+    card_grid: 'Tarjetas',
+    comparison: 'Comparación',
+    script_block: 'Script',
     image: 'Imagen',
     video: 'Video',
     youtube: 'YouTube',
     linkedProduct: 'Producto Vinculado',
-    changeProduct: 'Cambiar Producto',
-    selectProduct: 'Seleccionar Producto',
     noProduct: 'Sin producto seleccionado',
     productId: 'ID del Producto',
     productTable: 'Tabla',
@@ -170,17 +155,6 @@ export function ElementPropertiesPanel({ element, language }: ElementPropertiesP
         <p className="text-xs text-muted-foreground font-mono mt-0.5">{element.key}</p>
       </div>
 
-      {/* AI Instructions (all element types) */}
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.aiInstructions}</Label>
-        <Textarea
-          value={element.ai_instructions}
-          onChange={(e) => updateElement(element.key, { ai_instructions: e.target.value })}
-          placeholder={t.aiInstructionsPlaceholder}
-          className="mt-1 min-h-[60px] text-sm resize-none"
-        />
-      </div>
-
       {/* Source Refs */}
       <div>
         <Label className="text-[10px] uppercase text-muted-foreground">{t.sourceRefs}</Label>
@@ -201,144 +175,25 @@ export function ElementPropertiesPanel({ element, language }: ElementPropertiesP
         )}
       </div>
 
-      <hr className="border-muted" />
-
-      {/* Type-specific fields */}
-      {element.type === 'content' && (
-        <ContentProperties element={element} language={language} />
-      )}
-      {element.type === 'feature' && (
-        <FeatureProperties element={element} language={language} />
-      )}
+      {/* Type-specific fields — only for non-inline-editable types */}
       {element.type === 'media' && (
-        <MediaProperties element={element} language={language} />
+        <>
+          <hr className="border-muted" />
+          <MediaProperties element={element} language={language} />
+        </>
       )}
       {element.type === 'product_viewer' && (
-        <ProductViewerProperties element={element as ProductViewerElement} language={language} />
+        <>
+          <hr className="border-muted" />
+          <ProductViewerProperties element={element as ProductViewerElement} language={language} />
+        </>
       )}
     </div>
   );
 }
 
 // =============================================================================
-// CONTENT PROPERTIES
-// =============================================================================
-
-function ContentProperties({ element, language }: { element: ContentElement; language: 'en' | 'es' }) {
-  const t = STRINGS[language];
-  const { updateElement } = useCourseBuilder();
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.titleEn}</Label>
-        <Input
-          value={element.title_en || ''}
-          onChange={(e) => updateElement(element.key, { title_en: e.target.value })}
-          className="h-8 text-sm mt-1"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.titleEs}</Label>
-        <Input
-          value={element.title_es || ''}
-          onChange={(e) => updateElement(element.key, { title_es: e.target.value })}
-          className="h-8 text-sm mt-1"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.bodyEn}</Label>
-        <Textarea
-          value={element.body_en}
-          onChange={(e) => updateElement(element.key, { body_en: e.target.value })}
-          className="min-h-[80px] text-sm resize-none mt-1 font-mono"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.bodyEs}</Label>
-        <Textarea
-          value={element.body_es}
-          onChange={(e) => updateElement(element.key, { body_es: e.target.value })}
-          className="min-h-[80px] text-sm resize-none mt-1 font-mono"
-        />
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// FEATURE PROPERTIES
-// =============================================================================
-
-function FeatureProperties({ element, language }: { element: FeatureElement; language: 'en' | 'es' }) {
-  const t = STRINGS[language];
-  const { updateElement } = useCourseBuilder();
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.variant}</Label>
-        <select
-          value={element.variant}
-          onChange={(e) => {
-            const newVariant = e.target.value as FeatureVariant;
-            const newConfig = FEATURE_VARIANTS[newVariant];
-            updateElement(element.key, { variant: newVariant, icon: newConfig.icon });
-          }}
-          className="mt-1 w-full text-sm bg-transparent border rounded px-2 py-1"
-        >
-          {(Object.entries(FEATURE_VARIANTS) as [FeatureVariant, (typeof FEATURE_VARIANTS)[FeatureVariant]][]).map(([v, c]) => (
-            <option key={v} value={v}>{language === 'es' ? c.labelEs : c.labelEn}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.icon}</Label>
-        <Input
-          value={element.icon || ''}
-          onChange={(e) => updateElement(element.key, { icon: e.target.value })}
-          placeholder="Lucide icon name"
-          className="h-8 text-sm mt-1 font-mono"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.titleEn}</Label>
-        <Input
-          value={element.title_en || ''}
-          onChange={(e) => updateElement(element.key, { title_en: e.target.value })}
-          className="h-8 text-sm mt-1"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.titleEs}</Label>
-        <Input
-          value={element.title_es || ''}
-          onChange={(e) => updateElement(element.key, { title_es: e.target.value })}
-          className="h-8 text-sm mt-1"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.bodyEn}</Label>
-        <Textarea
-          value={element.body_en}
-          onChange={(e) => updateElement(element.key, { body_en: e.target.value })}
-          className="min-h-[60px] text-sm resize-none mt-1"
-        />
-      </div>
-      <div>
-        <Label className="text-[10px] uppercase text-muted-foreground">{t.bodyEs}</Label>
-        <Textarea
-          value={element.body_es}
-          onChange={(e) => updateElement(element.key, { body_es: e.target.value })}
-          className="min-h-[60px] text-sm resize-none mt-1"
-        />
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// MEDIA PROPERTIES
+// MEDIA PROPERTIES (kept — media is NOT inline-edited)
 // =============================================================================
 
 function MediaProperties({ element, language }: { element: MediaElement; language: 'en' | 'es' }) {
@@ -435,7 +290,7 @@ function MediaProperties({ element, language }: { element: MediaElement; languag
 }
 
 // =============================================================================
-// PRODUCT VIEWER PROPERTIES
+// PRODUCT VIEWER PROPERTIES (kept — product_viewer is NOT inline-edited)
 // =============================================================================
 
 function ProductViewerProperties({ element, language }: { element: ProductViewerElement; language: 'en' | 'es' }) {

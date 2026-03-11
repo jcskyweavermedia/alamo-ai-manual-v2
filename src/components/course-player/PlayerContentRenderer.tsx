@@ -3,7 +3,6 @@
 // Renders title + Markdown body. No edit mode, no context dependency.
 // =============================================================================
 
-import { FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { courseMdComponents } from '@/lib/chat-markdown';
@@ -20,11 +19,25 @@ export function PlayerContentRenderer({ element, language }: Props) {
   const rawBody = language === 'es' ? (element.body_es || element.body_en) : element.body_en;
   const body = rawBody ? stripDuplicateLeadingHeading(rawBody, title || '') : rawBody;
 
+  // Lead paragraph: larger, lighter intro text — no title
+  if (element.lead) {
+    return (
+      <div className="text-[1.05rem] font-light text-muted-foreground leading-[1.65] max-w-[58ch] mt-2">
+        {body ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>
+            {body}
+          </ReactMarkdown>
+        ) : (
+          <p>{language === 'es' ? 'Sin contenido' : 'No content'}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       {title && (
-        <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
-          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+        <h3 className="text-lg font-bold text-foreground mb-4">
           {title}
         </h3>
       )}

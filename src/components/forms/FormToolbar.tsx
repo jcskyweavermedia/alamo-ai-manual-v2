@@ -134,21 +134,21 @@ export function FormToolbar({
       {/* ---- LEFT SPACER (pushes save+submit to center) ---- */}
       <div className="flex-1" />
 
-      {/* ---- SAVE ICON BUTTON ---- */}
+      {/* ---- SAVE DRAFT TEXT BUTTON ---- */}
       <button
         type="button"
         onClick={onSaveDraft}
         disabled={!isDirty || isSaving || isSubmitting}
         className={cn(
-          'h-9 w-9 rounded-lg shrink-0',
-          'inline-flex items-center justify-center',
-          'text-muted-foreground hover:text-foreground hover:bg-muted',
+          'h-9 px-3 rounded-lg shrink-0',
+          'bg-muted text-foreground font-semibold text-sm',
+          'inline-flex items-center justify-center gap-1.5',
           'transition-colors',
           'disabled:opacity-40 disabled:cursor-not-allowed',
         )}
-        aria-label={t.saveDraft}
       >
         {saveIcon}
+        {t.saveDraft}
       </button>
 
       {/* ---- SUBMIT BUTTON ---- */}

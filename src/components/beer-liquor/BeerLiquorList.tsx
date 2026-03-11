@@ -70,7 +70,7 @@ export function BeerLiquorList({
                               {item.name}
                             </span>
                             {item.isFeatured && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground shrink-0">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500 text-white shrink-0">
                                 Featured
                               </span>
                             )}

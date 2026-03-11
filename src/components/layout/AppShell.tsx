@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useNavPreferences } from '@/hooks/use-nav-preferences';
 import { MobileTabBar } from './MobileTabBar';
 import { Sidebar } from './Sidebar';
 import { Header, type ItemNav } from './Header';
@@ -65,11 +65,13 @@ export function AppShell({
   className,
 }: AppShellProps) {
   const isMobile = useIsMobile();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-
-  const handleToggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
-  }, []);
+  const {
+    isGroupExpanded,
+    toggleGroup,
+    sidebarCollapsed,
+    toggleSidebarCollapsed,
+    getOldestOpenGroup,
+  } = useNavPreferences();
 
   return (
     <div className={cn("h-screen flex w-full bg-background overflow-hidden", className)}>
@@ -77,7 +79,10 @@ export function AppShell({
       <Sidebar
         isAdmin={isAdmin}
         collapsed={sidebarCollapsed}
-        onToggleCollapse={handleToggleSidebar}
+        onToggleCollapse={toggleSidebarCollapsed}
+        isGroupExpanded={isGroupExpanded}
+        onToggleGroup={toggleGroup}
+        getOldestOpenGroup={getOldestOpenGroup}
       />
 
       {/* Main content area */}

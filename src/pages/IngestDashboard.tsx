@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { useLanguage } from '@/hooks/use-language';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
 import { useIngestionSession, type IngestionSession } from '@/hooks/use-ingestion-session';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Package, Pencil, Trash2, CheckSquare, X, RotateCcw, Search } from 'lucide-react';
+import { Plus, Package, Pencil, Trash2, CheckSquare, X, RotateCcw, Search, Loader2 } from 'lucide-react';
 
 // =============================================================================
 // CONSTANTS
@@ -130,11 +132,61 @@ function formatRelativeTime(dateString: string): string {
 // HELPERS — selectability
 // =============================================================================
 
-/** A session is discardable if it's not published, abandoned, or deleted */
-const DISCARDABLE_STATUSES = new Set(['drafting', 'review', 'failed']);
+/** A session can be removed if it's not already abandoned or deleted.
+ *  Published sessions may be orphaned (product deleted elsewhere) so they're included. */
+const DISCARDABLE_STATUSES = new Set(['drafting', 'review', 'failed', 'published']);
 
 function isDiscardable(session: IngestionSession): boolean {
   return DISCARDABLE_STATUSES.has(session.status);
+}
+
+// =============================================================================
+// BEER/LIQUOR HUB CARD
+// =============================================================================
+
+interface BeerLiquorHubCardProps {
+  itemCount: number;
+  onClick: () => void;
+  isLoading?: boolean;
+}
+
+function BeerLiquorHubCard({ itemCount, onClick, isLoading }: BeerLiquorHubCardProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={isLoading}
+      className={cn(
+        'w-full text-left rounded-xl border bg-card p-4 transition-colors duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isLoading ? 'opacity-60 cursor-default' : 'border-border hover:bg-accent/50'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span className="text-[22px] leading-none mt-0.5 shrink-0">🍺</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Beer/Liquor
+            </span>
+            <span className={cn(
+              'inline-flex items-center rounded-full px-1.5 py-0 text-[10px] font-semibold leading-4 border',
+              'bg-green-100 text-green-800 border-green-200'
+            )}>
+              {itemCount} item{itemCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-foreground">Beer &amp; Liquor List</h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-xs text-muted-foreground">View &amp; manage all bar items</span>
+          </div>
+        </div>
+        {isLoading
+          ? <Loader2 className="h-4 w-4 text-muted-foreground shrink-0 mt-1 animate-spin" />
+          : <Package className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+        }
+      </div>
+    </button>
+  );
 }
 
 // =============================================================================
@@ -167,10 +219,13 @@ function SessionCard({ session, onClick, onDiscard, isSelectMode, isSelected, on
   };
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleCardClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
       className={cn(
-        'w-full text-left rounded-xl border bg-card p-4 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'w-full text-left rounded-xl border bg-card p-4 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer',
         isSelectMode && isSelected
           ? 'border-destructive/50 bg-destructive/5'
           : 'border-border hover:bg-accent/50',
@@ -229,18 +284,21 @@ function SessionCard({ session, onClick, onDiscard, isSelectMode, isSelected, on
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              if (window.confirm(`Discard "${draftName}"? This cannot be undone.`)) {
+              const msg = session.status === 'published'
+                ? `Delete "${draftName}"? This will permanently remove both the session record and the published product. This cannot be undone.`
+                : `Discard "${draftName}"? This cannot be undone.`;
+              if (window.confirm(msg)) {
                 onDiscard(session.id);
               }
             }}
             className="shrink-0 mt-1 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            title="Discard draft"
+            title={session.status === 'published' ? 'Remove session record' : 'Discard draft'}
           >
             <Trash2 className="h-4 w-4" />
           </button>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -301,14 +359,29 @@ function EmptyState({ onCreateNew }: EmptyStateProps) {
 function IngestDashboard() {
   const { language, setLanguage } = useLanguage();
   const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { listSessions, discardSession, discardSessions, isLoading } = useIngestionSession();
+  const { listSessions, createSession, discardSession, discardSessions, isLoading } = useIngestionSession();
+
+  const [isCreatingBeerLiquor, setIsCreatingBeerLiquor] = useState(false);
+
+  const handleBeerLiquorHubClick = useCallback(async () => {
+    if (isCreatingBeerLiquor) return;
+    setIsCreatingBeerLiquor(true);
+    try {
+      const sessionId = await createSession('beer_liquor_list');
+      if (sessionId) navigate(`/admin/ingest/${sessionId}`);
+    } finally {
+      setIsCreatingBeerLiquor(false);
+    }
+  }, [isCreatingBeerLiquor, createSession, navigate]);
 
   const [sessions, setSessions] = useState<IngestionSession[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<StatusFilter>('all');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [beerLiquorCount, setBeerLiquorCount] = useState<number>(0);
 
   // Bulk selection mode
   const [isSelectMode, setIsSelectMode] = useState(false);
@@ -317,9 +390,20 @@ function IngestDashboard() {
   // Whether any non-default filter is active
   const hasActiveFilters = activeFilter !== 'all' || activeCategoryFilter !== 'all' || searchQuery !== '';
 
-  // Apply category + search filters client-side on top of the status-filtered sessions
+  // Fetch beer/liquor item count once on mount
+  useEffect(() => {
+    supabase
+      .from('beer_liquor_list')
+      .select('id', { count: 'exact', head: true })
+      .then(({ count }) => {
+        setBeerLiquorCount(count ?? 0);
+      });
+  }, []);
+
+  // Apply category + search filters client-side; beer_liquor_list sessions are always excluded
+  // (they are represented by the single BeerLiquorHubCard instead)
   const filteredSessions = useMemo(() => {
-    let result = sessions;
+    let result = sessions.filter((s) => s.productTable !== 'beer_liquor_list');
     if (activeCategoryFilter !== 'all') {
       result = result.filter((s) => s.productTable === activeCategoryFilter);
     }
@@ -333,6 +417,11 @@ function IngestDashboard() {
     }
     return result;
   }, [sessions, activeCategoryFilter, searchQuery]);
+
+  // Whether to show the Beer/Liquor hub card (only when not filtering to another type)
+  const showBeerLiquorHub =
+    beerLiquorCount > 0 &&
+    (activeCategoryFilter === 'all' || activeCategoryFilter === 'beer_liquor_list');
 
   // Exit select mode and clear selection when filters change (prevent discarding invisible sessions)
   useEffect(() => {
@@ -369,18 +458,91 @@ function IngestDashboard() {
     }
   };
 
-  // Single discard from card
+  // Map product table → React Query cache key so we can bust the right cache
+  const TABLE_CACHE_KEY: Record<string, string> = {
+    prep_recipes: 'recipes',
+    plate_specs: 'plate_specs',
+    foh_plate_specs: 'dishes',
+    wines: 'wines',
+    cocktails: 'cocktails',
+    beer_liquor_list: 'beer-liquor',
+  };
+
+  // Delete the product row(s) linked to a session.
+  // Uses TWO strategies so either gap is covered:
+  //   1. Delete by productId   — fast path when session.product_id was set correctly
+  //   2. Delete by source_session_id — catches cases where product_id was never written
+  //      back to the session row (e.g. sessionId was null during publish)
+  // For plate_specs sessions, the linked foh_plate_specs row is deleted FIRST
+  // (before the plate_specs row) so the FK cascade doesn't beat us to it and
+  // the dishes cache is properly invalidated.
+  const deleteLinkedProduct = useCallback(async (session: IngestionSession) => {
+    if (!session.productTable) return;
+    const table = session.productTable as any;
+
+    // For plate_specs: cascade-delete the linked FOH dish guide BEFORE deleting
+    // the BOH row. Deleting plate_specs first would immediately SET NULL on
+    // foh_plate_specs.plate_spec_id (old behaviour) or cascade-delete it (new
+    // behaviour after migration), so the explicit lookup must happen first.
+    if (session.productTable === 'plate_specs') {
+      if (session.productId) {
+        await supabase.from('foh_plate_specs').delete().eq('plate_spec_id', session.productId);
+      }
+      // Belt-and-suspenders: catch dish guides linked via session backlink
+      await supabase.from('foh_plate_specs').delete().eq('source_session_id', session.id);
+      queryClient.invalidateQueries({ queryKey: ['dishes'] });
+    }
+
+    if (session.productId) {
+      await supabase.from(table).delete().eq('id', session.productId);
+    }
+    // Belt-and-suspenders: remove any product whose source_session_id points here
+    await supabase.from(table).delete().eq('source_session_id', session.id);
+
+    const cacheKey = TABLE_CACHE_KEY[session.productTable];
+    if (cacheKey) queryClient.invalidateQueries({ queryKey: [cacheKey] });
+  }, [queryClient]);
+
+  // Single discard from card — deletes linked product then marks session abandoned
   const handleDiscardSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session) await deleteLinkedProduct(session);
     const ok = await discardSession(sessionId);
     if (ok) {
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     }
-  }, [discardSession]);
+  }, [sessions, deleteLinkedProduct, discardSession]);
 
-  // Bulk discard
+  // Bulk discard — deletes linked products then marks all selected sessions abandoned
   const handleBulkDiscard = useCallback(async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+
+    // Delete products for every selected session that has a product table.
+    // Group by table (productId path) + run source_session_id sweep per table.
+    const selectedSessions = sessions.filter((s) => selectedIds.has(s.id) && s.productTable);
+    const byTable = new Map<string, { productIds: string[]; sessionIds: string[] }>();
+    for (const s of selectedSessions) {
+      if (!byTable.has(s.productTable)) byTable.set(s.productTable, { productIds: [], sessionIds: [] });
+      const entry = byTable.get(s.productTable)!;
+      if (s.productId) entry.productIds.push(s.productId);
+      entry.sessionIds.push(s.id);
+    }
+    for (const [table, { productIds, sessionIds }] of byTable.entries()) {
+      // For plate_specs: delete linked foh_plate_specs BEFORE deleting plate_specs rows
+      // so the explicit lookup finds them before any FK cascade runs.
+      if (table === 'plate_specs') {
+        if (productIds.length) {
+          await supabase.from('foh_plate_specs').delete().in('plate_spec_id', productIds);
+        }
+        await supabase.from('foh_plate_specs').delete().in('source_session_id', sessionIds);
+        queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      }
+      if (productIds.length) await supabase.from(table as any).delete().in('id', productIds);
+      await supabase.from(table as any).delete().in('source_session_id', sessionIds);
+      const cacheKey = TABLE_CACHE_KEY[table];
+      if (cacheKey) queryClient.invalidateQueries({ queryKey: [cacheKey] });
+    }
 
     const ok = await discardSessions(ids);
     if (ok) {
@@ -388,7 +550,7 @@ function IngestDashboard() {
       setSelectedIds(new Set());
       setIsSelectMode(false);
     }
-  }, [selectedIds, discardSessions]);
+  }, [selectedIds, sessions, queryClient, discardSessions]);
 
   // Toggle selection of a session
   const handleToggleSelect = useCallback((sessionId: string) => {
@@ -461,14 +623,15 @@ function IngestDashboard() {
                       disabled={selectedIds.size === 0}
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
-                      Discard Selected ({selectedIds.size})
+                      Delete Selected ({selectedIds.size})
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Discard {selectedIds.size} draft(s)?</AlertDialogTitle>
+                      <AlertDialogTitle>Remove {selectedIds.size} session{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This cannot be undone. The selected drafts and their chat history will be discarded.
+                        Drafts will be discarded. Published sessions will also permanently delete the linked
+                        product (wine, recipe, etc.). This cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -487,12 +650,13 @@ function IngestDashboard() {
               <>
                 {hasLoaded && filteredSessions.some(isDiscardable) && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setIsSelectMode(true)}
+                    className="bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
                   >
-                    <CheckSquare className="w-4 h-4 mr-1" />
-                    Select
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    Bulk Delete
                   </Button>
                 )}
                 <Button onClick={handleNavigateNew} className="bg-orange-500 hover:bg-orange-600 text-white">
@@ -590,8 +754,8 @@ function IngestDashboard() {
         {/* Content: loading / empty / session list */}
         {isLoading && !hasLoaded ? (
           <SessionListSkeleton />
-        ) : hasLoaded && filteredSessions.length === 0 ? (
-          sessions.length === 0 ? (
+        ) : hasLoaded && filteredSessions.length === 0 && !showBeerLiquorHub ? (
+          sessions.length === 0 && beerLiquorCount === 0 ? (
             <EmptyState onCreateNew={handleNavigateNew} />
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -607,6 +771,13 @@ function IngestDashboard() {
           )
         ) : (
           <div className="space-y-3">
+            {showBeerLiquorHub && (
+              <BeerLiquorHubCard
+                itemCount={beerLiquorCount}
+                onClick={handleBeerLiquorHubClick}
+                isLoading={isCreatingBeerLiquor}
+              />
+            )}
             {filteredSessions.map((session) => (
               <SessionCard
                 key={session.id}

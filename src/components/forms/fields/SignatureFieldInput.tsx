@@ -12,6 +12,37 @@ import { Eraser, Check, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { FormFieldDefinition, SignatureValue } from '@/types/forms';
 
+/** Trim whitespace from a canvas — inline replacement for broken trim-canvas ESM export */
+function trimCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+  const { width, height } = canvas;
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+
+  const bound = { top: height, left: width, right: 0, bottom: 0 };
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (pixels[(y * width + x) * 4 + 3] > 0) {
+        if (y < bound.top) bound.top = y;
+        if (y > bound.bottom) bound.bottom = y;
+        if (x < bound.left) bound.left = x;
+        if (x > bound.right) bound.right = x;
+      }
+    }
+  }
+
+  const trimW = bound.right - bound.left + 1;
+  const trimH = bound.bottom - bound.top + 1;
+  if (trimW <= 0 || trimH <= 0) return canvas;
+
+  const trimmed = ctx.getImageData(bound.left, bound.top, trimW, trimH);
+  canvas.width = trimW;
+  canvas.height = trimH;
+  ctx.clearRect(0, 0, trimW, trimH);
+  ctx.putImageData(trimmed, 0, 0);
+  return canvas;
+}
+
 interface SignatureFieldInputProps {
   field: FormFieldDefinition;
   value: SignatureValue | null;
@@ -39,7 +70,14 @@ export function SignatureFieldInput({
   const handleConfirm = useCallback(() => {
     if (!sigRef.current || sigRef.current.isEmpty()) return;
 
-    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png');
+    // Get the underlying canvas and trim whitespace manually
+    // (avoids broken trim-canvas ESM default export in Vite)
+    const rawCanvas = sigRef.current.getCanvas();
+    const copy = document.createElement('canvas');
+    copy.width = rawCanvas.width;
+    copy.height = rawCanvas.height;
+    copy.getContext('2d')!.drawImage(rawCanvas, 0, 0);
+    const dataUrl = trimCanvas(copy).toDataURL('image/png');
     onChange({
       url: dataUrl,
       signed_at: new Date().toISOString(),

@@ -18,6 +18,7 @@ import {
   FileText,
   Globe,
   GlobeLock,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -41,7 +42,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminFormTemplates } from '@/hooks/useAdminFormTemplates';
 import { useAuth } from '@/components/auth';
@@ -89,6 +92,12 @@ const STRINGS = {
     unarchiveSuccess: 'Template unarchived',
     deleteSuccess: 'Template deleted',
     lastUpdated: 'Updated',
+    bulkDelete: 'Bulk Delete',
+    bulkDeleteTitle: 'Delete templates?',
+    bulkDeleteDesc: 'This permanently removes the selected templates. Templates with submissions cannot be deleted.',
+    bulkDeleteConfirm: 'Delete',
+    bulkDeleteCancel: 'Cancel',
+    bulkDeleteSuccess: 'Templates deleted',
   },
   es: {
     title: 'Plantillas de Formularios',
@@ -124,6 +133,12 @@ const STRINGS = {
     unarchiveSuccess: 'Plantilla desarchivada',
     deleteSuccess: 'Plantilla eliminada',
     lastUpdated: 'Actualizado',
+    bulkDelete: 'Eliminar en Lote',
+    bulkDeleteTitle: 'Eliminar plantillas?',
+    bulkDeleteDesc: 'Esto elimina permanentemente las plantillas seleccionadas. Las plantillas con envios no se pueden eliminar.',
+    bulkDeleteConfirm: 'Eliminar',
+    bulkDeleteCancel: 'Cancelar',
+    bulkDeleteSuccess: 'Plantillas eliminadas',
   },
 };
 
@@ -178,6 +193,8 @@ export default function AdminFormsListPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<FormTemplate | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const groupId = useGroupId();
 
   // Filter templates
@@ -332,6 +349,58 @@ export default function AdminFormsListPage() {
     [refetch, t.deleteSuccess, t.deleteBlocked],
   );
 
+  // Bulk select handlers
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleExitSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    try {
+      // Check for templates with submissions
+      const { data: withSubs } = await supabase
+        .from('form_submissions')
+        .select('template_id')
+        .in('template_id', ids);
+
+      const blockedIds = new Set((withSubs ?? []).map((r) => r.template_id));
+      const deletableIds = ids.filter((id) => !blockedIds.has(id));
+
+      if (blockedIds.size > 0) {
+        toast.error(t.deleteBlocked);
+      }
+
+      if (deletableIds.length > 0) {
+        const { error: delError } = await supabase
+          .from('form_templates')
+          .delete()
+          .in('id', deletableIds);
+
+        if (delError) throw delError;
+
+        toast.success(`${t.bulkDeleteSuccess} (${deletableIds.length})`);
+        refetch();
+      }
+
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+    } catch (err) {
+      console.error('[AdminFormsList] Bulk delete error:', err);
+      toast.error(err instanceof Error ? err.message : 'Bulk delete failed');
+    }
+  }, [selectedIds, refetch, t.deleteBlocked, t.bulkDeleteSuccess]);
+
   // Determine empty state type
   const hasTemplates = templates.length > 0;
   const hasResults = filtered.length > 0;
@@ -347,10 +416,63 @@ export default function AdminFormsListPage() {
             </Button>
             <h1 className="text-lg font-semibold">{t.title}</h1>
           </div>
-          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            {t.createNew}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isSelectMode ? (
+              <button
+                type="button"
+                onClick={() => setIsSelectMode(true)}
+                className="flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label={t.bulkDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">{t.bulkDelete}</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleExitSelectMode}
+                  className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Cancel"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t.cancel}
+                </button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={selectedIds.size === 0}
+                      className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-medium bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      aria-label={`Delete ${selectedIds.size} selected`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t.delete} ({selectedIds.size})
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>{t.bulkDeleteTitle}</AlertDialogTitle>
+                      <AlertDialogDescription>{t.bulkDeleteDesc}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t.bulkDeleteCancel}</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleBulkDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {t.bulkDeleteConfirm} ({selectedIds.size})
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+            <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              {t.createNew}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -434,6 +556,9 @@ export default function AdminFormsListPage() {
                 template={template}
                 language={lang}
                 t={t}
+                isSelectMode={isSelectMode}
+                isSelected={selectedIds.has(template.id)}
+                onToggleSelect={() => handleToggleSelect(template.id)}
                 onEdit={() => navigate(`/admin/forms/${template.id}/edit`)}
                 onDuplicate={() => handleDuplicate(template)}
                 onPublishToggle={() => handlePublishToggle(template)}
@@ -490,6 +615,9 @@ interface TemplateCardProps {
   template: FormTemplate;
   language: 'en' | 'es';
   t: (typeof STRINGS)['en'];
+  isSelectMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
   onPublishToggle: () => void;
@@ -501,6 +629,9 @@ function TemplateCard({
   template,
   language,
   t,
+  isSelectMode,
+  isSelected,
+  onToggleSelect,
   onEdit,
   onDuplicate,
   onPublishToggle,
@@ -514,7 +645,9 @@ function TemplateCard({
 
   return (
     <div
-      onClick={onEdit}
+      onClick={isSelectMode ? onToggleSelect : onEdit}
+      role={isSelectMode ? 'checkbox' : undefined}
+      aria-checked={isSelectMode ? isSelected : undefined}
       className={cn(
         'group relative cursor-pointer',
         'rounded-[20px]',
@@ -523,10 +656,22 @@ function TemplateCard({
         'bg-card',
         'transition-shadow duration-200',
         'p-4',
+        isSelectMode && isSelected && 'ring-2 ring-primary bg-primary/5',
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
+          {/* Checkbox in select mode */}
+          {isSelectMode && (
+            <span className="shrink-0 pt-1 flex items-center justify-center pointer-events-none">
+              <Checkbox
+                checked={isSelected}
+                aria-hidden="true"
+                tabIndex={-1}
+                className="pointer-events-none"
+              />
+            </span>
+          )}
           {/* Icon tile */}
           <div
             className={cn(
@@ -567,13 +712,14 @@ function TemplateCard({
           </div>
         </div>
 
-        {/* Actions dropdown */}
+        {/* Actions dropdown — hidden in select mode */}
+        {!isSelectMode && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+              className="h-8 w-8 shrink-0"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
@@ -639,6 +785,7 @@ function TemplateCard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
     </div>
   );

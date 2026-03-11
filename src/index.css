@@ -416,6 +416,11 @@
     border-color: hsl(var(--primary) / 0.4);
     transition: border-color 0.3s ease;
   }
+
+  .ai-phase-animation {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* =============================================================================
@@ -429,18 +434,22 @@
   aside,
   nav,
   .no-print,
-  button,
   [role="tablist"],
   [data-radix-scroll-area-viewport] {
     display: none !important;
   }
-  
+
+  /* Hide buttons EXCEPT inside .print-form-content (form field values) */
+  button:not(.print-form-content button) {
+    display: none !important;
+  }
+
   /* Reset colors for print */
   body {
     background: white !important;
     color: black !important;
   }
-  
+
   /* Full width content */
   main {
     width: 100% !important;
@@ -448,36 +457,69 @@
     margin: 0 !important;
     padding: 0 !important;
   }
-  
+
   /* Cards without shadows */
   .card,
   [class*="Card"] {
     box-shadow: none !important;
     border: 1px solid #ccc !important;
   }
-  
+
   /* Ensure headings stay with content */
   h1, h2, h3, h4 {
     page-break-after: avoid;
     break-after: avoid;
   }
-  
+
   /* Prevent page breaks inside elements */
   p, li, tr, blockquote {
     page-break-inside: avoid;
     break-inside: avoid;
   }
-  
+
   /* Tables fit on page */
   table {
     width: 100% !important;
     font-size: 10pt;
   }
-  
+
   /* Show link URLs */
   a[href^="http"]:after {
     content: " (" attr(href) ")";
     font-size: 0.8em;
     color: #666;
+  }
+
+  /* -------------------------------------------------------------------------
+     Filing Cabinet — Print-optimized form viewer
+  ------------------------------------------------------------------------- */
+
+  /* Hide Radix dialog overlay */
+  [data-radix-portal],
+  [data-radix-overlay] {
+    background: transparent !important;
+  }
+
+  /* Make Sheet content static and full-width */
+  [data-radix-portal] [role="dialog"] {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  /* Hide the results panel (right side list) */
+  .filing-cabinet-results-panel {
+    display: none !important;
+  }
+
+  /* Keep form sections together on page */
+  .print-form-content > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

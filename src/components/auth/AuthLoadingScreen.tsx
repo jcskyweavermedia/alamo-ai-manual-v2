@@ -11,14 +11,23 @@ import { Loader2 } from 'lucide-react';
 // COMPONENT
 // =============================================================================
 
+const STRINGS = {
+  en: { loading: 'Loading...' },
+  es: { loading: 'Cargando...' },
+} as const;
+
 interface AuthLoadingScreenProps {
   /** Loading message to display */
   message?: string;
+  /** Language for default strings (default: 'en') */
+  language?: 'en' | 'es';
 }
 
-export function AuthLoadingScreen({ 
-  message = 'Loading...' 
+export function AuthLoadingScreen({
+  message,
+  language = 'en',
 }: AuthLoadingScreenProps) {
+  const resolvedMessage = message ?? STRINGS[language].loading;
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-md">
@@ -27,7 +36,7 @@ export function AuthLoadingScreen({
         
         {/* Message */}
         <p className="text-body text-muted-foreground animate-pulse">
-          {message}
+          {resolvedMessage}
         </p>
       </div>
     </div>

@@ -1,17 +1,24 @@
 // =============================================================================
 // ElementPalette — Left panel: draggable element types
+// 3 groups: Elements, Callouts, Media & Embed
 // Drag to canvas for insert, click to append.
 // =============================================================================
 
 import { useDraggable } from '@dnd-kit/core';
 import {
   FileText,
+  Heading2,
+  LayoutGrid,
+  ArrowLeftRight,
+  MessageSquareQuote,
+  CaseSensitive,
   Lightbulb,
   CheckCircle,
   AlertTriangle,
   ShieldAlert,
   Sparkles,
   Star,
+  Megaphone,
   Image as ImageIcon,
   Eye,
 } from 'lucide-react';
@@ -27,25 +34,41 @@ export const COURSE_PALETTE_DRAG_PREFIX = 'course-palette::';
 const STRINGS = {
   en: {
     elements: 'Elements',
+    callouts: 'Callouts',
+    mediaEmbed: 'Media & Embed',
+    pageHeader: 'Page Header',
     content: 'Content',
+    sectionHeader: 'Section Header',
+    cardGrid: 'Card Grid',
+    comparison: 'Comparison',
+    scriptBlock: 'Script Block',
     tip: 'Tip',
     bestPractice: 'Best Practice',
     caution: 'Caution',
     warning: 'Warning',
     didYouKnow: 'Did You Know?',
     keyPoint: 'Key Point',
+    standout: 'Standout',
     media: 'Media',
     product: 'Product',
   },
   es: {
     elements: 'Elementos',
+    callouts: 'Destacados',
+    mediaEmbed: 'Media y Ref.',
+    pageHeader: 'Encabezado',
     content: 'Contenido',
+    sectionHeader: 'Sub-Sección',
+    cardGrid: 'Tarjetas',
+    comparison: 'Comparación',
+    scriptBlock: 'Script',
     tip: 'Consejo',
-    bestPractice: 'Mejor Practica',
-    caution: 'Precaucion',
+    bestPractice: 'Mejor Práctica',
+    caution: 'Precaución',
     warning: 'Advertencia',
-    didYouKnow: 'Sabias Que?',
+    didYouKnow: '¿Sabías Que?',
     keyPoint: 'Punto Clave',
+    standout: 'Destacado',
     media: 'Multimedia',
     product: 'Producto',
   },
@@ -60,18 +83,30 @@ interface PaletteItem {
   colorClass: string;
 }
 
-const PALETTE_ITEMS: PaletteItem[] = [
+// --- Elements group ---
+const ELEMENT_ITEMS: PaletteItem[] = [
+  { id: 'page_header', type: 'page_header', labelKey: 'pageHeader', icon: CaseSensitive, colorClass: 'text-orange-500' },
   { id: 'content', type: 'content', labelKey: 'content', icon: FileText, colorClass: 'text-slate-600' },
+  { id: 'section_header', type: 'section_header', labelKey: 'sectionHeader', icon: Heading2, colorClass: 'text-slate-600' },
+  { id: 'card_grid', type: 'card_grid', labelKey: 'cardGrid', icon: LayoutGrid, colorClass: 'text-green-500' },
+  { id: 'comparison', type: 'comparison', labelKey: 'comparison', icon: ArrowLeftRight, colorClass: 'text-amber-500' },
+  { id: 'script_block', type: 'script_block', labelKey: 'scriptBlock', icon: MessageSquareQuote, colorClass: 'text-blue-500' },
+];
+
+// --- Callouts group (feature variants) ---
+const CALLOUT_ITEMS: PaletteItem[] = [
   { id: 'feature:tip', type: 'feature', variant: 'tip', labelKey: 'tip', icon: Lightbulb, colorClass: 'text-blue-500' },
   { id: 'feature:best_practice', type: 'feature', variant: 'best_practice', labelKey: 'bestPractice', icon: CheckCircle, colorClass: 'text-green-500' },
   { id: 'feature:caution', type: 'feature', variant: 'caution', labelKey: 'caution', icon: AlertTriangle, colorClass: 'text-amber-500' },
   { id: 'feature:warning', type: 'feature', variant: 'warning', labelKey: 'warning', icon: ShieldAlert, colorClass: 'text-red-500' },
-  { id: 'feature:did_you_know', type: 'feature', variant: 'did_you_know', labelKey: 'didYouKnow', icon: Sparkles, colorClass: 'text-purple-500' },
+  { id: 'feature:did_you_know', type: 'feature', variant: 'did_you_know', labelKey: 'didYouKnow', icon: Sparkles, colorClass: 'text-orange-500' },
   { id: 'feature:key_point', type: 'feature', variant: 'key_point', labelKey: 'keyPoint', icon: Star, colorClass: 'text-indigo-500' },
-  { id: 'media', type: 'media', labelKey: 'media', icon: ImageIcon, colorClass: 'text-slate-600' },
+  { id: 'feature:standout', type: 'feature', variant: 'standout', labelKey: 'standout', icon: Megaphone, colorClass: 'text-orange-500' },
 ];
 
-const EMBED_ITEMS: PaletteItem[] = [
+// --- Media & Embed group ---
+const MEDIA_ITEMS: PaletteItem[] = [
+  { id: 'media', type: 'media', labelKey: 'media', icon: ImageIcon, colorClass: 'text-slate-600' },
   { id: 'product_viewer', type: 'product_viewer', labelKey: 'product', icon: Eye, colorClass: 'text-teal-500' },
 ];
 
@@ -130,10 +165,11 @@ export function ElementPalette({ language, onClickAdd }: ElementPaletteProps) {
 
   return (
     <div className="p-3 space-y-1">
+      {/* Elements group */}
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">
         {t.elements}
       </h3>
-      {PALETTE_ITEMS.map((item) => (
+      {ELEMENT_ITEMS.map((item) => (
         <PaletteTile
           key={item.id}
           item={item}
@@ -141,10 +177,25 @@ export function ElementPalette({ language, onClickAdd }: ElementPaletteProps) {
           onClick={() => onClickAdd(item.type, item.variant)}
         />
       ))}
+
+      {/* Callouts group */}
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mt-3 mb-2">
-        {language === 'es' ? 'Referencia' : 'Embed'}
+        {t.callouts}
       </h3>
-      {EMBED_ITEMS.map((item) => (
+      {CALLOUT_ITEMS.map((item) => (
+        <PaletteTile
+          key={item.id}
+          item={item}
+          language={language}
+          onClick={() => onClickAdd(item.type, item.variant)}
+        />
+      ))}
+
+      {/* Media & Embed group */}
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mt-3 mb-2">
+        {t.mediaEmbed}
+      </h3>
+      {MEDIA_ITEMS.map((item) => (
         <PaletteTile
           key={item.id}
           item={item}

@@ -12,6 +12,17 @@ interface ImagesEditorProps {
   productTable?: string;
 }
 
+/** Maps plate spec type to a surface category for DALL-E prompting. */
+function derivePlateCategory(plateType: string, name: string): string {
+  const n = (name || '').toLowerCase();
+  if (/shrimp|lobster|salmon|tuna|halibut|cod|crab|oyster|scallop|\bfish\b|seafood/.test(n)) return 'seafood';
+  const pt = (plateType || '').toLowerCase();
+  if (pt === 'appetizer' || pt === 'starter') return 'appetizer';
+  if (pt === 'salad') return 'salad';
+  if (pt === 'dessert') return 'dessert';
+  return 'entree';
+}
+
 export function ImagesEditor({ productTable = 'prep_recipes' }: ImagesEditorProps) {
   const { state, dispatch } = useIngestDraft();
   const { draft } = state;
@@ -57,11 +68,14 @@ export function ImagesEditor({ productTable = 'prep_recipes' }: ImagesEditorProp
         ].filter(Boolean).join(', ')
       : draft.tags.join(', ');
 
+    const plateType = isPlateSpec ? ('plateType' in draft ? (draft as { plateType: string }).plateType : '') : '';
+
     const result = await generateImage({
       productTable,
       name: draft.name,
-      prepType: isPlateSpec ? ('plateType' in draft ? (draft as { plateType: string }).plateType : '') : draft.prepType,
+      prepType: isPlateSpec ? plateType : draft.prepType,
       description,
+      category: isPlateSpec ? derivePlateCategory(plateType, draft.name) : undefined,
       sessionId: state.sessionId || undefined,
     });
 

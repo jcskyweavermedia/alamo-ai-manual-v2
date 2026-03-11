@@ -7,6 +7,15 @@ import { useGenerateImage } from '@/hooks/use-generate-image';
 import { useToast } from '@/hooks/use-toast';
 import type { CocktailDraft } from '@/types/ingestion';
 
+/** Maps cocktail key ingredients to a visual mood for DALL-E prompting. */
+function detectCocktailMood(keyIngredients: string): string {
+  const text = (keyIngredients || '').toLowerCase();
+  if (/bourbon|whiskey|whisky|rye|brandy|scotch|cognac/.test(text)) return 'amber';
+  if (/rum|coconut|pineapple|mango|tropical|passion fruit/.test(text)) return 'tropical';
+  if (/espresso|coffee|kahlúa|kahlua|baileys|cream liqueur|chocolate/.test(text)) return 'midnight';
+  return 'bright';
+}
+
 export function CocktailImageEditor() {
   const { state, dispatch } = useIngestDraft();
   const draft = state.draft as CocktailDraft;
@@ -44,6 +53,7 @@ export function CocktailImageEditor() {
       name: draft.name,
       prepType: draft.style,
       description: draft.keyIngredients,
+      category: detectCocktailMood(draft.keyIngredients || ''),
       sessionId: state.sessionId || undefined,
     });
 

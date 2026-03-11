@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useLanguage } from '@/hooks/use-language';
 import { toast } from 'sonner';
-import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft } from '@/types/ingestion';
+import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft, BeerLiquorDraft } from '@/types/ingestion';
 
 // =============================================================================
 // TYPES
@@ -18,8 +18,10 @@ import type { PrepRecipeDraft, WineDraft, CocktailDraft, PlateSpecDraft } from '
 
 interface ChatResult {
   message: string;
-  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | null;
+  draft: PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | BeerLiquorDraft | null;
   sessionId: string;
+  draftVersion?: number;
+  hasUpdates?: boolean;
   confidence?: number;
   missingFields?: string[];
 }
@@ -82,8 +84,10 @@ export function useIngestChat(productTable: string = 'prep_recipes', department?
 
         return {
           message: data.message as string,
-          draft: (data.draft as PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft) ?? null,
+          draft: (data.draft as PrepRecipeDraft | WineDraft | CocktailDraft | PlateSpecDraft | BeerLiquorDraft) ?? null,
           sessionId: data.sessionId as string,
+          draftVersion: data.draftVersion as number | undefined,
+          hasUpdates: data.hasUpdates as boolean | undefined,
           confidence: data.confidence as number | undefined,
           missingFields: data.missingFields as string[] | undefined,
         };

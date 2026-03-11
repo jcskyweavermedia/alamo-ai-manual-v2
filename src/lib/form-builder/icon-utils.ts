@@ -61,6 +61,7 @@ export const ICON_COLORS: Record<string, { bg: string; darkBg: string }> = {
 
 export const LEGACY_ICON_MAP: Record<string, { emoji: string; color: string }> = {
   ClipboardList:    { emoji: '\u{1F4CB}', color: 'blue' },
+  ClipboardCheck:   { emoji: '\u2705', color: 'green' },
   FileText:         { emoji: '\u{1F4C4}', color: 'blue' },
   AlertTriangle:    { emoji: '\u26A0\uFE0F', color: 'amber' },
   Thermometer:      { emoji: '\u{1F321}\uFE0F', color: 'red' },

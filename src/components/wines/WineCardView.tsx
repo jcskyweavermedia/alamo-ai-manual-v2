@@ -10,6 +10,19 @@ import { PRODUCT_AI_ACTIONS } from '@/data/ai-action-config';
 import { AI_ACTION_ICONS } from '@/data/ai-action-icons';
 import { useAuth } from '@/hooks/use-auth';
 import { useNavigate } from 'react-router-dom';
+import type { Language } from '@/hooks/use-language';
+import { getCommon } from '@/lib/common-strings';
+
+const STRINGS = {
+  en: {
+    tastingNotes: 'Tasting Notes',
+    producerFunFacts: 'Producer Fun Facts',
+  },
+  es: {
+    tastingNotes: 'Notas de Cata',
+    producerFunFacts: 'Datos del Productor',
+  },
+} as const;
 
 interface WineCardViewProps {
   wine: Wine;
@@ -18,12 +31,15 @@ interface WineCardViewProps {
   onNext?: () => void;
   activeAction: string | null;
   onActionChange: (action: string | null) => void;
+  language: Language;
 }
 
-export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onActionChange }: WineCardViewProps) {
+export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onActionChange, language }: WineCardViewProps) {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const t = STRINGS[language];
+  const c = getCommon(language);
 
   const { ref: swipeRef } = useSwipeNavigation({
     onSwipeLeft: onNext,
@@ -53,7 +69,7 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
               onClick={(e) => { e.stopPropagation(); navigate(`/admin/ingest/edit/wines/${wine.id}`); }}
               title="Edit product"
             >
-              <span className="text-[14px] leading-none">✏️</span>
+              <span className="text-[14px] leading-none">{'\u270F\uFE0F'}</span>
             </Button>
           )}
         </div>
@@ -63,14 +79,14 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
           <div className="flex items-center gap-3">
             {wine.isTopSeller && (
               <div className="flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400">
-                <span className="text-[16px] h-[16px] leading-[16px]">⭐</span>
-                <span>Top Seller</span>
+                <span className="text-[16px] h-[16px] leading-[16px]">{'\u2B50'}</span>
+                <span>{c.topSeller}</span>
               </div>
             )}
             {wine.isFeatured && (
               <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                <span className="text-[16px] h-[16px] leading-[16px]">✨</span>
-                <span>Featured</span>
+                <span className="text-[16px] h-[16px] leading-[16px]">{'\u2728'}</span>
+                <span>{c.featured}</span>
               </div>
             )}
           </div>
@@ -79,16 +95,16 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
         {/* Sub-meta row */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>{wine.producer}</span>
-          <span className="text-border">·</span>
+          <span className="text-border">&middot;</span>
           <span>{wine.region}, {wine.country}</span>
-          <span className="text-border">·</span>
+          <span className="text-border">&middot;</span>
           <span>{vintageLabel}</span>
         </div>
 
         {/* Grape + body row */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-sm text-foreground">{wine.varietal}</span>
-          <span className="text-border">·</span>
+          <span className="text-border">&middot;</span>
           <BodyIndicator body={wine.body} />
         </div>
       </div>
@@ -168,10 +184,10 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
                 'w-10 h-10 rounded-full',
                 'bg-red-100 dark:bg-red-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">🍷</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83C\uDF77'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Tasting Notes
+                {t.tastingNotes}
               </h2>
               <p className="text-sm leading-relaxed text-foreground">
                 {wine.tastingNotes}
@@ -188,10 +204,10 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
                 'w-10 h-10 rounded-full',
                 'bg-amber-100 dark:bg-amber-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">🏰</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83C\uDFF0'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Producer Fun Facts
+                {t.producerFunFacts}
               </h2>
               <p className="text-sm leading-relaxed text-foreground">
                 {wine.producerNotes}
@@ -208,10 +224,10 @@ export function WineCardView({ wine, onBack, onPrev, onNext, activeAction, onAct
                 'w-10 h-10 rounded-full',
                 'bg-green-100 dark:bg-green-900/30'
               )}>
-                <span className="text-[22px] h-[22px] leading-[22px]">📝</span>
+                <span className="text-[22px] h-[22px] leading-[22px]">{'\uD83D\uDCDD'}</span>
               </span>
               <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
-                Notes
+                {c.notes}
               </h2>
               <p className="text-sm leading-relaxed text-foreground">
                 {wine.notes}
