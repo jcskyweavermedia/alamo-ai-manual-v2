@@ -56,7 +56,7 @@ function CardItem({
           {language === 'es' ? 'Español' : 'English'}
         </div>
         <div className="text-[13px] text-muted-foreground leading-[1.5] [&_p]:m-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>
+          {body && <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>}
         </div>
       </div>
     );
@@ -73,7 +73,7 @@ function CardItem({
         {card.icon && <span className="text-[2rem] mb-2.5 block">{card.icon}</span>}
         <h4 className="text-[15px] font-bold text-foreground mb-1 leading-[1.3]">{title}</h4>
         <div className="text-[13px] text-muted-foreground leading-[1.5] [&_p]:m-0">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>
+          {body && <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>}
         </div>
       </div>
     );
@@ -92,7 +92,7 @@ function CardItem({
       )}
       <h4 className="text-sm font-bold text-foreground mb-1 leading-[1.3]">{title}</h4>
       <div className="text-[13px] text-muted-foreground leading-[1.5] [&_p]:m-0">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>
+        {body && <ReactMarkdown remarkPlugins={[remarkGfm]} components={courseMdComponents}>{body}</ReactMarkdown>}
       </div>
     </div>
   );

@@ -24,16 +24,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchPromptBySlug, assembleSystemPrompt, MODE_SLUG_MAP } from "../_shared/prompt-helpers.ts";
-
-// =============================================================================
-// CORS
-// =============================================================================
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { AI_UNAVAILABLE_MESSAGE } from "../_shared/openai.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // =============================================================================
 // TYPES
@@ -47,6 +39,7 @@ type ContextType =
   | "recipes"
   | "beer_liquor"
   | "training"
+  | "training_manager"
   | "forms";
 
 const VALID_CONTEXTS: ContextType[] = [
@@ -57,6 +50,7 @@ const VALID_CONTEXTS: ContextType[] = [
   "recipes",
   "beer_liquor",
   "training",
+  "training_manager",
   "forms",
 ];
 
@@ -356,8 +350,162 @@ const SEARCH_TOOLS: any[] = [
 ];
 
 // =============================================================================
+// TRAINING MANAGER TOOL DEFINITIONS (OpenAI function calling)
+// =============================================================================
+
+// deno-lint-ignore no-explicit-any
+const TRAINING_MANAGER_TOOLS: any[] = [
+  {
+    type: "function",
+    function: {
+      name: "get_team_training_summary",
+      description:
+        "Get an overview of all employees and their training progress. Use for team-wide questions, department breakdowns, or general progress reports.",
+      parameters: {
+        type: "object",
+        properties: {
+          department: {
+            type: "string",
+            description:
+              "Filter by department: FOH, BOH, or Management. Omit for all departments.",
+          },
+          status: {
+            type: "string",
+            description:
+              "Filter by employment status: active, inactive, terminated, on_leave. Omit for all.",
+          },
+          limit: {
+            type: "integer",
+            description: "Max employees to return. Default 25.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_employee_training_detail",
+      description:
+        "Get detailed training history for a specific employee including course enrollments, scores, and evaluations. Use when the manager asks about a specific person.",
+      parameters: {
+        type: "object",
+        properties: {
+          employee_id: {
+            type: "string",
+            description:
+              "Employee UUID. Use if you know the exact ID.",
+          },
+          employee_name: {
+            type: "string",
+            description:
+              "Employee name for fuzzy search. Use when manager refers to someone by name.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_course_training_analytics",
+      description:
+        "Get enrollment statistics, grade distribution, and problem sections for a specific course. Use for course-level analysis.",
+      parameters: {
+        type: "object",
+        properties: {
+          course_id: {
+            type: "string",
+            description: "Course UUID to analyze.",
+          },
+        },
+        required: ["course_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_training_alerts",
+      description:
+        "Get overdue enrollments, stalled progress, failed assessments, and approaching deadlines. Use when asked about issues, problems, or what needs attention.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_program_completion_summary",
+      description:
+        "Get program-level completion progress per employee. Use for questions about program completion rates or who has/hasn't finished a program.",
+      parameters: {
+        type: "object",
+        properties: {
+          program_id: {
+            type: "string",
+            description: "Program UUID. Omit to get all programs.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_pending_actions",
+      description:
+        "Get pending training actions (auto-enrollment proposals, nudge suggestions) awaiting manager approval. Returns action details including employee name, program/course info, and suggested actions.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_recent_insights",
+      description:
+        "Get current training insights (weekly summaries, employee alerts, course health reports, milestones). Only shows non-superseded insights. Optionally filter by type: team_weekly, employee_alert, course_health, milestone.",
+      parameters: {
+        type: "object",
+        properties: {
+          insight_type: {
+            type: "string",
+            description:
+              "Optional filter: team_weekly, employee_alert, course_health, or milestone",
+            enum: [
+              "team_weekly",
+              "employee_alert",
+              "course_health",
+              "milestone",
+            ],
+          },
+        },
+        required: [],
+      },
+    },
+  },
+];
+
+// =============================================================================
 // HELPER: Response builders
 // =============================================================================
+
+// Captured per-request by the main handler, used by response builders.
+// NOTE: Module-level mutable state is safe here because Supabase Edge Functions
+// run one isolate per request -- there is no concurrent request sharing.
+// Threading the origin through 30+ call sites (including module-level helpers
+// like handleTrainingManagerDomain) would be disproportionately invasive.
+let _requestOrigin: string | null = null;
 
 function jsonResponse(
   data: UnifiedAskResponse | ErrorResponse,
@@ -365,7 +513,7 @@ function jsonResponse(
 ): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(_requestOrigin), "Content-Type": "application/json" },
   });
 }
 
@@ -429,7 +577,8 @@ async function executeSearch(
   fnName: string,
   searchQuery: string,
   queryEmbedding: number[] | null,
-  language: string
+  language: string,
+  groupId?: string
 ): Promise<SearchResult[]> {
   if (!queryEmbedding) {
     console.error(`[ask] No embedding for search (${fnName}), skipping`);
@@ -441,6 +590,7 @@ async function executeSearch(
     search_query: searchQuery,
     query_embedding: JSON.stringify(queryEmbedding),
     result_limit: 5,
+    p_group_id: groupId || null,
   };
 
   // search_manual_v2 has an extra search_language param
@@ -482,6 +632,80 @@ function formatSearchResults(results: SearchResult[]): string {
       return parts.join("\n");
     })
     .join("\n\n");
+}
+
+// =============================================================================
+// HELPER: executeTrainingManagerTool
+// =============================================================================
+
+async function executeTrainingManagerTool(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  toolName: string,
+  // deno-lint-ignore no-explicit-any
+  toolArgs: Record<string, any>,
+  groupId: string
+): Promise<string> {
+  // Map tool args to PG function params -- ALWAYS inject p_group_id server-side
+  // deno-lint-ignore no-explicit-any
+  const params: Record<string, any> = { p_group_id: groupId };
+
+  switch (toolName) {
+    case "get_team_training_summary":
+      if (toolArgs.department) params.p_department = toolArgs.department;
+      if (toolArgs.status) params.p_employment_status = toolArgs.status;
+      if (toolArgs.limit) params.p_limit = toolArgs.limit;
+      break;
+    case "get_employee_training_detail":
+      if (toolArgs.employee_id) params.p_employee_id = toolArgs.employee_id;
+      if (toolArgs.employee_name) params.p_employee_name = toolArgs.employee_name;
+      break;
+    case "get_course_training_analytics":
+      params.p_course_id = toolArgs.course_id;
+      break;
+    case "get_training_alerts":
+      // No additional params needed
+      break;
+    case "get_program_completion_summary":
+      if (toolArgs.program_id) params.p_program_id = toolArgs.program_id;
+      break;
+    case "get_pending_actions":
+      // No additional params needed -- p_group_id already injected
+      break;
+    case "get_recent_insights":
+      if (toolArgs.insight_type) params.p_insight_type = toolArgs.insight_type;
+      break;
+    default:
+      return `Unknown tool: ${toolName}`;
+  }
+
+  console.log(`[ask:training_manager] RPC ${toolName}`, JSON.stringify(params));
+
+  const { data, error } = await supabase.rpc(toolName, params);
+
+  if (error) {
+    console.error(`[ask:training_manager] RPC error (${toolName}):`, error.message);
+    return "Unable to retrieve the requested data. Please try again.";
+  }
+
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    return "No results found.";
+  }
+
+  // Format as compact readable text for the AI
+  if (Array.isArray(data)) {
+    return data
+      // deno-lint-ignore no-explicit-any
+      .map((row: any) => {
+        return Object.entries(row)
+          .filter(([_, v]) => v !== null && v !== undefined)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ");
+      })
+      .join("\n");
+  }
+
+  return JSON.stringify(data);
 }
 
 // =============================================================================
@@ -739,7 +963,8 @@ async function enrichWithMenuItems(
     "search_dishes",
     searchQuery,
     queryEmbedding,
-    "en"
+    "en",
+    groupId
   );
 
   if (!results.length) {
@@ -772,33 +997,52 @@ async function enrichWithMenuItems(
 // HELPER: callOpenAI
 // =============================================================================
 
+const RETRYABLE_STATUSES = new Set([429, 529, 503]);
+const MAX_RETRIES = 2;
+
 async function callOpenAI(
   apiKey: string,
   // deno-lint-ignore no-explicit-any
   params: Record<string, any>
   // deno-lint-ignore no-explicit-any
 ): Promise<any> {
-  const response = await fetch(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        ...params,
-      }),
-    }
-  );
+  let lastStatus = 0;
+  let lastBody = "";
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error ${response.status}: ${errorText}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000) + Math.random() * 500;
+      console.log(`[ask] OpenAI retry ${attempt}/${MAX_RETRIES} after ${Math.round(delayMs)}ms...`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-5.2",
+          ...params,
+        }),
+      }
+    );
+
+    if (response.ok) {
+      return response.json();
+    }
+
+    lastStatus = response.status;
+    lastBody = await response.text();
+    console.error(`[ask] OpenAI error ${lastStatus} (attempt ${attempt + 1}):`, lastBody);
+
+    if (!RETRYABLE_STATUSES.has(lastStatus)) break;
   }
 
-  return response.json();
+  throw new Error(`OpenAI API error ${lastStatus}: ${lastBody}`);
 }
 
 // =============================================================================
@@ -998,7 +1242,7 @@ async function handleTrainingDomain(
       let results: SearchResult[] = [];
       try {
         const queryEmbedding = await getQueryEmbedding(query);
-        results = await executeSearch(supabase, fnName, query, queryEmbedding, language);
+        results = await executeSearch(supabase, fnName, query, queryEmbedding, language, groupId);
       } catch (err) {
         console.error(`[ask:training] Tool ${fnName} error:`, err);
       }
@@ -1066,13 +1310,321 @@ async function handleTrainingDomain(
 }
 
 // =============================================================================
+// HELPER: handleTrainingManagerDomain
+// =============================================================================
+
+async function handleTrainingManagerDomain(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  apiKey: string,
+  userId: string,
+  groupId: string,
+  question: string,
+  language: "en" | "es",
+  incomingSessionId?: string
+): Promise<Response> {
+  // a) Role check -- only managers and admins
+  const { data: membership } = await supabase
+    .from("group_memberships")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("group_id", groupId)
+    .single();
+
+  if (!membership || !["manager", "admin"].includes(membership.role)) {
+    return errorResponse(
+      "forbidden",
+      "Training manager is only available to managers and admins",
+      403
+    );
+  }
+
+  // b) Usage check
+  const { data: usageData, error: usageError } = await supabase.rpc(
+    "get_user_usage",
+    { _user_id: userId, _group_id: groupId }
+  );
+
+  if (usageError) {
+    console.error("[ask:training_manager] Usage check error:", usageError.message);
+    return errorResponse("server_error", "Failed to check usage limits", 500);
+  }
+
+  const usage = usageData?.[0];
+  if (!usage) {
+    return errorResponse("forbidden", "Not a member of this group", 403);
+  }
+
+  const usageInfo: UsageInfo = {
+    daily: { used: usage.daily_count, limit: usage.daily_limit },
+    monthly: { used: usage.monthly_count, limit: usage.monthly_limit },
+  };
+
+  if (!usage.can_ask) {
+    const limitType =
+      usage.daily_count >= usage.daily_limit ? "daily" : "monthly";
+    console.log("[ask:training_manager] Usage limit exceeded:", limitType);
+    return errorResponse(
+      "limit_exceeded",
+      limitType === "daily"
+        ? language === "es"
+          ? "L\u00edmite diario alcanzado. Intenta ma\u00f1ana."
+          : "Daily question limit reached. Try again tomorrow."
+        : language === "es"
+        ? "L\u00edmite mensual alcanzado."
+        : "Monthly question limit reached.",
+      429,
+      usageInfo
+    );
+  }
+
+  // c) Verify OpenAI API key
+  if (!apiKey) {
+    console.error("[ask:training_manager] OPENAI_API_KEY not configured");
+    return errorResponse("server_error", "AI service not configured", 500);
+  }
+
+  // d) Session management
+  const { data: sessionId, error: sessionError } = await supabase.rpc(
+    "get_or_create_chat_session",
+    {
+      _user_id: userId,
+      _group_id: groupId,
+      _context_type: "training_manager",
+      _context_id: null,
+      _mode: "text",
+      _expiry_hours: 4,
+    }
+  );
+
+  if (sessionError) {
+    console.error("[ask:training_manager] Session error:", sessionError.message);
+  }
+
+  // Validate session ownership if client supplied a session ID
+  let validatedIncomingId = incomingSessionId;
+  if (validatedIncomingId) {
+    const { data: ownerCheck } = await supabase
+      .from("chat_sessions")
+      .select("id")
+      .eq("id", validatedIncomingId)
+      .eq("user_id", userId)
+      .single();
+    if (!ownerCheck) {
+      console.warn("[ask:training_manager] Session ownership check failed, ignoring client sessionId");
+      validatedIncomingId = "";
+    }
+  }
+
+  const activeSessionId = validatedIncomingId || sessionId || "";
+
+  // e) Load chat history
+  // deno-lint-ignore no-explicit-any
+  let historyMessages: { role: string; content: string }[] = [];
+  if (activeSessionId) {
+    const { data: history, error: histError } = await supabase.rpc(
+      "get_chat_history",
+      {
+        _session_id: activeSessionId,
+        _max_messages: 20,
+        _max_tokens: 4000,
+      }
+    );
+
+    if (histError) {
+      console.error("[ask:training_manager] History error:", histError.message);
+    } else if (history?.length) {
+      historyMessages = history.map(
+        // deno-lint-ignore no-explicit-any
+        (msg: any) => ({
+          role: msg.role as string,
+          content: msg.content as string,
+        })
+      );
+      console.log(
+        "[ask:training_manager] Loaded",
+        historyMessages.length,
+        "history messages"
+      );
+    }
+  }
+
+  // f) Load system prompt from ai_prompts
+  const systemPrompt = await fetchPromptBySlug(
+    supabase,
+    "domain-training-manager",
+    language
+  );
+  const finalSystemPrompt =
+    systemPrompt ||
+    "You are an AI Training Manager assistant for Alamo Prime. Help managers track employee training progress, identify issues, and make data-driven decisions about their team's development.";
+
+  // Add language instruction
+  const langInstruction =
+    LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.en;
+
+  // g) Build messages
+  // deno-lint-ignore no-explicit-any
+  const messages: any[] = [
+    {
+      role: "system",
+      content: `${finalSystemPrompt}\n\n${langInstruction}`,
+    },
+    ...historyMessages,
+    { role: "user", content: question },
+  ];
+
+  // h) Tool-use loop
+  console.log("[ask:training_manager] Calling OpenAI with training manager tools...");
+
+  let aiData = await callOpenAI(apiKey, {
+    messages,
+    tools: TRAINING_MANAGER_TOOLS,
+    tool_choice: "auto",
+    temperature: 0.7,
+    max_tokens: 3000,
+  });
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const choice = aiData.choices?.[0];
+    if (choice?.finish_reason !== "tool_calls") break;
+
+    const toolCalls = choice.message?.tool_calls ?? [];
+    if (toolCalls.length === 0) break;
+
+    console.log(
+      `[ask:training_manager] Round ${round + 1}: AI requested ${toolCalls.length} tool call(s)`
+    );
+
+    messages.push(choice.message);
+
+    for (const toolCall of toolCalls) {
+      const fnName = toolCall.function?.name;
+      const fnArgs = JSON.parse(toolCall.function?.arguments ?? "{}");
+
+      console.log(`[ask:training_manager] Tool call: ${fnName}`, fnArgs);
+
+      const resultText = await executeTrainingManagerTool(
+        supabase,
+        fnName,
+        fnArgs,
+        groupId
+      );
+
+      messages.push({
+        role: "tool",
+        tool_call_id: toolCall.id,
+        content: resultText,
+      });
+    }
+
+    // Next round -- last round has no tools
+    const isLastRound = round === MAX_TOOL_ROUNDS - 1;
+    aiData = await callOpenAI(apiKey, {
+      messages,
+      ...(isLastRound
+        ? {}
+        : { tools: TRAINING_MANAGER_TOOLS, tool_choice: "auto" }),
+      temperature: 0.7,
+      max_tokens: 3000,
+    });
+  }
+
+  // Extract answer
+  const finalChoice = aiData.choices?.[0];
+  const answer =
+    finalChoice?.message?.content ||
+    (language === "es"
+      ? "No pude generar una respuesta."
+      : "Unable to generate a response.");
+
+  // i) Persist messages
+  if (activeSessionId) {
+    try {
+      await supabase.from("chat_messages").insert({
+        session_id: activeSessionId,
+        role: "user",
+        content: question,
+        input_mode: "text",
+      });
+      await supabase.from("chat_messages").insert({
+        session_id: activeSessionId,
+        role: "assistant",
+        content: answer,
+      });
+
+      const { data: session } = await supabase
+        .from("chat_sessions")
+        .select("message_count")
+        .eq("id", activeSessionId)
+        .single();
+
+      await supabase
+        .from("chat_sessions")
+        .update({
+          message_count: (session?.message_count || 0) + 2,
+          last_active_at: new Date().toISOString(),
+        })
+        .eq("id", activeSessionId);
+    } catch (persistError) {
+      console.error(
+        "[ask:training_manager] Message persistence error:",
+        persistError
+      );
+    }
+  }
+
+  // j) Increment usage
+  const { data: newUsage, error: incrementError } = await supabase.rpc(
+    "increment_usage",
+    { _user_id: userId, _group_id: groupId }
+  );
+
+  if (incrementError) {
+    console.error(
+      "[ask:training_manager] Failed to increment usage:",
+      incrementError.message
+    );
+  }
+
+  const updatedUsage: UsageInfo = newUsage?.[0]
+    ? {
+        daily: {
+          used: newUsage[0].daily_count,
+          limit: newUsage[0].daily_limit,
+        },
+        monthly: {
+          used: newUsage[0].monthly_count,
+          limit: newUsage[0].monthly_limit,
+        },
+      }
+    : usageInfo;
+
+  console.log(
+    `[ask:training_manager] Success -- answer length: ${answer.length}, session: ${activeSessionId}`
+  );
+
+  // k) Return response
+  return jsonResponse({
+    answer,
+    citations: [],
+    usage: updatedUsage,
+    mode: "search" as const,
+    sessionId: activeSessionId,
+  });
+}
+
+// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
 Deno.serve(async (req) => {
+  // Capture origin for CORS response headers
+  _requestOrigin = req.headers.get("Origin");
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: getCorsHeaders(_requestOrigin) });
   }
 
   console.log("[ask] Request received");
@@ -1258,6 +1810,21 @@ Deno.serve(async (req) => {
         mode: "action" as const,
         sessionId: "",
       } as unknown as UnifiedAskResponse);
+    }
+
+    // =========================================================================
+    // 3b. TRAINING MANAGER DOMAIN HANDLER (early branch)
+    // =========================================================================
+    if (domain === "training_manager") {
+      return await handleTrainingManagerDomain(
+        supabase,
+        Deno.env.get("OPENAI_API_KEY")!,
+        userId,
+        groupId,
+        question,
+        language as "en" | "es",
+        body.sessionId
+      );
     }
 
     // =========================================================================
@@ -1626,7 +2193,8 @@ Deno.serve(async (req) => {
               fnName,
               searchQuery,
               queryEmbedding,
-              language
+              language,
+              groupId
             );
           }
 
@@ -1931,6 +2499,7 @@ Deno.serve(async (req) => {
     return jsonResponse(responseBody);
   } catch (error) {
     console.error("[ask] Unexpected error:", error);
-    return errorResponse("server_error", "An unexpected error occurred", 500);
+    const lang = "en"; // language may not be parsed yet at this point
+    return errorResponse("server_error", AI_UNAVAILABLE_MESSAGE[lang], 500);
   }
 });

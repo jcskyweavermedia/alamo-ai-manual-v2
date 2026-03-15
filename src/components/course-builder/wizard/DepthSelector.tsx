@@ -78,11 +78,12 @@ export function DepthSelector({
   const [error, setError] = useState<string | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<CourseDepth | null>(null);
 
-  // Fetch depth preview on mount if not cached
+  // Fetch depth preview when component mounts or when depthPreview is invalidated
+  // (parent sets depthPreview to null when selectedItems change)
   useEffect(() => {
     if (depthPreview || !courseId) return;
     fetchPreview();
-  }, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [courseId, depthPreview]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchPreview() {
     if (!courseId) return;

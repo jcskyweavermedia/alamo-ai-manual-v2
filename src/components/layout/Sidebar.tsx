@@ -14,6 +14,9 @@ import {
   type NavStandalone,
 } from '@/lib/nav-config';
 import { useLanguage } from '@/hooks/use-language';
+import { useEmployeeProfile } from '@/hooks/useEmployeeProfile';
+import { useAuth } from '@/hooks/use-auth';
+import { UnitSwitcher } from './UnitSwitcher';
 
 const ANIMATION_MS = 220;
 
@@ -38,7 +41,9 @@ export function Sidebar({
 }: SidebarProps) {
   const location = useLocation();
   const { language } = useLanguage();
-  const visibleGroups = getVisibleGroups(NAV_GROUPS, isAdmin);
+  const { department } = useEmployeeProfile();
+  const { isManager } = useAuth();
+  const visibleGroups = getVisibleGroups(NAV_GROUPS, isAdmin, isManager, department);
   const navRef = useRef<HTMLDivElement>(null);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const isAutoCollapsingRef = useRef(false);
@@ -213,6 +218,9 @@ export function Sidebar({
           Tastly AI
         </span>
       </div>
+
+      {/* Unit Switcher — only visible for multi-unit users */}
+      <UnitSwitcher collapsed={collapsed} />
 
       {/* Collapse / Expand toggle */}
       <div className="px-2 pt-2 pb-1 shrink-0">

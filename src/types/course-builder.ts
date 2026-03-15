@@ -191,7 +191,7 @@ export function isScriptBlockElement(el: CourseElement): el is ScriptBlockElemen
 // =============================================================================
 
 export type QuizMode = 'multiple_choice' | 'voice_response' | 'interactive_ai' | 'mixed';
-export type TeacherLevel = 'friendly' | 'professional' | 'strict' | 'expert';
+export type TeacherLevel = 'new_hire' | 'developing' | 'experienced' | 'veteran';
 
 export type CourseDepth = 'quick' | 'standard' | 'deep' | 'custom';
 
@@ -217,6 +217,13 @@ export interface QuizConfig {
   shuffle_questions: boolean;
   shuffle_options: boolean;
   show_feedback_immediately: boolean;
+}
+
+export interface AssessmentConfig {
+  require_passing_evaluation: boolean;
+  passing_competency: 'novice' | 'competent' | 'proficient' | 'expert';
+  allow_retry: boolean;
+  max_retries: number | null;
 }
 
 // =============================================================================
@@ -307,7 +314,7 @@ export interface AssignmentTarget {
 export type CourseBuilderTab = 'elements' | 'settings' | 'quiz';
 export type CourseRightPanelMode = 'ai-chat' | 'element-properties' | 'quiz-config' | 'settings' | 'draft-content';
 export type CourseSaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';
-export type CanvasViewMode = 'source' | 'editor' | 'preview';
+export type CanvasViewMode = 'source' | 'editor' | 'preview' | 'card';
 export type PreviewDevice = 'desktop' | 'tablet' | 'tablet-landscape' | 'phone';
 
 export interface CourseBuilderSnapshot {
@@ -331,6 +338,7 @@ export interface CourseBuilderState {
   descriptionEn: string;
   descriptionEs: string;
   icon: string;
+  coverImage: string | null;
   courseType: CourseType;
   status: CourseStatus;
   version: number;
@@ -342,6 +350,9 @@ export interface CourseBuilderState {
 
   // Quiz
   quizConfig: QuizConfig;
+
+  // Assessment
+  assessmentConfig: AssessmentConfig;
 
   // Sections & Elements
   sections: CourseSection[];
@@ -403,11 +414,13 @@ export type CourseBuilderAction =
   | { type: 'SET_DESCRIPTION_ES'; payload: string }
   | { type: 'SET_SLUG'; payload: string }
   | { type: 'SET_ICON'; payload: string }
+  | { type: 'SET_COVER_IMAGE'; payload: string | null }
   | { type: 'SET_COURSE_TYPE'; payload: CourseType }
   | { type: 'SET_STATUS'; payload: CourseStatus }
   | { type: 'SET_TEACHER_LEVEL'; payload: TeacherLevel }
   | { type: 'SET_TEACHER_PERSONA'; payload: string | null }
   | { type: 'SET_QUIZ_CONFIG'; payload: Partial<QuizConfig> }
+  | { type: 'SET_ASSESSMENT_CONFIG'; payload: Partial<AssessmentConfig> }
 
   // UI Navigation
   | { type: 'SET_ACTIVE_TAB'; payload: CourseBuilderTab }
@@ -571,6 +584,7 @@ export interface CourseBuilderContextValue {
   redo: () => void;
   toggleAiInstructions: () => void;
   updateElementSilent: (key: string, updates: Partial<CourseElement>) => void;
+  setCoverImage: (url: string | null) => void;
   setCanvasViewMode: (mode: CanvasViewMode) => void;
   setPreviewDevice: (device: PreviewDevice) => void;
   setPreviewLang: (lang: 'en' | 'es') => void;

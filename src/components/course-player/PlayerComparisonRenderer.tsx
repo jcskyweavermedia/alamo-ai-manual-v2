@@ -4,6 +4,8 @@
 // miss_fix: vertical stack of paired rows with colored tags
 // =============================================================================
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import type { ComparisonElement, ComparisonSide } from '@/types/course-builder';
 
@@ -101,13 +103,17 @@ function MissFixPair({
         <span className="text-[0.6rem] font-bold uppercase tracking-[0.06em] bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full shrink-0 mt-0.5">
           {missLabel}
         </span>
-        <span className="text-[13px] text-muted-foreground leading-[1.55]" dangerouslySetInnerHTML={{ __html: missText }} />
+        <span className="text-[13px] text-muted-foreground leading-[1.55] [&_p]:m-0 [&_p]:inline">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <span>{children}</span> }}>{missText}</ReactMarkdown>
+        </span>
       </div>
       <div className="flex items-start gap-3 px-5 py-3.5 border-t border-black/[0.04]">
         <span className="text-[0.6rem] font-bold uppercase tracking-[0.06em] bg-green-50 text-green-600 px-2.5 py-0.5 rounded-full shrink-0 mt-0.5">
           {fixLabel}
         </span>
-        <span className="text-[13px] text-muted-foreground leading-[1.55]" dangerouslySetInnerHTML={{ __html: fixText }} />
+        <span className="text-[13px] text-muted-foreground leading-[1.55] [&_p]:m-0 [&_p]:inline">
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <span>{children}</span> }}>{fixText}</ReactMarkdown>
+        </span>
       </div>
     </div>
   );

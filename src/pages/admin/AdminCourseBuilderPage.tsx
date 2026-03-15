@@ -34,6 +34,7 @@ import { AIProgressOverlay } from '@/components/course-builder/AIProgressOverlay
 import { CourseBuilderTabBar } from '@/components/course-builder/CourseBuilderTabBar';
 import { QuizBuilderView } from '@/components/course-builder/QuizBuilderView';
 import { useBuildCourse } from '@/hooks/use-build-course';
+import { CourseCardPreview } from '@/components/course-builder/CourseCardPreview';
 import type { ElementType, FeatureVariant } from '@/types/course-builder';
 
 // =============================================================================
@@ -90,6 +91,7 @@ function CourseBuilderPageContent() {
   const isSource = state.canvasViewMode === 'source';
   const isEditor = state.canvasViewMode === 'editor';
   const isPreview = state.canvasViewMode === 'preview';
+  const isCard = state.canvasViewMode === 'card';
 
   // Reset mobile view to canvas when switching to source/preview mode
   useEffect(() => {
@@ -201,13 +203,20 @@ function CourseBuilderPageContent() {
           descriptionEn: courseData.description_en || '',
           descriptionEs: courseData.description_es || '',
           icon: courseData.icon || 'BookOpen',
+          coverImage: courseData.cover_image || null,
           courseType: courseData.course_type || 'blank',
           status: courseData.status || 'draft',
           version: courseData.version || 1,
           publishedAt: courseData.published_at || null,
-          teacherLevel: courseData.teacher_level || 'professional',
+          teacherLevel: courseData.teacher_level || 'developing',
           teacherId: courseData.teacher_id || null,
           quizConfig: (courseData.quiz_config as Record<string, unknown>) ? courseData.quiz_config : getDefaultQuizConfig(),
+          assessmentConfig: (courseData.assessment_config as Record<string, unknown>) || {
+            require_passing_evaluation: true,
+            passing_competency: 'competent',
+            allow_retry: true,
+            max_retries: null,
+          },
           wizardConfig: (courseData.wizard_config as Record<string, unknown>) || null,
           sections,
           activeSectionId: sections[0]?.id ?? null,
@@ -262,7 +271,7 @@ function CourseBuilderPageContent() {
           course_type: 'blank',
           status: 'draft',
           version: 1,
-          teacher_level: 'professional',
+          teacher_level: 'developing',
           quiz_config: getDefaultQuizConfig() as unknown as Record<string, unknown>,
           created_by: user.id,
         })
@@ -348,14 +357,16 @@ function CourseBuilderPageContent() {
 
         {/* Desktop layout */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-          {/* LEFT SIDEBAR (desktop only) */}
-          <div className="hidden lg:flex lg:flex-col lg:w-56 shrink-0 border-r min-h-0">
-            <div className="flex-1 overflow-y-auto">
-              {/* Editor mode: palette + section nav. Source/Preview: section nav only */}
-              {isEditor && <ElementPalette language={lang} onClickAdd={addElement} />}
-              <SectionNavigator language={lang} />
+          {/* LEFT SIDEBAR (desktop only, hidden in card mode) */}
+          {!isCard && (
+            <div className="hidden lg:flex lg:flex-col lg:w-56 shrink-0 border-r min-h-0">
+              <div className="flex-1 overflow-y-auto">
+                {/* Editor mode: palette + section nav. Source/Preview: section nav only */}
+                {isEditor && <ElementPalette language={lang} onClickAdd={addElement} />}
+                <SectionNavigator language={lang} />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* CENTER COLUMN */}
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
@@ -398,12 +409,14 @@ function CourseBuilderPageContent() {
                   <p className="text-sm">{lang === 'es' ? 'Configuración del curso — Próximamente' : 'Course settings — Coming soon'}</p>
                 </div>
               )}
+              {isCard && <CourseCardPreview language={lang} />}
             </div>
 
             {/* Mobile: content based on mobileView */}
             <div className="lg:hidden flex-1 min-h-0 overflow-y-auto p-4">
               {mobileView === 'canvas' && isSource && <DraftCanvasView language={lang} />}
-              {mobileView === 'canvas' && !isSource && <CourseBuilderCanvas language={lang} />}
+              {mobileView === 'canvas' && isCard && <CourseCardPreview language={lang} />}
+              {mobileView === 'canvas' && !isSource && !isCard && <CourseBuilderCanvas language={lang} />}
               {mobileView === 'elements' && isEditor && (
                 <div className="space-y-4">
                   <ElementPalette language={lang} onClickAdd={addElement} />

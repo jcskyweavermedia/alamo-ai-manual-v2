@@ -203,3 +203,94 @@ export function transformAssignment(raw: RolloutAssignmentRaw): RolloutAssignmen
     updatedAt: raw.updated_at,
   };
 }
+
+// =============================================================================
+// TRAINING DASHBOARD — KPI + COURSE DETAIL TYPES
+// =============================================================================
+
+/** Aggregated KPIs across all courses in a group */
+export interface TrainingKPIs {
+  totalEnrolled: number;
+  totalCompleted: number;
+  completionRate: number;       // 0-100
+  avgGrade: number | null;      // 0-100
+  passRate: number | null;      // 0-100
+  enrolledThisWeek: number;
+  passedCount: number;
+}
+
+/** Course card in sidebar list */
+export interface TrainingCourseItem {
+  id: string;
+  slug: string;
+  titleEn: string;
+  titleEs: string | null;
+  descriptionEn: string | null;
+  descriptionEs: string | null;
+  icon: string | null;
+  status: string;
+  courseType: string;
+  totalSections: number;
+  enrolledCount: number;
+  completedCount: number;
+  avgScore: number | null;
+  completionPercent: number;
+}
+
+/** Employee row for detail tabs */
+export interface TrainingEmployee {
+  userId: string;
+  fullName: string | null;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  enrollmentId: string;
+  enrollmentStatus: string;
+  completedSections: number;
+  totalSections: number;
+  finalScore: number | null;
+  finalPassed: boolean | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastActiveAt: string | null;
+  progressPercent: number;
+}
+
+/** Section-level score data for the Grades tab */
+export interface SectionScoreData {
+  sectionId: string;
+  titleEn: string;
+  titleEs: string | null;
+  sortOrder: number;
+  avgScore: number | null;
+  totalGraded: number;
+}
+
+/** Evaluation entry for the AI Feedback tab */
+export interface TrainingEvaluation {
+  id: string;
+  userId: string;
+  fullName: string | null;
+  email: string;
+  role: string;
+  avatarUrl: string | null;
+  evalType: string;
+  score: number;
+  passed: boolean;
+  competencyLevel: string;
+  studentFeedback: {
+    strengths: string[];
+    areasForImprovement: string[];
+    encouragement: string;
+  };
+  createdAt: string;
+}
+
+/** Grade distribution bucket */
+export interface GradeDistribution {
+  label: string;
+  min: number;
+  max: number;
+  count: number;
+  color: string;
+}

@@ -37,7 +37,7 @@ export interface SectionProgress {
   enrollmentId: string;
   courseId: string;
   status: SectionProgressStatus;
-  elementsViewed: number;
+  elementsViewed: string[];
   elementsTotal: number;
   quizScore: number | null;
   quizPassed: boolean | null;
@@ -99,4 +99,57 @@ export interface CourseListItem {
   progressPercent: number;
   totalSections: number;
   completedSections: number;
+}
+
+// =============================================================================
+// QUIZ PLAYER TYPES (Phase 3 — Student Quiz UI)
+// =============================================================================
+
+export type QuizPlayerState = 'idle' | 'loading' | 'ready' | 'answering' | 'grading' | 'results';
+
+/** Client-safe question (no correct answer exposed) */
+export interface QuizQuestionClient {
+  id: string;
+  question: string;          // Already localized by edge function
+  options: Array<{
+    id: string;
+    text: string;             // Already localized
+  }>;
+  difficulty: 'easy' | 'medium' | 'hard';
+  questionType: 'multiple_choice';
+}
+
+export interface QuizAttemptClient {
+  attemptId: string;
+  questions: QuizQuestionClient[];
+  totalQuestions: number;
+  passingScore: number;
+}
+
+export interface MCAnswerResult {
+  questionId: string;
+  isCorrect: boolean;
+  correctOptionId: string;
+  correctOptionText: string;
+  explanation: string | null;
+}
+
+export interface StudentFeedback {
+  strengths: string[];
+  areasForImprovement: string[];
+  encouragement: string;
+}
+
+export interface QuizEvaluationResult {
+  score: number;
+  passed: boolean;
+  competencyLevel: string;
+  studentFeedback: StudentFeedback;
+}
+
+export interface CourseEvaluationResult {
+  score: number;
+  passed: boolean;
+  competencyLevel: string;
+  studentFeedback: StudentFeedback;
 }

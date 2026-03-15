@@ -45,7 +45,7 @@ export function useTrainingInsights() {
 
     try {
       const { data, error: queryError } = await supabase
-        .rpc('get_recent_insights', { p_group_id: primaryGroup.groupId });
+        .rpc('get_recent_insights', { p_group_id: primaryGroup.groupId } as any);
 
       if (queryError) throw queryError;
 

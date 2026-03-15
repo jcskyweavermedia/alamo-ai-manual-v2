@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { generateSlug } from '@/types/ingestion';
 import type { BeerLiquorDraft } from '@/types/ingestion';
+import { useGroupId } from '@/hooks/useGroupId';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -48,6 +49,7 @@ export interface UseBatchIngestReturn {
 
 export function useBatchIngest(): UseBatchIngestReturn {
   const queryClient = useQueryClient();
+  const groupId = useGroupId();
   const [isExtracting, setIsExtracting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishProgress, setPublishProgress] = useState({ done: 0, total: 0 });
@@ -252,6 +254,11 @@ export function useBatchIngest(): UseBatchIngestReturn {
       setIsPublishing(false);
       return { published: 0, failed: drafts.length };
     }
+    if (!groupId) {
+      setError('Group not loaded. Please try again.');
+      setIsPublishing(false);
+      return { published: 0, failed: drafts.length };
+    }
 
     let published = 0;
     let failed = 0;
@@ -307,6 +314,7 @@ export function useBatchIngest(): UseBatchIngestReturn {
             last_ai_generated_at: new Date().toISOString(),
           },
           created_by: user.id,
+          group_id: groupId,
         };
 
         const { data: inserted, error: insertErr } = await supabase
@@ -340,7 +348,7 @@ export function useBatchIngest(): UseBatchIngestReturn {
 
     setIsPublishing(false);
     return { published, failed };
-  }, [queryClient]);
+  }, [queryClient, groupId]);
 
   return {
     extractBatch,

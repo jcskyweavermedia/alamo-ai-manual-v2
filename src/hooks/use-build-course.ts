@@ -269,7 +269,7 @@ export function useBuildCourse() {
     setIsBuilding(true);
     setError(null);
 
-    const estimatedSeconds = 120;
+    const estimatedSeconds = 140; // ~120 for structure+content+layout + ~20 for card polish
 
     dispatch({
       type: 'AI_MULTIPHASE_START',
@@ -278,6 +278,7 @@ export function useBuildCourse() {
           { id: 'structure', label: 'Structure Planner', status: 'waiting' },
           { id: 'content', label: 'Content Writer', status: 'waiting' },
           { id: 'layout', label: 'Layout & Assembly', status: 'waiting' },
+          { id: 'card', label: 'Card Polish', status: 'waiting' as const },
         ],
         estimatedSeconds,
       },
@@ -365,7 +366,8 @@ export function useBuildCourse() {
       const sectionCount = pass1Sections.length;
       const perSectionSeconds = 35;
       const overheadSeconds = 10;
-      const updatedEstimate = (sectionCount * perSectionSeconds) + overheadSeconds;
+      const cardPhaseSeconds = 20; // cover image + description generation
+      const updatedEstimate = (sectionCount * perSectionSeconds) + overheadSeconds + cardPhaseSeconds;
       dispatch({
         type: 'AI_UPDATE_ESTIMATE',
         payload: { estimatedSeconds: updatedEstimate },
@@ -595,6 +597,97 @@ export function useBuildCourse() {
       // Update course-level status: review if any sections generated, else leave as prose_ready
       if (layoutSuccessIds.size > 0) {
         await supabase.from('courses').update({ status: 'review' }).eq('id', courseId);
+      }
+
+      // ── Phase 4: Card Polish (cover image + description) ───────────────
+      // Non-blocking — failures do not affect the course
+      if (!cancelledRef.current && layoutSuccessIds.size > 0) {
+        dispatch({ type: 'AI_PHASE_START', payload: { phaseId: 'card' } });
+
+        // Helper for Phase 4 retries (simpler than Phase 1-3 since non-fatal)
+        async function invokeWithRetry(
+          fnName: string,
+          body: Record<string, unknown>,
+          maxAttempts = 2,
+          delayMs = 3000,
+        ): Promise<{ data: any; error: any }> {
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const { data, error: fnError } = await supabase.functions.invoke(fnName, { body });
+            if (!fnError) return { data, error: null };
+            console.warn(`[buildCourse3Pass] ${fnName} attempt ${attempt}/${maxAttempts} failed:`, fnError.message);
+            if (attempt < maxAttempts) {
+              await new Promise(r => setTimeout(r, delayMs));
+            }
+          }
+          return { data: null, error: new Error(`${fnName} failed after ${maxAttempts} attempts`) };
+        }
+
+        try {
+          // Fetch latest course state from DB (React state may be stale in this long-running callback)
+          const { data: freshCourse } = await supabase
+            .from('courses')
+            .select('title_en, course_type, description_en, cover_image')
+            .eq('id', courseId)
+            .single();
+
+          // 4a. Generate description (only if empty or generic)
+          const currentDesc = freshCourse?.description_en || '';
+          let descForCover = currentDesc;
+          if (!currentDesc || currentDesc.length < 20) {
+            try {
+              const { data: descData, error: descError } = await invokeWithRetry('build-course', {
+                step: 'generate_card_meta', course_id: courseId,
+              });
+              if (descError) {
+                console.warn('[buildCourse3Pass] generate_card_meta failed:', descError.message);
+              }
+
+              if (descData?.description_en) {
+                descForCover = descData.description_en;
+                dispatch({ type: 'SET_DESCRIPTION_EN', payload: descData.description_en });
+                if (descData.description_es) {
+                  dispatch({ type: 'SET_DESCRIPTION_ES', payload: descData.description_es });
+                }
+                // Also update DB directly since auto-save is suppressed during build
+                await supabase.from('courses').update({
+                  description_en: descData.description_en,
+                  ...(descData.description_es ? { description_es: descData.description_es } : {}),
+                }).eq('id', courseId);
+              }
+            } catch (descErr) {
+              console.warn('[buildCourse3Pass] description generation failed (non-fatal):', descErr);
+            }
+          }
+
+          // 4b. Generate cover image (only if not already set)
+          if (!freshCourse?.cover_image) {
+            try {
+              const sectionTitles = pass1Sections.map((s) => s.title_en);
+              const { data: imgData, error: imgError } = await invokeWithRetry('generate-image', {
+                mode: 'cover',
+                courseId,
+                courseTitle: freshCourse?.title_en || 'Untitled',
+                courseType: freshCourse?.course_type || 'custom',
+                sectionTitles,
+                description: descForCover || '',
+              });
+              if (imgError) {
+                console.warn('[buildCourse3Pass] cover image generation failed:', imgError.message);
+              }
+
+              if (imgData?.storagePath) {
+                dispatch({ type: 'SET_COVER_IMAGE', payload: imgData.storagePath });
+                // DB already updated by the edge function
+              }
+            } catch (imgErr) {
+              console.warn('[buildCourse3Pass] cover image generation failed (non-fatal):', imgErr);
+            }
+          }
+        } catch (phase4Err) {
+          console.warn('[buildCourse3Pass] Phase 4 failed (non-fatal):', phase4Err);
+        }
+
+        dispatch({ type: 'AI_PHASE_COMPLETE', payload: { phaseId: 'card' } });
       }
 
       // Sync serverUpdatedAt after all DB writes so auto-save doesn't 406

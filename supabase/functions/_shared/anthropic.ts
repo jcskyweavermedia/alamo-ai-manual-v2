@@ -1,7 +1,10 @@
 /**
  * Shared Claude API caller with structured JSON output via tool use.
- * Drop-in replacement for callOpenAI — same options interface.
+ * Primary: Claude (Anthropic). Fallback: OpenAI GPT-5.2 on transient failures.
+ * Includes automatic retry with exponential backoff for transient errors (429, 529, 503).
  */
+
+import { callOpenAI } from "./openai.ts";
 
 // ── Content block types for multimodal messages ──────────────────────────────
 export type ContentBlock =
@@ -28,8 +31,72 @@ export class ClaudeError extends Error {
   }
 }
 
+// ── Retry config ─────────────────────────────────────────────────────────────
+const RETRYABLE_STATUSES = new Set([429, 529, 503]);
+const MAX_RETRIES = 2; // 3 total attempts for Claude, then fallback
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  let lastStatus = 0;
+  let lastBody = "";
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 4000) + Math.random() * 500;
+      console.log(`[claude] Retry ${attempt}/${MAX_RETRIES} after ${Math.round(delayMs)}ms...`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    const response = await fetch(url, init);
+
+    if (response.ok) return response;
+
+    lastStatus = response.status;
+    lastBody = await response.text();
+    console.error(`[claude] Error ${lastStatus} (attempt ${attempt + 1}):`, lastBody);
+
+    if (!RETRYABLE_STATUSES.has(lastStatus)) break;
+  }
+
+  throw new ClaudeError(`AI request failed (${lastStatus})`, lastStatus);
+}
+
+// ── OpenAI fallback helper ───────────────────────────────────────────────────
+// Converts Claude-format messages to OpenAI string messages and calls GPT-5.2
+
+function toOpenAIMessages(
+  messages: Array<{ role: string; content: string | ContentBlock[] }>,
+): Array<{ role: string; content: string }> {
+  return messages.map((msg) => {
+    if (typeof msg.content === "string") {
+      return { role: msg.role, content: msg.content };
+    }
+    // Extract text from ContentBlock[] — drop images/docs for fallback
+    const text = (msg.content as ContentBlock[])
+      .filter((b): b is { type: "text"; text: string } => b.type === "text")
+      .map((b) => b.text)
+      .join("\n\n");
+    return { role: msg.role, content: text };
+  });
+}
+
+async function openAIFallback<T>(options: CallClaudeOptions): Promise<T> {
+  console.log("[fallback] Claude unavailable — falling back to OpenAI GPT-5.2");
+  return await callOpenAI<T>({
+    messages: toOpenAIMessages(options.messages),
+    schema: options.schema,
+    schemaName: options.schemaName,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    model: "gpt-5.2",
+  });
+}
+
 /**
  * Call Claude via Anthropic Messages API with structured output (tool use).
+ * On transient failure (429/529/503) after retries, falls back to OpenAI GPT-5.2.
  * Extracts system messages into top-level `system` parameter.
  * Uses tool_choice to force structured JSON matching the provided schema.
  */
@@ -38,10 +105,9 @@ export async function callClaude<T = unknown>(
 ): Promise<T> {
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!ANTHROPIC_API_KEY) {
-    throw new ClaudeError(
-      "AI service not configured (missing ANTHROPIC_API_KEY)",
-      500,
-    );
+    // No Claude key at all — go straight to OpenAI
+    console.log("[claude] No ANTHROPIC_API_KEY — using OpenAI directly");
+    return openAIFallback<T>(options);
   }
 
   const model = options.model || "claude-sonnet-4-6";
@@ -110,25 +176,25 @@ export async function callClaude<T = unknown>(
       "\n\nYou MUST respond with ONLY a valid JSON object. No markdown fences, no explanation — just the JSON.";
   }
 
-  // ── Make API request ──
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-    signal: options.signal,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[claude] Error ${response.status}:`, errorText);
-    throw new ClaudeError(
-      `AI request failed (${response.status})`,
-      response.status,
-    );
+  // ── Make API request (with automatic retry for 429/529/503) ──
+  let response: Response;
+  try {
+    response = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+  } catch (err) {
+    // Claude retries exhausted — fallback to OpenAI if it was a transient error
+    if (err instanceof ClaudeError && RETRYABLE_STATUSES.has(err.status)) {
+      return openAIFallback<T>(options);
+    }
+    throw err;
   }
 
   // deno-lint-ignore no-explicit-any

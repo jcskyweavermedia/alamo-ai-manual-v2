@@ -13,7 +13,7 @@
  *   - courses.quiz_config JSONB — quiz settings
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
 import { checkUsage, UsageError } from "../_shared/usage.ts";
@@ -186,8 +186,11 @@ interface TutorResponse {
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[course-tutor] Request received");
@@ -201,12 +204,12 @@ Deno.serve(async (req) => {
     const { course_id, section_id, language = "en", groupId, message, conversation_id } = body;
 
     if (!course_id || !groupId || !message) {
-      return errorResponse("bad_request", "course_id, groupId, and message are required", 400);
+      return errorResponse("bad_request", "course_id, groupId, and message are required", 400, cors);
     }
 
     // Message length validation
     if (typeof message === "string" && message.length > 4000) {
-      return errorResponse("bad_request", "Message too long (max 4000 characters)", 400);
+      return errorResponse("bad_request", "Message too long (max 4000 characters)", 400, cors);
     }
 
     const lang = language as "en" | "es";
@@ -214,7 +217,7 @@ Deno.serve(async (req) => {
     // 3. Check usage limits
     const usage = await checkUsage(supabase, userId, groupId);
     if (!usage?.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // 4. Fetch course sections with elements (new schema)
@@ -260,7 +263,7 @@ Deno.serve(async (req) => {
     }
 
     if (!modePrompt) {
-      return errorResponse("server_error", "Tutor prompt not configured", 500);
+      return errorResponse("server_error", "Tutor prompt not configured", 500, cors);
     }
 
     // 5b. Look up teacher persona for this course
@@ -413,22 +416,23 @@ Deno.serve(async (req) => {
       suggest_test: tutorResponse.suggest_test,
       topics_covered: tutorResponse.topics_covered,
       conversation_id: conversationId,
-    });
+    }, 200, cors);
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("Unauthorized", err.message, 401);
+      return errorResponse("Unauthorized", err.message, 401, cors);
     }
     if (err instanceof OpenAIError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     console.error("[course-tutor] Unhandled error:", err);
     return errorResponse(
       "server_error",
       err instanceof Error ? err.message : "Internal server error",
-      500
+      500,
+      cors,
     );
   }
 });

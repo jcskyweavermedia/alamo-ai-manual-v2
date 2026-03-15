@@ -15,11 +15,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // =============================================================================
 // TYPES
@@ -816,39 +812,39 @@ async function enrichContextWithSubRecipes(
 }
 
 // =============================================================================
-// HELPER: Response builders
-// =============================================================================
-
-function jsonResponse(
-  data: AskProductResponse | ErrorResponse,
-  status = 200
-): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function errorResponse(
-  error: string,
-  message?: string,
-  status = 400,
-  usage?: UsageInfo
-): Response {
-  const body: ErrorResponse = { error };
-  if (message) body.message = message;
-  if (usage) body.usage = usage;
-  return jsonResponse(body as unknown as AskProductResponse, status);
-}
-
-// =============================================================================
 // MAIN HANDLER
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
+  // ── Response builders (closure-scoped to capture cors) ──────────────────
+  function jsonResponse(
+    data: AskProductResponse | ErrorResponse,
+    status = 200
+  ): Response {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+
+  function errorResponse(
+    error: string,
+    message?: string,
+    status = 400,
+    usage?: UsageInfo
+  ): Response {
+    const body: ErrorResponse = { error };
+    if (message) body.message = message;
+    if (usage) body.usage = usage;
+    return jsonResponse(body as unknown as AskProductResponse, status);
+  }
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[ask-product] Request received");

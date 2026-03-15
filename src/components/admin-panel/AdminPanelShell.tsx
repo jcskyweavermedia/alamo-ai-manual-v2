@@ -235,6 +235,7 @@ export function AdminPanelShell({ language }: AdminPanelShellProps) {
         onClose={() => { setSelectedEmployee(null); setOverlayLoading(false); }}
         backLabel={overlayBackLabel}
         language={language}
+        isLoading={overlayLoading}
       />
     </div>
   );

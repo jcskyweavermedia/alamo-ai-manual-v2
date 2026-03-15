@@ -53,9 +53,9 @@ const STRINGS = {
     // Step 4 - Assessment
     step4Title: 'Assessment',
     step4Desc: 'Configure the quiz for this course.',
-    // Step 5 - Teacher
-    step5Title: 'Teaching Style',
-    step5Desc: 'Choose the AI teacher personality for this course.',
+    // Step 5 - Audience Level
+    step5Title: 'Audience Level',
+    step5Desc: 'Who is this course designed for?',
     // Step 6 - Review
     step6Title: 'Review & Build',
     step6Desc: 'Review your selections and build the course.',
@@ -63,7 +63,7 @@ const STRINGS = {
     reviewItems: 'Items',
     reviewDepth: 'Depth',
     reviewQuiz: 'Quiz',
-    reviewTeacher: 'Teacher',
+    reviewTeacher: 'Audience',
     reviewQuestions: 'questions',
     reviewPassing: 'passing score',
     noItems: 'No items selected',
@@ -88,15 +88,15 @@ const STRINGS = {
     step3Desc: 'Elige que tan completo debe ser el curso generado por IA.',
     step4Title: 'Evaluacion',
     step4Desc: 'Configura el cuestionario para este curso.',
-    step5Title: 'Estilo de Ensenanza',
-    step5Desc: 'Elige la personalidad del profesor IA para este curso.',
+    step5Title: 'Nivel de Audiencia',
+    step5Desc: '¿Para quién está diseñado este curso?',
     step6Title: 'Revisar y Crear',
     step6Desc: 'Revisa tus selecciones y crea el curso.',
     reviewTitle: 'Titulo',
     reviewItems: 'Items',
     reviewDepth: 'Profundidad',
     reviewQuiz: 'Cuestionario',
-    reviewTeacher: 'Profesor',
+    reviewTeacher: 'Audiencia',
     reviewQuestions: 'preguntas',
     reviewPassing: 'puntaje de aprobacion',
     noItems: 'No hay items seleccionados',
@@ -111,8 +111,8 @@ const STRINGS = {
 };
 
 const TEACHER_LABELS = {
-  en: { friendly: 'Friendly', professional: 'Professional', strict: 'Strict', expert: 'Expert' },
-  es: { friendly: 'Amigable', professional: 'Profesional', strict: 'Estricto', expert: 'Experto' },
+  en: { new_hire: 'New Hire', developing: 'Developing', experienced: 'Experienced', veteran: 'Veteran' },
+  es: { new_hire: 'Nuevo Ingreso', developing: 'En Desarrollo', experienced: 'Experimentado', veteran: 'Veterano' },
 };
 
 const TOTAL_STEPS = 6;
@@ -142,7 +142,7 @@ export function MenuRolloutWizard({ open, onClose, language = 'en' }: MenuRollou
   const [depthPreview, setDepthPreview] = useState<DepthPreviewResponse | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
   const [quizConfig, setQuizConfig] = useState<QuizConfig>(getDefaultQuizConfig());
-  const [teacherLevel, setTeacherLevel] = useState<TeacherLevel>('professional');
+  const [teacherLevel, setTeacherLevel] = useState<TeacherLevel>('developing');
   const [isBuilding, setIsBuilding] = useState(false);
   const [wizardAttachments, setWizardAttachments] = useState<AttachmentData[]>([]);
 
@@ -244,7 +244,7 @@ export function MenuRolloutWizard({ open, onClose, language = 'en' }: MenuRollou
     setDepthPreview(null);
     setCourseId(null);
     setQuizConfig(getDefaultQuizConfig());
-    setTeacherLevel('professional');
+    setTeacherLevel('developing');
     // Revoke object URLs before clearing attachments
     wizardAttachments.forEach((att) => {
       if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);

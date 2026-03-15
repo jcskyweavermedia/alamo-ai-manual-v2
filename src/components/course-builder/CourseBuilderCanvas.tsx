@@ -2,7 +2,7 @@
 // CourseBuilderCanvas — Center panel: renders ALL sections in continuous scroll.
 // IntersectionObserver tracks active section. Per-section drop targets.
 // Preview mode: player renderers in DevicePreviewFrame.
-// Editor mode: builder renderers with inline editing.
+// Editor mode: player renderers with PreviewElementWrapper (editorMode).
 // =============================================================================
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -14,8 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { useCourseBuilder } from '@/contexts/CourseBuilderContext';
 import { DevicePreviewFrame } from './DevicePreviewFrame';
 import { PreviewElementWrapper } from './PreviewElementWrapper';
-import { ElementCardWrapper } from './ElementCardWrapper';
-import { ElementRendererDispatcher } from './ElementRendererDispatcher';
 import { PlayerElementDispatcher } from '@/components/course-player/PlayerElementDispatcher';
 import type { CourseSection } from '@/types/course-builder';
 
@@ -208,13 +206,10 @@ export function CourseBuilderCanvas({ language }: CourseBuilderCanvasProps) {
             section={section}
             sectionIndex={sectionIndex}
             language={language}
-            isPreview={false}
             previewLang={previewLang}
-            previewDevice={previewDevice}
             previewEditingKey={state.previewEditingKey}
             isActive={state.activeSectionId === section.id}
             selectedElementKey={state.selectedElementKey}
-            showAiInstructions={state.showAiInstructions}
             setSectionRef={setSectionRef}
             addElementToSection={addElementToSection}
             strings={t}
@@ -274,13 +269,10 @@ interface SectionBlockProps {
   section: CourseSection;
   sectionIndex: number;
   language: 'en' | 'es';
-  isPreview: boolean;
   previewLang: 'en' | 'es';
-  previewDevice: 'desktop' | 'tablet' | 'phone';
   previewEditingKey: string | null;
   isActive: boolean;
   selectedElementKey: string | null;
-  showAiInstructions: boolean;
   setSectionRef: (sectionId: string, el: HTMLDivElement | null) => void;
   addElementToSection: (sectionId: string, type: 'content') => void;
   strings: typeof STRINGS['en'];
@@ -290,13 +282,10 @@ function SectionBlock({
   section,
   sectionIndex,
   language,
-  isPreview,
   previewLang,
-  previewDevice,
   previewEditingKey,
   isActive,
   selectedElementKey,
-  showAiInstructions,
   setSectionRef,
   addElementToSection,
   strings: t,
@@ -311,37 +300,6 @@ function SectionBlock({
     setSectionRef(section.id, el);
     setDropRef(el);
   }, [section.id, setSectionRef, setDropRef]);
-
-  // Preview mode: player renderers inside DevicePreviewFrame
-  if (isPreview) {
-    return (
-      <div
-        ref={(el) => setSectionRef(section.id, el)}
-        data-section-id={section.id}
-        className="py-2"
-      >
-        <DevicePreviewFrame device={previewDevice}>
-          <div className="space-y-6">
-            {elements.map((element, index) => (
-              <PreviewElementWrapper
-                key={element.key}
-                element={element}
-                sectionId={section.id}
-                isEditing={previewEditingKey === element.key}
-                language={language}
-              >
-                <PlayerElementDispatcher
-                  element={element}
-                  language={previewLang}
-                  isFirstElement={sectionIndex === 0 && index === 0}
-                />
-              </PreviewElementWrapper>
-            ))}
-          </div>
-        </DevicePreviewFrame>
-      </div>
-    );
-  }
 
   // Builder mode
   return (
@@ -391,17 +349,23 @@ function SectionBlock({
       ) : (
         <div className="space-y-2">
           {elements.map((element, index) => (
-            <ElementCardWrapper
+            <PreviewElementWrapper
               key={element.key}
               element={element}
               sectionId={section.id}
+              isEditing={previewEditingKey === element.key}
+              language={language}
+              editorMode={true}
               isSelected={selectedElementKey === element.key}
               isFirst={index === 0}
               isLast={index === elements.length - 1}
-              language={language}
             >
-              <ElementRendererDispatcher element={element} language={language} />
-            </ElementCardWrapper>
+              <PlayerElementDispatcher
+                element={element}
+                language={previewLang}
+                isFirstElement={sectionIndex === 0 && index === 0}
+              />
+            </PreviewElementWrapper>
           ))}
         </div>
       )}

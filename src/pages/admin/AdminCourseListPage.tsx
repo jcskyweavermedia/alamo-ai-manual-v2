@@ -46,33 +46,9 @@ import { AppShell } from '@/components/layout/AppShell';
 import { CourseWizardDialog } from '@/components/course-builder/wizard/CourseWizardDialog';
 import { MenuRolloutWizard } from '@/components/course-builder/wizard/MenuRolloutWizard';
 import type { CourseStatus, CourseType } from '@/types/course-builder';
-
-// =============================================================================
-// EMOJI MAP (matches training CourseCard)
-// =============================================================================
-
-const COURSE_EMOJI: Record<string, { emoji: string; bg: string; darkBg: string }> = {
-  Landmark:        { emoji: '🏛️', bg: 'bg-slate-100',  darkBg: 'dark:bg-slate-800' },
-  Beef:            { emoji: '🥩', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
-  UtensilsCrossed: { emoji: '🍽️', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
-  Wine:            { emoji: '🍷', bg: 'bg-rose-100',   darkBg: 'dark:bg-rose-900/30' },
-  Martini:         { emoji: '🍸', bg: 'bg-sky-100',    darkBg: 'dark:bg-sky-900/30' },
-  Beer:            { emoji: '🍺', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
-  CakeSlice:       { emoji: '🍰', bg: 'bg-pink-100',   darkBg: 'dark:bg-pink-900/30' },
-  GraduationCap:   { emoji: '🎓', bg: 'bg-blue-100',   darkBg: 'dark:bg-blue-900/30' },
-  ChefHat:         { emoji: '👨‍🍳', bg: 'bg-orange-100', darkBg: 'dark:bg-orange-900/30' },
-  Users:           { emoji: '👥', bg: 'bg-indigo-100',  darkBg: 'dark:bg-indigo-900/30' },
-  BookOpen:        { emoji: '📖', bg: 'bg-cyan-100',   darkBg: 'dark:bg-cyan-900/30' },
-  ClipboardList:   { emoji: '📋', bg: 'bg-green-100',  darkBg: 'dark:bg-green-900/30' },
-  Utensils:        { emoji: '🍴', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
-  Sparkles:        { emoji: '✨', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
-  Star:            { emoji: '⭐', bg: 'bg-yellow-100', darkBg: 'dark:bg-yellow-900/30' },
-  Shield:          { emoji: '🛡️', bg: 'bg-slate-100',  darkBg: 'dark:bg-slate-800' },
-  Heart:           { emoji: '❤️', bg: 'bg-red-100',    darkBg: 'dark:bg-red-900/30' },
-  Flame:           { emoji: '🔥', bg: 'bg-orange-100', darkBg: 'dark:bg-orange-900/30' },
-  Award:           { emoji: '🏆', bg: 'bg-amber-100',  darkBg: 'dark:bg-amber-900/30' },
-};
-const defaultEmoji = { emoji: '📚', bg: 'bg-slate-100', darkBg: 'dark:bg-slate-800' };
+import { COURSE_EMOJI, defaultEmoji } from '@/constants/course-emoji';
+import { statusBadgeStyles } from '@/constants/course-status';
+import { useBatchCoverImageUrls } from '@/hooks/use-batch-cover-image-urls';
 
 // =============================================================================
 // STRINGS
@@ -139,11 +115,11 @@ const STRINGS = {
     noCourses: 'No hay cursos',
     noCoursesDesc: 'Crea tu primer curso para comenzar.',
     noResults: 'Sin resultados',
-    noResultsDesc: 'Intenta ajustar tu busqueda o filtro.',
+    noResultsDesc: 'Intenta ajustar tu b\u00fasqueda o filtro.',
     loading: 'Cargando cursos...',
     error: 'Error al cargar cursos',
     deleteTitle: 'Eliminar Curso',
-    deleteDesc: 'Estas seguro de que deseas eliminar este curso? Esta accion no se puede deshacer.',
+    deleteDesc: '\u00bfEst\u00e1s seguro de que deseas eliminar este curso? Esta acci\u00f3n no se puede deshacer.',
     cancel: 'Cancelar',
     confirm: 'Eliminar',
     deleteSuccess: 'Curso eliminado',
@@ -163,6 +139,7 @@ interface CourseRow {
   description_en: string | null;
   description_es: string | null;
   icon: string | null;
+  cover_image: string | null;
   status: CourseStatus;
   course_type: string;
   version: number;
@@ -171,15 +148,6 @@ interface CourseRow {
 }
 
 type StatusFilter = 'all' | CourseStatus;
-
-const statusBadgeStyles: Record<CourseStatus, string> = {
-  draft: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  outline: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
-  generating: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300',
-  review: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  published: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
-  archived: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400',
-};
 
 function formatRelativeTime(dateString: string, language: 'en' | 'es'): string {
   const now = Date.now();
@@ -205,6 +173,7 @@ function CourseCard({
   course,
   lang,
   t,
+  coverImageUrl,
   onEdit,
   onStatusChange,
   onDelete,
@@ -212,6 +181,7 @@ function CourseCard({
   course: CourseRow;
   lang: 'en' | 'es';
   t: typeof STRINGS['en'];
+  coverImageUrl?: string | null;
   onEdit: () => void;
   onStatusChange: (course: CourseRow, status: CourseStatus) => void;
   onDelete: (course: CourseRow) => void;
@@ -245,17 +215,29 @@ function CourseCard({
         'cursor-pointer hover:bg-muted/20 dark:hover:bg-muted/10 active:scale-[0.99]',
       )}
     >
-      {/* Emoji hero tile */}
+      {/* Hero tile — cover image or emoji fallback */}
       <div className={cn(
         'relative w-full aspect-[16/9] rounded-[14px] overflow-hidden mb-3',
         'flex items-center justify-center',
         'shadow-[3px_8px_12px_-3px_rgba(0,0,0,0.08),2px_4px_8px_-2px_rgba(0,0,0,0.05)]',
         'dark:shadow-[3px_8px_12px_-3px_rgba(0,0,0,0.3),2px_4px_8px_-2px_rgba(0,0,0,0.2)]',
-        emojiConfig.bg, emojiConfig.darkBg,
+        emojiConfig.bg,
+        emojiConfig.darkBg,
       )}>
+        {/* Emoji always renders as background fallback (visible while cover image loads) */}
         <span className="text-[48px] h-[48px] leading-[48px] group-hover:scale-110 transition-transform duration-300">
           {emojiConfig.emoji}
         </span>
+        {/* Cover image overlays the emoji when loaded */}
+        {coverImageUrl && (
+          <div className="absolute inset-0">
+            <img
+              src={coverImageUrl}
+              alt={title}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
       </div>
 
       {/* Status badge + actions row */}
@@ -402,6 +384,10 @@ export default function AdminCourseListPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [menuRolloutOpen, setMenuRolloutOpen] = useState(false);
 
+  // Batch-fetch signed URLs for all course cover images (single Supabase call)
+  const coverImagePaths = courses.map(c => c.cover_image);
+  const { urlMap: coverImageUrls } = useBatchCoverImageUrls(coverImagePaths);
+
   // Load courses on mount
   const loadCourses = useCallback(async () => {
     if (!groupId) return;
@@ -410,7 +396,7 @@ export default function AdminCourseListPage() {
     try {
       const { data, error: queryError } = await supabase
         .from('courses')
-        .select('id, slug, title_en, title_es, description_en, description_es, icon, status, course_type, version, updated_at, course_sections(count)')
+        .select('id, slug, title_en, title_es, description_en, description_es, icon, cover_image, status, course_type, version, updated_at, course_sections(count)')
         .eq('group_id', groupId)
         .order('updated_at', { ascending: false });
 
@@ -465,6 +451,38 @@ export default function AdminCourseListPage() {
   // Handlers
   const handleDelete = useCallback(async (course: CourseRow) => {
     try {
+      // Clean up storage files for this course
+      try {
+        const { data: files } = await supabase.storage
+          .from('course-media')
+          .list(`courses/${course.id}/cover`);
+        if (files && files.length > 0) {
+          await supabase.storage
+            .from('course-media')
+            .remove(files.map(f => `courses/${course.id}/cover/${f.name}`));
+        }
+
+        // Also clean up element images
+        const { data: elementDirs } = await supabase.storage
+          .from('course-media')
+          .list(`courses/${course.id}/elements`);
+        if (elementDirs && elementDirs.length > 0) {
+          for (const dir of elementDirs) {
+            const { data: elementFiles } = await supabase.storage
+              .from('course-media')
+              .list(`courses/${course.id}/elements/${dir.name}`);
+            if (elementFiles && elementFiles.length > 0) {
+              await supabase.storage
+                .from('course-media')
+                .remove(elementFiles.map(f => `courses/${course.id}/elements/${dir.name}/${f.name}`));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[AdminCourseListPage] Failed to clean up storage files:', err);
+        // Non-fatal: continue with course deletion
+      }
+
       // Delete sections first
       await supabase.from('course_sections').delete().eq('course_id', course.id);
       // Delete course
@@ -481,16 +499,22 @@ export default function AdminCourseListPage() {
 
   const handleStatusChange = useCallback(async (course: CourseRow, newStatus: CourseStatus) => {
     try {
+      // DB trigger auto_set_published_at handles version bump + published_at on publish
       const { error: updateError } = await supabase
         .from('courses')
         .update({ status: newStatus })
         .eq('id', course.id);
       if (updateError) throw updateError;
+      if (newStatus === 'published') {
+        toast.success(lang === 'es' ? 'Curso publicado' : 'Course published');
+      } else if (newStatus === 'archived') {
+        toast.success(lang === 'es' ? 'Curso archivado' : 'Course archived');
+      }
       void loadCourses();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Update failed');
     }
-  }, [loadCourses]);
+  }, [loadCourses, lang]);
 
   const hasCourses = courses.length > 0;
   const hasResults = filtered.length > 0;
@@ -664,6 +688,7 @@ export default function AdminCourseListPage() {
               course={course}
               lang={lang}
               t={t}
+              coverImageUrl={course.cover_image ? coverImageUrls.get(course.cover_image) || null : null}
               onEdit={() => navigate(`/admin/courses/${course.id}/edit`)}
               onStatusChange={handleStatusChange}
               onDelete={setDeleteTarget}

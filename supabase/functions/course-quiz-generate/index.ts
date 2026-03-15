@@ -17,7 +17,7 @@
  * Deploy: npx supabase functions deploy course-quiz-generate --no-verify-jwt
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
 import { fetchPromptBySlug } from "../_shared/prompt-helpers.ts";
@@ -260,8 +260,11 @@ OUTPUT: Return valid JSON matching the provided schema.`;
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[quiz-generate] Request received");
@@ -274,7 +277,7 @@ Deno.serve(async (req) => {
     // ── 2. Verify manager/admin role ─────────────────────────────────────
     const resolvedGroupId = await verifyManagerRole(supabase, userId);
     if (!resolvedGroupId) {
-      return errorResponse("forbidden", "Manager or admin role required", 403);
+      return errorResponse("forbidden", "Manager or admin role required", 403, cors);
     }
     const groupId = resolvedGroupId;
 
@@ -290,48 +293,49 @@ Deno.serve(async (req) => {
 
     if (mode === "generate_pool_only") {
       if (!course_id) {
-        return errorResponse("bad_request", "course_id is required for generate_pool_only mode", 400);
+        return errorResponse("bad_request", "course_id is required for generate_pool_only mode", 400, cors);
       }
       return await handleGeneratePoolOnly(
-        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate,
+        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate, cors,
       );
     }
 
     if (mode === "course_quiz") {
       if (!course_id) {
-        return errorResponse("bad_request", "course_id is required for course_quiz mode", 400);
+        return errorResponse("bad_request", "course_id is required for course_quiz mode", 400, cors);
       }
       return await handleCourseQuiz(
-        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate,
+        supabase, userId, course_id, language as "en" | "es", groupId, force_regenerate, cors,
       );
     }
 
     // section_quiz mode
     if (!section_id) {
-      return errorResponse("bad_request", "section_id is required", 400);
+      return errorResponse("bad_request", "section_id is required", 400, cors);
     }
     if (!course_id) {
-      return errorResponse("bad_request", "course_id is required", 400);
+      return errorResponse("bad_request", "course_id is required", 400, cors);
     }
 
     return await handleSectionQuiz(
-      supabase, userId, course_id, section_id, language as "en" | "es", groupId, force_regenerate,
+      supabase, userId, course_id, section_id, language as "en" | "es", groupId, force_regenerate, cors,
     );
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("unauthorized", err.message, 401);
+      return errorResponse("unauthorized", err.message, 401, cors);
     }
     if (err instanceof OpenAIError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     console.error("[quiz-generate] Unhandled error:", err);
     return errorResponse(
       "server_error",
       err instanceof Error ? err.message : "Internal server error",
       500,
+      cors,
     );
   }
 });
@@ -349,6 +353,7 @@ async function handleSectionQuiz(
   language: "en" | "es",
   groupId: string,
   forceRegenerate: boolean,
+  cors: Record<string, string>,
 ) {
   console.log(`[quiz-generate:section] Course: ${courseId} | Section: ${sectionId}`);
 
@@ -360,10 +365,10 @@ async function handleSectionQuiz(
     .single();
 
   if (courseError || !course) {
-    return errorResponse("not_found", "Course not found", 404);
+    return errorResponse("not_found", "Course not found", 404, cors);
   }
   if (course.group_id !== groupId) {
-    return errorResponse("forbidden", "Course does not belong to your group", 403);
+    return errorResponse("forbidden", "Course does not belong to your group", 403, cors);
   }
 
   const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
@@ -379,7 +384,7 @@ async function handleSectionQuiz(
     .single();
 
   if (sectionError || !section) {
-    return errorResponse("not_found", "Section not found", 404);
+    return errorResponse("not_found", "Section not found", 404, cors);
   }
 
   const sectionTitle = language === "es" && section.title_es
@@ -398,7 +403,7 @@ async function handleSectionQuiz(
     if (existing && existing.length >= questionCount) {
       console.log(`[quiz-generate:section] Reusing ${existing.length} existing questions`);
       return await createAttemptAndRespond(
-        supabase, userId, courseId, sectionId, existing, language, quizConfig,
+        supabase, userId, courseId, sectionId, existing, language, quizConfig, cors,
       );
     }
   }
@@ -415,6 +420,7 @@ async function handleSectionQuiz(
       "bad_request",
       "Not enough content to generate quiz questions. Section needs at least 200 words of content.",
       400,
+      cors,
     );
   }
 
@@ -431,7 +437,7 @@ async function handleSectionQuiz(
   const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
   const usageInfo = await checkUsage(supabase, userId, groupId);
   if (!usageInfo) {
-    return errorResponse("forbidden", "Not a member of this group", 403);
+    return errorResponse("forbidden", "Not a member of this group", 403, cors);
   }
   if (!usageInfo.can_ask) {
     return errorResponse(
@@ -440,6 +446,7 @@ async function handleSectionQuiz(
         ? "Limite de uso alcanzado. Intenta mas tarde."
         : "Usage limit reached. Try again later.",
       429,
+      cors,
     );
   }
 
@@ -484,7 +491,7 @@ ${truncatedContent}`;
   });
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    return errorResponse("ai_error", "No questions in AI response", 500);
+    return errorResponse("ai_error", "No questions in AI response", 500, cors);
   }
 
   console.log(`[quiz-generate:section] AI generated ${parsed.questions.length} questions`);
@@ -550,14 +557,14 @@ ${truncatedContent}`;
 
   if (insertError) {
     console.error("[quiz-generate:section] Insert error:", insertError.message);
-    return errorResponse("server_error", "Failed to save quiz questions", 500);
+    return errorResponse("server_error", "Failed to save quiz questions", 500, cors);
   }
 
   console.log(`[quiz-generate:section] Saved ${insertedQuestions.length} questions to DB`);
 
   // ── 12. Create attempt and respond ───────────────────────────────────
   return await createAttemptAndRespond(
-    supabase, userId, courseId, sectionId, insertedQuestions, language, quizConfig,
+    supabase, userId, courseId, sectionId, insertedQuestions, language, quizConfig, cors,
   );
 }
 
@@ -573,6 +580,7 @@ async function handleCourseQuiz(
   language: "en" | "es",
   groupId: string,
   forceRegenerate: boolean,
+  cors: Record<string, string>,
 ) {
   console.log(`[quiz-generate:course] Course: ${courseId}`);
 
@@ -584,10 +592,10 @@ async function handleCourseQuiz(
     .single();
 
   if (courseError || !course) {
-    return errorResponse("not_found", "Course not found", 404);
+    return errorResponse("not_found", "Course not found", 404, cors);
   }
   if (course.group_id !== groupId) {
-    return errorResponse("forbidden", "Course does not belong to your group", 403);
+    return errorResponse("forbidden", "Course does not belong to your group", 403, cors);
   }
 
   const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
@@ -603,7 +611,7 @@ async function handleCourseQuiz(
     .order("sort_order", { ascending: true });
 
   if (sectionsError || !sections || sections.length === 0) {
-    return errorResponse("not_found", "No published sections found for this course", 404);
+    return errorResponse("not_found", "No published sections found for this course", 404, cors);
   }
 
   // ── 3. Check for existing course-level questions ─────────────────────
@@ -618,7 +626,7 @@ async function handleCourseQuiz(
     if (existing && existing.length >= questionCount) {
       console.log(`[quiz-generate:course] Reusing ${existing.length} existing course-level questions`);
       return await createAttemptAndRespond(
-        supabase, userId, courseId, null, existing, language, quizConfig,
+        supabase, userId, courseId, null, existing, language, quizConfig, cors,
       );
     }
   }
@@ -656,6 +664,7 @@ async function handleCourseQuiz(
       "bad_request",
       "Not enough content to generate quiz questions. Course needs at least 200 words of content across its sections.",
       400,
+      cors,
     );
   }
 
@@ -672,10 +681,10 @@ async function handleCourseQuiz(
   const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
   const usageInfo = await checkUsage(supabase, userId, groupId);
   if (!usageInfo) {
-    return errorResponse("forbidden", "Not a member of this group", 403);
+    return errorResponse("forbidden", "Not a member of this group", 403, cors);
   }
   if (!usageInfo.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
   }
 
   // ── 6. Fetch quiz generator prompt ───────────────────────────────────
@@ -718,7 +727,7 @@ ${truncatedContent}`;
   });
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    return errorResponse("ai_error", "No questions in AI response", 500);
+    return errorResponse("ai_error", "No questions in AI response", 500, cors);
   }
 
   console.log(`[quiz-generate:course] AI generated ${parsed.questions.length} questions`);
@@ -785,14 +794,14 @@ ${truncatedContent}`;
 
   if (insertError) {
     console.error("[quiz-generate:course] Insert error:", insertError.message);
-    return errorResponse("server_error", "Failed to save quiz questions", 500);
+    return errorResponse("server_error", "Failed to save quiz questions", 500, cors);
   }
 
   console.log(`[quiz-generate:course] Saved ${insertedQuestions.length} questions to DB`);
 
   // ── 11. Create attempt and respond ───────────────────────────────────
   return await createAttemptAndRespond(
-    supabase, userId, courseId, null, insertedQuestions, language, quizConfig,
+    supabase, userId, courseId, null, insertedQuestions, language, quizConfig, cors,
   );
 }
 
@@ -808,6 +817,7 @@ async function handleGeneratePoolOnly(
   language: "en" | "es",
   groupId: string,
   forceRegenerate: boolean,
+  cors: Record<string, string>,
 ) {
   console.log(`[quiz-generate:pool-only] Course: ${courseId}`);
 
@@ -819,10 +829,10 @@ async function handleGeneratePoolOnly(
     .single();
 
   if (courseError || !course) {
-    return errorResponse("not_found", "Course not found", 404);
+    return errorResponse("not_found", "Course not found", 404, cors);
   }
   if (course.group_id !== groupId) {
-    return errorResponse("forbidden", "Course does not belong to your group", 403);
+    return errorResponse("forbidden", "Course does not belong to your group", 403, cors);
   }
 
   const quizConfig: QuizConfig = { ...DEFAULT_QUIZ_CONFIG, ...(course.quiz_config || {}) };
@@ -836,7 +846,7 @@ async function handleGeneratePoolOnly(
     .order("sort_order", { ascending: true });
 
   if (sectionsError || !sections || sections.length === 0) {
-    return errorResponse("not_found", "No sections found for this course", 404);
+    return errorResponse("not_found", "No sections found for this course", 404, cors);
   }
 
   // ── 3. Extract content from ALL sections ─────────────────────────────
@@ -866,6 +876,7 @@ async function handleGeneratePoolOnly(
       "bad_request",
       "Not enough content to generate quiz questions. Course needs at least 200 words of content across its sections.",
       400,
+      cors,
     );
   }
 
@@ -882,7 +893,7 @@ async function handleGeneratePoolOnly(
   const credits = await getCreditCost(supabase, groupId, "course_builder", "quiz_pool");
   const usageInfo = await checkUsage(supabase, userId, groupId);
   if (!usageInfo) {
-    return errorResponse("forbidden", "Not a member of this group", 403);
+    return errorResponse("forbidden", "Not a member of this group", 403, cors);
   }
   if (!usageInfo.can_ask) {
     return errorResponse(
@@ -891,6 +902,7 @@ async function handleGeneratePoolOnly(
         ? "Limite de uso alcanzado. Intenta mas tarde."
         : "Usage limit reached. Try again later.",
       429,
+      cors,
     );
   }
 
@@ -934,7 +946,7 @@ ${truncatedContent}`;
   });
 
   if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    return errorResponse("ai_error", "No questions in AI response", 500);
+    return errorResponse("ai_error", "No questions in AI response", 500, cors);
   }
 
   console.log(`[quiz-generate:pool-only] AI generated ${parsed.questions.length} questions`);
@@ -1001,7 +1013,7 @@ ${truncatedContent}`;
 
   if (insertError) {
     console.error("[quiz-generate:pool-only] Insert error:", insertError.message);
-    return errorResponse("server_error", "Failed to save quiz questions", 500);
+    return errorResponse("server_error", "Failed to save quiz questions", 500, cors);
   }
 
   console.log(`[quiz-generate:pool-only] Saved ${insertedQuestions.length} questions to DB`);
@@ -1010,7 +1022,7 @@ ${truncatedContent}`;
   return jsonResponse({
     questions: insertedQuestions,
     total_generated: insertedQuestions.length,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -1027,6 +1039,7 @@ async function createAttemptAndRespond(
   questionPool: Array<Record<string, any>>,
   language: "en" | "es",
   quizConfig: QuizConfig,
+  cors: Record<string, string>,
 ) {
   const questionCount = quizConfig.question_count || 10;
   const passingScore = quizConfig.passing_score || 70;
@@ -1040,7 +1053,7 @@ async function createAttemptAndRespond(
     .single();
 
   if (!enrollment) {
-    return errorResponse("bad_request", "Not enrolled in this course", 400);
+    return errorResponse("bad_request", "Not enrolled in this course", 400, cors);
   }
 
   // ── 2. Check max attempts ─────────────────────────────────────────────
@@ -1066,6 +1079,7 @@ async function createAttemptAndRespond(
           ? `Has alcanzado el maximo de ${quizConfig.max_attempts} intentos.`
           : `Maximum of ${quizConfig.max_attempts} attempts reached.`,
         429,
+        cors,
       );
     }
   }
@@ -1115,7 +1129,7 @@ async function createAttemptAndRespond(
 
   if (attemptError) {
     console.error("[quiz-generate] Attempt create error:", attemptError.message);
-    return errorResponse("server_error", "Failed to create quiz attempt", 500);
+    return errorResponse("server_error", "Failed to create quiz attempt", 500, cors);
   }
 
   // ── 6. Increment times_shown on selected questions ─────────────────────
@@ -1134,7 +1148,7 @@ async function createAttemptAndRespond(
       show_feedback_immediately: quizConfig.show_feedback_immediately,
       max_attempts: quizConfig.max_attempts,
     },
-  });
+  }, 200, cors);
 }
 
 // =============================================================================

@@ -16,7 +16,7 @@
  * Model: gpt-5.2 (reasoning model)
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import type { SupabaseClient } from "../_shared/supabase.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
@@ -85,8 +85,11 @@ interface SectionEvalResult {
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[evaluate] Request received");
@@ -100,10 +103,10 @@ Deno.serve(async (req) => {
     const { action, language = "en", groupId } = body;
 
     if (!action) {
-      return errorResponse("bad_request", "action is required", 400);
+      return errorResponse("bad_request", "action is required", 400, cors);
     }
     if (!groupId) {
-      return errorResponse("bad_request", "groupId is required", 400);
+      return errorResponse("bad_request", "groupId is required", 400, cors);
     }
 
     console.log(`[evaluate] Action: ${action} | Lang: ${language}`);
@@ -111,45 +114,46 @@ Deno.serve(async (req) => {
     // 3. Route to action handler
     switch (action) {
       case "grade_mc":
-        return await handleGradeMC(supabase, userId, body, language);
+        return await handleGradeMC(supabase, userId, body, language, cors);
 
       case "section_evaluation":
-        return await handleSectionEvaluation(supabase, userId, groupId, body, language);
+        return await handleSectionEvaluation(supabase, userId, groupId, body, language, cors);
 
       case "course_final":
-        return await handleCourseFinal(supabase, userId, groupId, body, language);
+        return await handleCourseFinal(supabase, userId, groupId, body, language, cors);
 
       // ── Deferred actions ──────────────────────────────────────────────
       // Phase 7: Voice quiz grading
       case "grade_voice":
-        return errorResponse("not_implemented", "Voice quiz grading is not yet available (Phase 7)", 501);
+        return errorResponse("not_implemented", "Voice quiz grading is not yet available (Phase 7)", 501, cors);
 
       // Phase 8: Module/certification test evaluation
       case "module_test_evaluation":
-        return errorResponse("not_implemented", "Module test evaluation is not yet available (Phase 8)", 501);
+        return errorResponse("not_implemented", "Module test evaluation is not yet available (Phase 8)", 501, cors);
 
       // Phase 9: Interactive AI conversational assessment evaluation
       case "conversation_evaluation":
-        return errorResponse("not_implemented", "Conversation evaluation is not yet available (Phase 9)", 501);
+        return errorResponse("not_implemented", "Conversation evaluation is not yet available (Phase 9)", 501, cors);
 
       default:
-        return errorResponse("bad_request", `Unknown action: ${action}`, 400);
+        return errorResponse("bad_request", `Unknown action: ${action}`, 400, cors);
     }
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("Unauthorized", err.message, 401);
+      return errorResponse("Unauthorized", err.message, 401, cors);
     }
     if (err instanceof OpenAIError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     console.error("[evaluate] Unhandled error:", err);
     return errorResponse(
       "server_error",
       err instanceof Error ? err.message : "Internal server error",
-      500
+      500,
+      cors,
     );
   }
 });
@@ -163,11 +167,12 @@ async function handleGradeMC(
   userId: string,
   body: Record<string, unknown>,
   language: string,
+  cors: Record<string, string>,
 ) {
   const { attempt_id, question_id, selected_option, time_spent_seconds = 0 } = body;
 
   if (!attempt_id || !question_id || !selected_option) {
-    return errorResponse("bad_request", "attempt_id, question_id, and selected_option are required", 400);
+    return errorResponse("bad_request", "attempt_id, question_id, and selected_option are required", 400, cors);
   }
 
   // Verify attempt belongs to user and is in_progress
@@ -178,13 +183,13 @@ async function handleGradeMC(
     .single();
 
   if (attemptError || !attempt) {
-    return errorResponse("not_found", "Quiz attempt not found", 404);
+    return errorResponse("not_found", "Quiz attempt not found", 404, cors);
   }
   if (attempt.user_id !== userId) {
-    return errorResponse("forbidden", "Not your quiz attempt", 403);
+    return errorResponse("forbidden", "Not your quiz attempt", 403, cors);
   }
   if (attempt.status !== "in_progress") {
-    return errorResponse("bad_request", "Quiz attempt is not in progress", 400);
+    return errorResponse("bad_request", "Quiz attempt is not in progress", 400, cors);
   }
 
   // Check for duplicate answer (idempotency guard)
@@ -195,7 +200,7 @@ async function handleGradeMC(
     .eq("question_id", question_id);
 
   if (existingCount && existingCount > 0) {
-    return errorResponse("bad_request", "Question already answered", 400);
+    return errorResponse("bad_request", "Question already answered", 400, cors);
   }
 
   // Fetch question with correct answer
@@ -206,7 +211,7 @@ async function handleGradeMC(
     .single();
 
   if (questionError || !question) {
-    return errorResponse("not_found", "Question not found", 404);
+    return errorResponse("not_found", "Question not found", 404, cors);
   }
 
   // Find correct option
@@ -236,7 +241,7 @@ async function handleGradeMC(
 
   if (answerError) {
     console.error("[evaluate:grade_mc] Answer insert error:", answerError.message);
-    return errorResponse("server_error", "Failed to save answer", 500);
+    return errorResponse("server_error", "Failed to save answer", 500, cors);
   }
 
   // Update question analytics via RPC (best-effort, don't block grading)
@@ -266,7 +271,7 @@ async function handleGradeMC(
     correct_option_id: correctOption?.id,
     correct_option_text: correctText,
     explanation,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -279,11 +284,12 @@ async function handleSectionEvaluation(
   groupId: string,
   body: Record<string, unknown>,
   language: string,
+  cors: Record<string, string>,
 ) {
   const { attempt_id, section_id, enrollment_id } = body;
 
   if (!attempt_id || !section_id) {
-    return errorResponse("bad_request", "attempt_id and section_id are required", 400);
+    return errorResponse("bad_request", "attempt_id and section_id are required", 400, cors);
   }
 
   // Fetch attempt and verify ownership
@@ -295,7 +301,7 @@ async function handleSectionEvaluation(
     .single();
 
   if (!attempt) {
-    return errorResponse("not_found", "Quiz attempt not found", 404);
+    return errorResponse("not_found", "Quiz attempt not found", 404, cors);
   }
 
   // Fetch all answers for this attempt with questions
@@ -305,7 +311,7 @@ async function handleSectionEvaluation(
     .eq("attempt_id", attempt_id);
 
   if (!answers || answers.length === 0) {
-    return errorResponse("bad_request", "No answers found for this attempt", 400);
+    return errorResponse("bad_request", "No answers found for this attempt", 400, cors);
   }
 
   // Calculate score (MC only for MVP — voice answers deferred to Phase 7)
@@ -406,7 +412,7 @@ async function handleSectionEvaluation(
           ? language === "es" ? "Aprobaste el quiz!" : "You passed the quiz!"
           : language === "es" ? "Sigue practicando!" : "Keep practicing!",
       },
-    });
+    }, 200, cors);
   }
 
   // Fetch evaluation prompt
@@ -429,7 +435,7 @@ async function handleSectionEvaluation(
           ? language === "es" ? "Aprobaste!" : "You passed!"
           : language === "es" ? "Sigue intentando!" : "Keep trying!",
       },
-    });
+    }, 200, cors);
   }
 
   // Build context for AI
@@ -478,7 +484,7 @@ async function handleSectionEvaluation(
         areas_for_improvement: [],
         encouragement: passed ? "Well done!" : "Keep practicing!",
       },
-    });
+    }, 200, cors);
   }
 
   // Track credit usage (1 credit for section_evaluation)
@@ -513,7 +519,7 @@ async function handleSectionEvaluation(
     passed,
     competency_level: evalResult.competency_level || competencyLevel,
     student_feedback: evalResult.student_feedback,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -526,11 +532,12 @@ async function handleCourseFinal(
   groupId: string,
   body: Record<string, unknown>,
   language: string,
+  cors: Record<string, string>,
 ) {
   const { target_user_id } = body;
 
   if (!target_user_id) {
-    return errorResponse("bad_request", "target_user_id is required", 400);
+    return errorResponse("bad_request", "target_user_id is required", 400, cors);
   }
 
   // 1. Verify caller is manager or admin
@@ -545,7 +552,7 @@ async function handleCourseFinal(
 
   const callerRole = membership?.role as string | null;
   if (!callerRole || (callerRole !== "manager" && callerRole !== "admin")) {
-    return errorResponse("forbidden", "Only managers and admins can generate course evaluations", 403);
+    return errorResponse("forbidden", "Only managers and admins can generate course evaluations", 403, cors);
   }
 
   // 2. Fetch all course enrollments for target user
@@ -556,7 +563,7 @@ async function handleCourseFinal(
     .eq("group_id", groupId);
 
   if (!enrollments || enrollments.length === 0) {
-    return errorResponse("not_found", "No course enrollments found for this user", 404);
+    return errorResponse("not_found", "No course enrollments found for this user", 404, cors);
   }
 
   // 3. Fetch all section progress with quiz scores
@@ -568,7 +575,7 @@ async function handleCourseFinal(
   // 4. Check usage limits
   const usage = await checkUsage(supabase, userId, groupId);
   if (!usage?.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
   }
 
   // 5. Build context for AI
@@ -657,5 +664,5 @@ Generate a comprehensive dual evaluation with:
     student_feedback: evalResult.student_feedback,
     manager_feedback: evalResult.manager_feedback,
     cached: false,
-  });
+  }, 200, cors);
 }

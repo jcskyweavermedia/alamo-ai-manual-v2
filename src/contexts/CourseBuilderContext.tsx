@@ -14,6 +14,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import type {
   CourseBuilderState,
@@ -24,6 +25,7 @@ import type {
   CourseElement,
   ElementType,
   FeatureVariant,
+  AssessmentConfig,
   CanvasViewMode,
   PreviewDevice,
 } from '@/types/course-builder';
@@ -48,15 +50,23 @@ export function createInitialState(): CourseBuilderState {
     descriptionEn: '',
     descriptionEs: '',
     icon: 'BookOpen',
+    coverImage: null,
     courseType: 'blank',
     status: 'draft',
     version: 1,
     publishedAt: null,
 
-    teacherLevel: 'professional',
+    teacherLevel: 'developing',
     teacherId: null,
 
     quizConfig: getDefaultQuizConfig(),
+
+    assessmentConfig: {
+      require_passing_evaluation: true,
+      passing_competency: 'competent',
+      allow_retry: true,
+      max_retries: null,
+    } as AssessmentConfig,
 
     sections: [],
     activeSectionId: null,
@@ -190,6 +200,8 @@ export function courseBuilderReducer(
       return { ...state, slug: action.payload, isDirty: true, saveStatus: 'unsaved' };
     case 'SET_ICON':
       return { ...state, icon: action.payload, isDirty: true, saveStatus: 'unsaved' };
+    case 'SET_COVER_IMAGE':
+      return { ...state, coverImage: action.payload, isDirty: true, saveStatus: 'unsaved' as const };
     case 'SET_COURSE_TYPE':
       return { ...state, courseType: action.payload, isDirty: true, saveStatus: 'unsaved' };
     case 'SET_STATUS':
@@ -202,6 +214,13 @@ export function courseBuilderReducer(
       return {
         ...state,
         quizConfig: { ...state.quizConfig, ...action.payload },
+        isDirty: true,
+        saveStatus: 'unsaved',
+      };
+    case 'SET_ASSESSMENT_CONFIG':
+      return {
+        ...state,
+        assessmentConfig: { ...state.assessmentConfig, ...action.payload },
         isDirty: true,
         saveStatus: 'unsaved',
       };
@@ -816,10 +835,12 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
         description_es: state.descriptionEs || null,
         slug: state.slug,
         icon: state.icon,
+        cover_image: state.coverImage,
         course_type: state.courseType,
         teacher_level: state.teacherLevel,
         teacher_id: state.teacherId,
         quiz_config: state.quizConfig as unknown as Record<string, unknown>,
+        assessment_config: state.assessmentConfig as unknown as Record<string, unknown>,
       };
 
       // First attempt: with optimistic concurrency guard
@@ -904,21 +925,31 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
       state.descriptionEn, state.descriptionEs, state.icon, state.courseType,
       state.teacherLevel, state.quizConfig, state.sections]);
 
-  // Publish handler (stub — will be expanded in Phase 5)
+  // Publish handler — DB trigger (auto_set_published_at) handles version bump + published_at
   const publish = useCallback(async () => {
     if (!state.courseId) return;
     // Save first
-    await saveDraftInternal();
-    // Then update status
-    const newVersion = state.version + 1;
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from('courses')
-      .update({ status: 'published', version: newVersion, published_at: now })
-      .eq('id', state.courseId);
-    if (!error) {
-      dispatch({ type: 'PUBLISH', payload: { version: newVersion, publishedAt: now } });
+    try {
+      await saveDraftInternal();
+    } catch (err) {
+      console.error('[CourseBuilderContext] Save before publish failed:', err);
+      toast.error('Save failed — publish aborted');
+      return;
     }
+    // Set status to published — trigger auto-bumps version + published_at
+    const { data, error } = await supabase
+      .from('courses')
+      .update({ status: 'published' as string })
+      .eq('id', state.courseId)
+      .select('version, published_at')
+      .single();
+    if (error) {
+      console.error('[CourseBuilderContext] Publish error:', error);
+      toast.error(error.message || 'Publish failed');
+      return;
+    }
+    dispatch({ type: 'PUBLISH', payload: { version: data.version, publishedAt: data.published_at } });
+    toast.success('Course published');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.courseId, state.version]);
 
@@ -1089,6 +1120,10 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADD_ELEMENT_AT_INDEX', payload: { sectionId, element, index } });
   }, [state.sections]);
 
+  const setCoverImage = useCallback((url: string | null) => {
+    dispatch({ type: 'SET_COVER_IMAGE', payload: url });
+  }, []);
+
   const setCanvasViewMode = useCallback((mode: CanvasViewMode) => {
     dispatch({ type: 'SET_CANVAS_VIEW_MODE', payload: mode });
   }, []);
@@ -1173,6 +1208,7 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
     redo,
     toggleAiInstructions,
     updateElementSilent,
+    setCoverImage,
     setCanvasViewMode,
     setPreviewDevice,
     setPreviewLang,
@@ -1182,7 +1218,7 @@ export function CourseBuilderProvider({ children }: { children: ReactNode }) {
        addElementToSection, addElementAtIndexInSection,
        removeElement, updateElement, moveElementUp, moveElementDown, selectElement,
        addSection, removeSection, setActiveSection, setTitleEn, saveDraft, publish, translateCourse, undo, redo,
-       toggleAiInstructions, updateElementSilent, setCanvasViewMode, setPreviewDevice, setPreviewLang, setPreviewEditingKey, findSectionByElementKeyFn]);
+       toggleAiInstructions, updateElementSilent, setCoverImage, setCanvasViewMode, setPreviewDevice, setPreviewLang, setPreviewEditingKey, findSectionByElementKeyFn]);
 
   return (
     <CourseBuilderContext.Provider value={value}>

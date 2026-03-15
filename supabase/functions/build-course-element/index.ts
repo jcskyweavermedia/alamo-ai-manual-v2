@@ -10,7 +10,7 @@
  * Deploy: npx supabase functions deploy build-course-element --no-verify-jwt
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import { callClaude, ClaudeError } from "../_shared/anthropic.ts";
 import { fetchPromptBySlug } from "../_shared/prompt-helpers.ts";
@@ -87,9 +87,12 @@ async function verifyManagerRole(supabase: any, userId: string): Promise<string 
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[build-course-element] Request received");
@@ -106,6 +109,7 @@ Deno.serve(async (req) => {
         "forbidden",
         "Manager or admin role required",
         403,
+        cors,
       );
     }
 
@@ -116,13 +120,13 @@ Deno.serve(async (req) => {
     const language = body.language || "en";
 
     if (!body.courseId) {
-      return errorResponse("bad_request", "courseId is required", 400);
+      return errorResponse("bad_request", "courseId is required", 400, cors);
     }
     if (!body.sectionId) {
-      return errorResponse("bad_request", "sectionId is required", 400);
+      return errorResponse("bad_request", "sectionId is required", 400, cors);
     }
     if (!body.elementKey) {
-      return errorResponse("bad_request", "elementKey is required", 400);
+      return errorResponse("bad_request", "elementKey is required", 400, cors);
     }
 
     console.log(
@@ -138,7 +142,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (sectionError || !section) {
-      return errorResponse("not_found", "Section not found", 404);
+      return errorResponse("not_found", "Section not found", 404, cors);
     }
 
     // deno-lint-ignore no-explicit-any
@@ -153,6 +157,7 @@ Deno.serve(async (req) => {
         "not_found",
         `Element with key "${body.elementKey}" not found in section`,
         404,
+        cors,
       );
     }
 
@@ -164,6 +169,7 @@ Deno.serve(async (req) => {
         "bad_request",
         "Product viewer elements cannot be regenerated",
         400,
+        cors,
       );
     }
 
@@ -187,10 +193,10 @@ Deno.serve(async (req) => {
 
     const usageInfo = await checkUsage(supabase, userId, groupId);
     if (!usageInfo) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, cors);
     }
     if (!usageInfo.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // ── 7. Fetch source material ─────────────────────────────────────────
@@ -271,7 +277,7 @@ TEACHER LEVEL: ${teacherLevel}`;
       });
 
       if (!aiResult) {
-        return errorResponse("ai_error", "Failed to parse AI response", 500);
+        return errorResponse("ai_error", "Failed to parse AI response", 500, cors);
       }
 
       updatedElement = {
@@ -372,7 +378,7 @@ You MUST return valid JSON matching the schema.`;
       // ── 10. Parse and validate response ──────────────────────────────────
       const parsed = parseAIElementResponse(aiResult);
       if (!parsed) {
-        return errorResponse("ai_error", "Failed to parse AI response", 500);
+        return errorResponse("ai_error", "Failed to parse AI response", 500, cors);
       }
 
       // ── 11. Update element in JSONB array ────────────────────────────────
@@ -402,7 +408,7 @@ You MUST return valid JSON matching the schema.`;
         "[build-course-element] Save error:",
         updateError.message,
       );
-      return errorResponse("db_error", "Failed to save element", 500);
+      return errorResponse("db_error", "Failed to save element", 500, cors);
     }
 
     // ── 11. Track credits ────────────────────────────────────────────────
@@ -430,18 +436,18 @@ You MUST return valid JSON matching the schema.`;
           ? Math.ceil(sourceText.split(/\s+/).length * 0.75)
           : 0,
       },
-    });
+    }, 200, cors);
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("unauthorized", err.message, 401);
+      return errorResponse("unauthorized", err.message, 401, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     console.error("[build-course-element] Unexpected error:", err);
-    return errorResponse("server_error", "An unexpected error occurred", 500);
+    return errorResponse("server_error", "An unexpected error occurred", 500, cors);
   }
 });

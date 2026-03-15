@@ -24,7 +24,7 @@
  * directing clients to use MC quizzes instead.
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import type { SupabaseClient } from "../_shared/supabase.ts";
 import { callOpenAI, OpenAIError } from "../_shared/openai.ts";
@@ -231,9 +231,12 @@ async function tableExists(supabase: SupabaseClient, tableName: string): Promise
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   // Step 1: CORS + OPTIONS
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[course-assess] Request received");
@@ -260,11 +263,12 @@ Deno.serve(async (req) => {
         "bad_request",
         "action, section_id, enrollment_id, and groupId are required",
         400,
+        cors,
       );
     }
 
     if (action !== "start" && action !== "message") {
-      return errorResponse("bad_request", `Unknown action: ${action}`, 400);
+      return errorResponse("bad_request", `Unknown action: ${action}`, 400, cors);
     }
 
     if (action === "message" && (!message || !attempt_id)) {
@@ -272,12 +276,13 @@ Deno.serve(async (req) => {
         "bad_request",
         "message and attempt_id are required for action='message'",
         400,
+        cors,
       );
     }
 
     // Message length validation
     if (action === "message" && typeof message === "string" && message.length > 4000) {
-      return errorResponse("bad_request", "Message too long (max 4000 characters)", 400);
+      return errorResponse("bad_request", "Message too long (max 4000 characters)", 400, cors);
     }
 
     console.log(`[course-assess] Action: ${action} | Section: ${section_id} | Lang: ${language}`);
@@ -295,13 +300,14 @@ Deno.serve(async (req) => {
           ? "La evaluacion interactiva con IA aun no esta disponible. Usa el quiz de opcion multiple."
           : "Interactive AI assessment is not yet available. Please use the multiple choice quiz.",
         503,
+        cors,
       );
     }
 
     // Step 4: CHECK USAGE QUOTA
     const usage = await checkUsage(supabase, userId, groupId);
     if (!usage) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, cors);
     }
     if (!usage.can_ask) {
       const limitType = usage.daily_count >= usage.daily_limit ? "daily" : "monthly";
@@ -315,12 +321,13 @@ Deno.serve(async (req) => {
             ? "Limite mensual alcanzado."
             : "Monthly question limit reached.",
         429,
+        cors,
       );
     }
 
     // Route to the appropriate handler
     if (action === "start") {
-      return await handleStart(supabase, userId, section_id, enrollment_id, language, groupId);
+      return await handleStart(supabase, userId, section_id, enrollment_id, language, groupId, cors);
     } else {
       return await handleMessage(
         supabase,
@@ -329,23 +336,25 @@ Deno.serve(async (req) => {
         message,
         language,
         groupId,
+        cors,
       );
     }
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("Unauthorized", err.message, 401);
+      return errorResponse("Unauthorized", err.message, 401, cors);
     }
     if (err instanceof OpenAIError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     console.error("[course-assess] Unhandled error:", err);
     return errorResponse(
       "server_error",
       err instanceof Error ? err.message : "Internal server error",
       500,
+      cors,
     );
   }
 });
@@ -361,6 +370,7 @@ async function handleStart(
   enrollmentId: string,
   language: string,
   groupId: string,
+  cors: Record<string, string>,
 ): Promise<Response> {
   // Verify enrollment belongs to this user
   const { data: enrollment } = await supabase
@@ -371,7 +381,7 @@ async function handleStart(
     .single();
 
   if (!enrollment) {
-    return errorResponse("forbidden", "Enrollment not found or not yours", 403);
+    return errorResponse("forbidden", "Enrollment not found or not yours", 403, cors);
   }
 
   // Prevent concurrent in-progress conversation assessments for same section
@@ -388,6 +398,7 @@ async function handleStart(
       "conflict",
       "You already have an in-progress conversation assessment for this section",
       409,
+      cors,
     );
   }
 
@@ -406,6 +417,7 @@ async function handleStart(
       "bad_request",
       "No published quiz questions found for this section. Generate questions first.",
       400,
+      cors,
     );
   }
 
@@ -428,7 +440,7 @@ async function handleStart(
     .single();
 
   if (!enrollData?.course_id) {
-    return errorResponse("not_found", "Enrollment not found", 404);
+    return errorResponse("not_found", "Enrollment not found", 404, cors);
   }
 
   const { data: newAttempt, error: attemptError } = await supabase
@@ -450,7 +462,7 @@ async function handleStart(
 
   if (attemptError || !newAttempt) {
     console.error("[course-assess:start] Attempt create error:", attemptError?.message);
-    return errorResponse("server_error", "Failed to create assessment attempt", 500);
+    return errorResponse("server_error", "Failed to create assessment attempt", 500, cors);
   }
 
   const attemptId = newAttempt.id as string;
@@ -483,7 +495,7 @@ async function handleStart(
     language,
   );
   if (!systemPrompt) {
-    return errorResponse("server_error", "Assessment prompt not configured", 500);
+    return errorResponse("server_error", "Assessment prompt not configured", 500, cors);
   }
 
   // BUILD MESSAGES + CALL OPENAI
@@ -542,7 +554,7 @@ async function handleStart(
   ]);
   if (msgInsertError) {
     console.error("[course-assess:start] Message insert error:", msgInsertError.message);
-    return errorResponse("server_error", "Failed to persist conversation messages", 500);
+    return errorResponse("server_error", "Failed to persist conversation messages", 500, cors);
   }
 
   // Update quiz_attempts with running state
@@ -585,7 +597,7 @@ async function handleStart(
     teaching_moment: teachingMoment,
     wrap_up: shouldWrapUp,
     attempt_id: attemptId,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -599,6 +611,7 @@ async function handleMessage(
   message: string,
   language: string,
   groupId: string,
+  cors: Record<string, string>,
 ): Promise<Response> {
   // Load attempt and verify ownership
   const { data: attempt, error: attemptError } = await supabase
@@ -610,16 +623,16 @@ async function handleMessage(
     .single();
 
   if (attemptError || !attempt) {
-    return errorResponse("not_found", "Attempt not found", 404);
+    return errorResponse("not_found", "Attempt not found", 404, cors);
   }
   if (attempt.user_id !== userId) {
-    return errorResponse("forbidden", "Not your attempt", 403);
+    return errorResponse("forbidden", "Not your attempt", 403, cors);
   }
   if (attempt.status !== "in_progress") {
-    return errorResponse("bad_request", "Attempt not in progress", 400);
+    return errorResponse("bad_request", "Attempt not in progress", 400, cors);
   }
   if (attempt.quiz_mode !== "interactive_ai") {
-    return errorResponse("bad_request", "Not an interactive AI attempt", 400);
+    return errorResponse("bad_request", "Not an interactive AI attempt", 400, cors);
   }
 
   const sectionId = attempt.section_id as string;
@@ -686,7 +699,7 @@ async function handleMessage(
       teaching_moment: false,
       wrap_up: true,
       attempt_id: attemptId,
-    });
+    }, 200, cors);
   }
 
   // Load section content from elements JSONB (new schema)
@@ -725,7 +738,7 @@ async function handleMessage(
     language,
   );
   if (!systemPrompt) {
-    return errorResponse("server_error", "Assessment prompt not configured", 500);
+    return errorResponse("server_error", "Assessment prompt not configured", 500, cors);
   }
 
   // BUILD MESSAGES + CALL OPENAI
@@ -794,7 +807,7 @@ async function handleMessage(
   const { error: msgInsertErr } = await supabase.from("conversation_messages").insert(messagesToInsert);
   if (msgInsertErr) {
     console.error("[course-assess:message] Message insert error:", msgInsertErr.message);
-    return errorResponse("server_error", "Failed to persist conversation messages", 500);
+    return errorResponse("server_error", "Failed to persist conversation messages", 500, cors);
   }
 
   // Update quiz_attempts with running state
@@ -849,7 +862,7 @@ async function handleMessage(
     teaching_moment: teachingMoment,
     wrap_up: shouldWrapUp,
     attempt_id: attemptId,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================

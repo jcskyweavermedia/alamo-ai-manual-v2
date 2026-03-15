@@ -8,6 +8,7 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { useCourseBuilder } from '@/contexts/CourseBuilderContext';
 import { useQuizPool } from '@/hooks/use-quiz-pool';
 import { QuizConfigPanel } from '@/components/course-builder/QuizConfigPanel';
+import { AssessmentConfigPanel } from '@/components/course-builder/AssessmentConfigPanel';
 import { GenerateQuizButton } from '@/components/course-builder/GenerateQuizButton';
 import { QuestionPoolPreview } from '@/components/course-builder/QuestionPoolPreview';
 
@@ -56,6 +57,12 @@ export function QuizBuilderView({ language }: QuizBuilderViewProps) {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
         {/* Quiz Configuration Panel */}
         <QuizConfigPanel language={language} />
+
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Assessment Configuration Panel */}
+        <AssessmentConfigPanel language={language} />
 
         {/* Divider */}
         <div className="border-t border-border" />

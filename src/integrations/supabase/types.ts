@@ -245,6 +245,7 @@ export type Database = {
           created_by: string
           description: string
           embedding: string | null
+          group_id: string
           id: string
           image: string | null
           is_featured: boolean
@@ -268,6 +269,7 @@ export type Database = {
           created_by: string
           description: string
           embedding?: string | null
+          group_id: string
           id?: string
           image?: string | null
           is_featured?: boolean
@@ -291,6 +293,7 @@ export type Database = {
           created_by?: string
           description?: string
           embedding?: string | null
+          group_id?: string
           id?: string
           image?: string | null
           is_featured?: boolean
@@ -308,6 +311,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "beer_liquor_list_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "beer_liquor_list_source_session_id_fkey"
             columns: ["source_session_id"]
             isOneToOne: false
@@ -315,6 +325,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      brands: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          slug: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          slug: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       chat_messages: {
         Row: {
@@ -431,6 +477,7 @@ export type Database = {
           description: string
           embedding: string | null
           glass: string
+          group_id: string
           id: string
           image: string | null
           ingredients: Json
@@ -456,6 +503,7 @@ export type Database = {
           description: string
           embedding?: string | null
           glass: string
+          group_id: string
           id?: string
           image?: string | null
           ingredients?: Json
@@ -481,6 +529,7 @@ export type Database = {
           description?: string
           embedding?: string | null
           glass?: string
+          group_id?: string
           id?: string
           image?: string | null
           ingredients?: Json
@@ -500,6 +549,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "cocktails_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cocktails_source_session_id_fkey"
             columns: ["source_session_id"]
@@ -580,6 +636,210 @@ export type Database = {
           },
         ]
       }
+      conversation_messages: {
+        Row: {
+          attempt_id: string
+          content: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          role: string
+        }
+        Insert: {
+          attempt_id: string
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role: string
+        }
+        Update: {
+          attempt_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_conversations: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          enrollment_id: string | null
+          expires_at: string
+          flagged_at: string | null
+          flagged_by: string | null
+          flagged_reason: string | null
+          id: string
+          is_flagged: boolean
+          messages: Json
+          section_id: string | null
+          session_summary: string | null
+          topics_discussed: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          expires_at?: string
+          flagged_at?: string | null
+          flagged_by?: string | null
+          flagged_reason?: string | null
+          id?: string
+          is_flagged?: boolean
+          messages?: Json
+          section_id?: string | null
+          session_summary?: string | null
+          topics_discussed?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          expires_at?: string
+          flagged_at?: string | null
+          flagged_by?: string | null
+          flagged_reason?: string | null
+          id?: string
+          is_flagged?: boolean
+          messages?: Json
+          section_id?: string | null
+          session_summary?: string | null
+          topics_discussed?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_conversations_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_conversations_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_conversations_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_conversations_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_enrollments: {
+        Row: {
+          assessed_section_ids: string[] | null
+          completed_at: string | null
+          completed_sections: number
+          course_id: string
+          course_version: number
+          created_at: string
+          expires_at: string | null
+          final_passed: boolean | null
+          final_score: number | null
+          group_id: string
+          id: string
+          started_at: string | null
+          status: string
+          total_sections: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assessed_section_ids?: string[] | null
+          completed_at?: string | null
+          completed_sections?: number
+          course_id: string
+          course_version?: number
+          created_at?: string
+          expires_at?: string | null
+          final_passed?: boolean | null
+          final_score?: number | null
+          group_id: string
+          id?: string
+          started_at?: string | null
+          status?: string
+          total_sections?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assessed_section_ids?: string[] | null
+          completed_at?: string | null
+          completed_sections?: number
+          course_id?: string
+          course_version?: number
+          created_at?: string
+          expires_at?: string | null
+          final_passed?: boolean | null
+          final_score?: number | null
+          group_id?: string
+          id?: string
+          started_at?: string | null
+          status?: string
+          total_sections?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_sections: {
         Row: {
           ai_instructions: string | null
@@ -587,6 +847,7 @@ export type Database = {
           created_at: string
           description_en: string | null
           description_es: string | null
+          draft_content: Json | null
           elements: Json
           estimated_minutes: number
           generation_status: string
@@ -607,6 +868,7 @@ export type Database = {
           created_at?: string
           description_en?: string | null
           description_es?: string | null
+          draft_content?: Json | null
           elements?: Json
           estimated_minutes?: number
           generation_status?: string
@@ -627,6 +889,7 @@ export type Database = {
           created_at?: string
           description_en?: string | null
           description_es?: string | null
+          draft_content?: Json | null
           elements?: Json
           estimated_minutes?: number
           generation_status?: string
@@ -660,6 +923,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          assessment_config: Json
           course_type: string
           cover_image: string | null
           created_at: string
@@ -670,6 +934,7 @@ export type Database = {
           group_id: string
           icon: string | null
           id: string
+          page_header_data: Json | null
           program_id: string | null
           published_at: string | null
           quiz_config: Json
@@ -685,6 +950,7 @@ export type Database = {
           wizard_config: Json | null
         }
         Insert: {
+          assessment_config?: Json
           course_type?: string
           cover_image?: string | null
           created_at?: string
@@ -695,6 +961,7 @@ export type Database = {
           group_id: string
           icon?: string | null
           id?: string
+          page_header_data?: Json | null
           program_id?: string | null
           published_at?: string | null
           quiz_config?: Json
@@ -710,6 +977,7 @@ export type Database = {
           wizard_config?: Json | null
         }
         Update: {
+          assessment_config?: Json
           course_type?: string
           cover_image?: string | null
           created_at?: string
@@ -720,6 +988,7 @@ export type Database = {
           group_id?: string
           icon?: string | null
           id?: string
+          page_header_data?: Json | null
           program_id?: string | null
           published_at?: string | null
           quiz_config?: Json
@@ -803,6 +1072,225 @@ export type Database = {
           {
             foreignKeyName: "credit_costs_group_id_fkey"
             columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          brand_id: string
+          created_at: string
+          created_by: string | null
+          department: string | null
+          display_name: string | null
+          email: string | null
+          employment_status: string
+          employment_type: string
+          first_name: string
+          group_id: string
+          hire_date: string | null
+          id: string
+          last_name: string
+          notes: string | null
+          pay_type: string
+          phone: string | null
+          phone_consent: boolean
+          phone_consent_at: string | null
+          position: string
+          profile_id: string | null
+          termination_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          display_name?: string | null
+          email?: string | null
+          employment_status?: string
+          employment_type?: string
+          first_name: string
+          group_id: string
+          hire_date?: string | null
+          id?: string
+          last_name: string
+          notes?: string | null
+          pay_type?: string
+          phone?: string | null
+          phone_consent?: boolean
+          phone_consent_at?: string | null
+          position: string
+          profile_id?: string | null
+          termination_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          display_name?: string | null
+          email?: string | null
+          employment_status?: string
+          employment_type?: string
+          first_name?: string
+          group_id?: string
+          hire_date?: string | null
+          id?: string
+          last_name?: string
+          notes?: string | null
+          pay_type?: string
+          phone?: string | null
+          phone_consent?: boolean
+          phone_consent_at?: string | null
+          position?: string
+          profile_id?: string | null
+          termination_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evaluations: {
+        Row: {
+          ai_model: string | null
+          competency_level: string
+          course_id: string | null
+          created_at: string
+          enrollment_id: string | null
+          eval_source: string
+          eval_type: string
+          evaluated_by: string | null
+          group_id: string
+          id: string
+          manager_feedback: Json
+          manager_notes: string | null
+          passed: boolean
+          score: number
+          section_id: string | null
+          signals: Json
+          student_feedback: Json
+          superseded_by: string | null
+          unit_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_model?: string | null
+          competency_level: string
+          course_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          eval_source: string
+          eval_type: string
+          evaluated_by?: string | null
+          group_id: string
+          id?: string
+          manager_feedback: Json
+          manager_notes?: string | null
+          passed: boolean
+          score: number
+          section_id?: string | null
+          signals?: Json
+          student_feedback: Json
+          superseded_by?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_model?: string | null
+          competency_level?: string
+          course_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          eval_source?: string
+          eval_type?: string
+          evaluated_by?: string | null
+          group_id?: string
+          id?: string
+          manager_feedback?: Json
+          manager_notes?: string | null
+          passed?: boolean
+          score?: number
+          section_id?: string | null
+          signals?: Json
+          student_feedback?: Json
+          superseded_by?: string | null
+          unit_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evaluations_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluations_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluations_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evaluations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_evaluations_unit"
+            columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "groups"
             referencedColumns: ["id"]
@@ -897,6 +1385,7 @@ export type Database = {
           detailed_description: string
           embedding: string | null
           flavor_profile: string[]
+          group_id: string
           id: string
           image: string | null
           ingredients: string[]
@@ -925,6 +1414,7 @@ export type Database = {
           detailed_description: string
           embedding?: string | null
           flavor_profile?: string[]
+          group_id: string
           id?: string
           image?: string | null
           ingredients?: string[]
@@ -953,6 +1443,7 @@ export type Database = {
           detailed_description?: string
           embedding?: string | null
           flavor_profile?: string[]
+          group_id?: string
           id?: string
           image?: string | null
           ingredients?: string[]
@@ -973,6 +1464,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "foh_plate_specs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "foh_plate_specs_plate_spec_id_fkey"
             columns: ["plate_spec_id"]
@@ -1292,36 +1790,59 @@ export type Database = {
       }
       groups: {
         Row: {
+          address: string | null
           allow_signups: boolean
+          brand_id: string
           created_at: string
           description: string | null
           id: string
           is_active: boolean
           name: string
+          phone: string | null
           slug: string
+          timezone: string
+          unit_type: string
           updated_at: string
         }
         Insert: {
+          address?: string | null
           allow_signups?: boolean
+          brand_id: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          phone?: string | null
           slug: string
+          timezone?: string
+          unit_type?: string
           updated_at?: string
         }
         Update: {
+          address?: string | null
           allow_signups?: boolean
+          brand_id?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          phone?: string | null
           slug?: string
+          timezone?: string
+          unit_type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "groups_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ingestion_messages: {
         Row: {
@@ -1485,6 +2006,7 @@ export type Database = {
           embedding_en: string | null
           embedding_es: string | null
           file_path: string
+          group_id: string
           icon: string | null
           id: string
           is_category: boolean
@@ -1509,6 +2031,7 @@ export type Database = {
           embedding_en?: string | null
           embedding_es?: string | null
           file_path: string
+          group_id: string
           icon?: string | null
           id?: string
           is_category?: boolean
@@ -1533,6 +2056,7 @@ export type Database = {
           embedding_en?: string | null
           embedding_es?: string | null
           file_path?: string
+          group_id?: string
           icon?: string | null
           id?: string
           is_category?: boolean
@@ -1551,10 +2075,71 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "manual_sections_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "manual_sections_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "manual_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          group_id: string
+          id: string
+          metadata: Json
+          read: boolean
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          metadata?: Json
+          read?: boolean
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          metadata?: Json
+          read?: boolean
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1568,6 +2153,7 @@ export type Database = {
           created_at: string
           created_by: string
           embedding: string | null
+          group_id: string
           id: string
           images: Json
           is_featured: boolean
@@ -1591,6 +2177,7 @@ export type Database = {
           created_at?: string
           created_by: string
           embedding?: string | null
+          group_id: string
           id?: string
           images?: Json
           is_featured?: boolean
@@ -1614,6 +2201,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           embedding?: string | null
+          group_id?: string
           id?: string
           images?: Json
           is_featured?: boolean
@@ -1631,10 +2219,68 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "plate_specs_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "plate_specs_source_session_id_fkey"
             columns: ["source_session_id"]
             isOneToOne: false
             referencedRelation: "ingestion_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      position_training_requirements: {
+        Row: {
+          created_at: string
+          due_within_days: number | null
+          group_id: string
+          id: string
+          position: string
+          program_id: string
+          required: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          due_within_days?: number | null
+          group_id: string
+          id?: string
+          position: string
+          program_id: string
+          required?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          due_within_days?: number | null
+          group_id?: string
+          id?: string
+          position?: string
+          program_id?: string
+          required?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "position_training_requirements_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "position_training_requirements_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "training_programs"
             referencedColumns: ["id"]
           },
         ]
@@ -1647,6 +2293,7 @@ export type Database = {
           created_by: string
           department: string
           embedding: string | null
+          group_id: string
           id: string
           images: Json
           ingredients: Json
@@ -1674,6 +2321,7 @@ export type Database = {
           created_by: string
           department?: string
           embedding?: string | null
+          group_id: string
           id?: string
           images?: Json
           ingredients: Json
@@ -1701,6 +2349,7 @@ export type Database = {
           created_by?: string
           department?: string
           embedding?: string | null
+          group_id?: string
           id?: string
           images?: Json
           ingredients?: Json
@@ -1722,6 +2371,13 @@ export type Database = {
           yield_unit?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "prep_recipes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "prep_recipes_source_session_id_fkey"
             columns: ["source_session_id"]
@@ -1814,6 +2470,334 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      program_enrollments: {
+        Row: {
+          completed_at: string | null
+          completed_courses: number
+          created_at: string
+          group_id: string
+          id: string
+          overall_score: number | null
+          program_id: string
+          started_at: string | null
+          status: string
+          total_courses: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_courses?: number
+          created_at?: string
+          group_id: string
+          id?: string
+          overall_score?: number | null
+          program_id: string
+          started_at?: string | null
+          status?: string
+          total_courses?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_courses?: number
+          created_at?: string
+          group_id?: string
+          id?: string
+          overall_score?: number | null
+          program_id?: string
+          started_at?: string | null
+          status?: string
+          total_courses?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_enrollments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_enrollments_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "training_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_enrollments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempt_answers: {
+        Row: {
+          attempt_id: string
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          question_id: string
+          selected_option: string | null
+          time_spent_seconds: number
+          transcription: string | null
+          transcription_expires_at: string | null
+          voice_feedback_en: string | null
+          voice_feedback_es: string | null
+          voice_score: number | null
+        }
+        Insert: {
+          attempt_id: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id: string
+          selected_option?: string | null
+          time_spent_seconds?: number
+          transcription?: string | null
+          transcription_expires_at?: string | null
+          voice_feedback_en?: string | null
+          voice_feedback_es?: string | null
+          voice_score?: number | null
+        }
+        Update: {
+          attempt_id?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string
+          selected_option?: string | null
+          time_spent_seconds?: number
+          transcription?: string | null
+          transcription_expires_at?: string | null
+          voice_feedback_en?: string | null
+          voice_feedback_es?: string | null
+          voice_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempt_answers_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempt_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "quiz_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_attempts: {
+        Row: {
+          additional_questions_asked: number
+          attempt_number: number
+          competency_score: number
+          completed_at: string | null
+          course_id: string
+          created_at: string
+          enrollment_id: string
+          id: string
+          passed: boolean | null
+          questions_covered: string[]
+          quiz_mode: string
+          score: number | null
+          section_id: string | null
+          started_at: string
+          status: string
+          teaching_moments: number
+          transcript_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_questions_asked?: number
+          attempt_number: number
+          competency_score?: number
+          completed_at?: string | null
+          course_id: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          passed?: boolean | null
+          questions_covered?: string[]
+          quiz_mode?: string
+          score?: number | null
+          section_id?: string | null
+          started_at?: string
+          status?: string
+          teaching_moments?: number
+          transcript_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_questions_asked?: number
+          attempt_number?: number
+          competency_score?: number
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          passed?: boolean | null
+          questions_covered?: string[]
+          quiz_mode?: string
+          score?: number | null
+          section_id?: string | null
+          started_at?: string
+          status?: string
+          teaching_moments?: number
+          transcript_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_questions: {
+        Row: {
+          auto_flagged: boolean
+          course_id: string
+          created_at: string
+          difficulty: string
+          evaluation_criteria: Json | null
+          explanation_en: string | null
+          explanation_es: string | null
+          group_id: string
+          id: string
+          is_active: boolean
+          is_archived: boolean
+          options: Json | null
+          question_en: string
+          question_es: string | null
+          question_type: string
+          rubric: Json | null
+          scenario_en: string | null
+          scenario_es: string | null
+          section_id: string | null
+          source: string
+          source_element_key: string | null
+          source_refs: Json
+          times_correct: number
+          times_shown: number
+          updated_at: string
+        }
+        Insert: {
+          auto_flagged?: boolean
+          course_id: string
+          created_at?: string
+          difficulty?: string
+          evaluation_criteria?: Json | null
+          explanation_en?: string | null
+          explanation_es?: string | null
+          group_id: string
+          id?: string
+          is_active?: boolean
+          is_archived?: boolean
+          options?: Json | null
+          question_en: string
+          question_es?: string | null
+          question_type: string
+          rubric?: Json | null
+          scenario_en?: string | null
+          scenario_es?: string | null
+          section_id?: string | null
+          source?: string
+          source_element_key?: string | null
+          source_refs?: Json
+          times_correct?: number
+          times_shown?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_flagged?: boolean
+          course_id?: string
+          created_at?: string
+          difficulty?: string
+          evaluation_criteria?: Json | null
+          explanation_en?: string | null
+          explanation_es?: string | null
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          is_archived?: boolean
+          options?: Json | null
+          question_en?: string
+          question_es?: string | null
+          question_type?: string
+          rubric?: Json | null
+          scenario_en?: string | null
+          scenario_es?: string | null
+          section_id?: string | null
+          source?: string
+          source_element_key?: string | null
+          source_refs?: Json
+          times_correct?: number
+          times_shown?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_questions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_questions_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       restaurant_reviews: {
         Row: {
@@ -2259,6 +3243,95 @@ export type Database = {
           },
         ]
       }
+      section_progress: {
+        Row: {
+          completed_at: string | null
+          content_hash_at_completion: string | null
+          course_id: string
+          created_at: string
+          elements_total: number
+          elements_viewed: string[]
+          enrollment_id: string
+          id: string
+          quiz_attempts: number
+          quiz_passed: boolean | null
+          quiz_score: number | null
+          section_id: string
+          started_at: string | null
+          status: string
+          time_spent_seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          content_hash_at_completion?: string | null
+          course_id: string
+          created_at?: string
+          elements_total?: number
+          elements_viewed?: string[]
+          enrollment_id: string
+          id?: string
+          quiz_attempts?: number
+          quiz_passed?: boolean | null
+          quiz_score?: number | null
+          section_id: string
+          started_at?: string | null
+          status?: string
+          time_spent_seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          content_hash_at_completion?: string | null
+          course_id?: string
+          created_at?: string
+          elements_total?: number
+          elements_viewed?: string[]
+          enrollment_id?: string
+          id?: string
+          quiz_attempts?: number
+          quiz_passed?: boolean | null
+          quiz_score?: number | null
+          section_id?: string
+          started_at?: string | null
+          status?: string
+          time_spent_seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_progress_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "section_progress_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "course_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "section_progress_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "course_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "section_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       steps_of_service_sections: {
         Row: {
           chapter: string | null
@@ -2439,6 +3512,153 @@ export type Database = {
           },
         ]
       }
+      training_actions: {
+        Row: {
+          action_type: string
+          created_at: string
+          display_data: Json
+          expires_at: string
+          group_id: string
+          id: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source: string
+          status: string
+          target_course_id: string | null
+          target_employee_id: string | null
+          target_program_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          display_data?: Json
+          expires_at?: string
+          group_id: string
+          id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+          status?: string
+          target_course_id?: string | null
+          target_employee_id?: string | null
+          target_program_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          display_data?: Json
+          expires_at?: string
+          group_id?: string
+          id?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+          status?: string
+          target_course_id?: string | null
+          target_employee_id?: string | null
+          target_program_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_actions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_actions_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_actions_target_course_id_fkey"
+            columns: ["target_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_actions_target_employee_id_fkey"
+            columns: ["target_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_actions_target_program_id_fkey"
+            columns: ["target_program_id"]
+            isOneToOne: false
+            referencedRelation: "training_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_insights: {
+        Row: {
+          body: string | null
+          created_at: string
+          data: Json
+          group_id: string
+          id: string
+          insight_type: string
+          period_end: string
+          period_start: string
+          severity: string
+          superseded_by: string | null
+          title: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          group_id: string
+          id?: string
+          insight_type: string
+          period_end: string
+          period_start: string
+          severity?: string
+          superseded_by?: string | null
+          title: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          data?: Json
+          group_id?: string
+          id?: string
+          insight_type?: string
+          period_end?: string
+          period_start?: string
+          severity?: string
+          superseded_by?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_insights_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_insights_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "training_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_programs: {
         Row: {
           category: string
@@ -2565,6 +3785,7 @@ export type Database = {
           created_at: string
           created_by: string
           embedding: string | null
+          group_id: string
           id: string
           image: string | null
           is_featured: boolean
@@ -2593,6 +3814,7 @@ export type Database = {
           created_at?: string
           created_by: string
           embedding?: string | null
+          group_id: string
           id?: string
           image?: string | null
           is_featured?: boolean
@@ -2621,6 +3843,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           embedding?: string | null
+          group_id?: string
           id?: string
           image?: string | null
           is_featured?: boolean
@@ -2642,6 +3865,13 @@ export type Database = {
           vintage?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wines_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wines_source_session_id_fkey"
             columns: ["source_session_id"]
@@ -2675,6 +3905,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_training_data: { Args: never; Returns: undefined }
       cleanup_stale_ingestion_sessions: {
         Args: never
         Returns: {
@@ -2701,9 +3932,38 @@ export type Database = {
           total_reviews: number
         }[]
       }
+      expire_rollouts: { Args: never; Returns: undefined }
+      expire_stale_training_actions: { Args: never; Returns: number }
       fn_get_section_context: {
         Args: { _language?: string; _section_id: string }
         Returns: string
+      }
+      generate_training_insights: { Args: never; Returns: number }
+      get_admin_employees: {
+        Args: { p_group_id: string }
+        Returns: {
+          attention_reason: string
+          avg_score: number
+          course_progress: string
+          courses_done: string
+          current_course: string
+          department: string
+          display_name: string
+          email: string
+          employment_status: string
+          first_name: string
+          grade: string
+          hire_date: string
+          id: string
+          is_new_hire: boolean
+          last_name: string
+          needs_attention: boolean
+          overall_progress: number
+          phone: string
+          position: string
+          profile_id: string
+          tenure_label: string
+        }[]
       }
       get_category_trend_weekly: {
         Args: {
@@ -2732,6 +3992,28 @@ export type Database = {
         }[]
       }
       get_competitor_ids: { Args: { p_unit_id: string }; Returns: string[] }
+      get_course_training_analytics: {
+        Args: { p_course_id: string; p_group_id: string }
+        Returns: {
+          avg_completion_days: number
+          avg_score: number
+          completed_count: number
+          course_id: string
+          course_title: string
+          enrolled_count: number
+          in_progress_count: number
+          pass_rate: number
+          problem_sections: Json
+        }[]
+      }
+      get_courses_hero_stats: {
+        Args: { p_group_id: string }
+        Returns: {
+          avg_grade: number
+          completion_rate: number
+          total_courses: number
+        }[]
+      }
       get_dashboard_competitors: {
         Args: { p_end_date: string; p_start_date: string; p_unit_id: string }
         Returns: {
@@ -2742,6 +4024,50 @@ export type Database = {
           name: string
           restaurant_id: string
           total_reviews: number
+        }[]
+      }
+      get_employee_detail: {
+        Args: { p_employee_id: string }
+        Returns: {
+          courses: Json
+          department: string
+          display_name: string
+          email: string
+          employment_status: string
+          first_name: string
+          hire_date: string
+          id: string
+          last_name: string
+          phone: string
+          position: string
+          profile_id: string
+        }[]
+      }
+      get_employee_training_detail: {
+        Args: {
+          p_employee_id?: string
+          p_employee_name?: string
+          p_group_id: string
+        }
+        Returns: {
+          completed_at: string
+          completion_pct: number
+          course_id: string
+          course_title: string
+          department: string
+          display_name: string
+          employee_id: string
+          employment_status: string
+          enrollment_status: string
+          final_passed: boolean
+          final_score: number
+          hire_date: string
+          latest_eval_competency: string
+          latest_eval_score: number
+          match_count: number
+          position: string
+          profile_linked: boolean
+          started_at: string
         }[]
       }
       get_full_sections: {
@@ -2760,8 +4086,16 @@ export type Database = {
           word_count_es: number
         }[]
       }
+      get_hub_hero_stats: {
+        Args: { p_group_id: string }
+        Returns: {
+          active_courses: number
+          pending_actions: number
+          staff_managed: number
+        }[]
+      }
       get_manual_section: {
-        Args: { language?: string; section_slug: string }
+        Args: { language?: string; p_group_id?: string; section_slug: string }
         Returns: {
           category: string
           content: string
@@ -2777,7 +4111,7 @@ export type Database = {
         }[]
       }
       get_manual_tree: {
-        Args: { language?: string }
+        Args: { language?: string; p_group_id?: string }
         Returns: {
           has_content: boolean
           icon: string
@@ -2800,6 +4134,60 @@ export type Database = {
           _user_id: string
         }
         Returns: string
+      }
+      get_pending_actions: {
+        Args: { p_group_id: string }
+        Returns: {
+          action_id: string
+          action_type: string
+          course_title: string
+          created_at: string
+          display_data: Json
+          employee_name: string
+          expires_at: string
+          program_title: string
+          source: string
+          status: string
+        }[]
+      }
+      get_people_hero_stats: {
+        Args: { p_group_id: string }
+        Returns: {
+          fully_trained: number
+          needs_attention: number
+          new_hires: number
+          total_employees: number
+        }[]
+      }
+      get_program_completion_summary: {
+        Args: { p_group_id: string; p_program_id?: string }
+        Returns: {
+          completed_at: string
+          completed_courses: number
+          display_name: string
+          employee_id: string
+          overall_score: number
+          position: string
+          program_id: string
+          program_status: string
+          program_title: string
+          started_at: string
+          total_courses: number
+        }[]
+      }
+      get_recent_insights: {
+        Args: { p_group_id: string; p_insight_type?: string }
+        Returns: {
+          body: string
+          created_at: string
+          data: Json
+          insight_id: string
+          insight_type: string
+          period_end: string
+          period_start: string
+          severity: string
+          title: string
+        }[]
       }
       get_severity_alerts: {
         Args: {
@@ -2832,6 +4220,64 @@ export type Database = {
           trend_delta: number
         }[]
       }
+      get_team_progress: {
+        Args: { p_group_id: string }
+        Returns: {
+          completed_at: string
+          completed_sections: number
+          course_id: string
+          course_title: string
+          enrollment_status: string
+          expires_at: string
+          final_passed: boolean
+          final_score: number
+          is_overdue: boolean
+          program_id: string
+          program_title: string
+          progress_pct: number
+          started_at: string
+          total_sections: number
+          user_email: string
+          user_full_name: string
+          user_id: string
+          user_role: string
+        }[]
+      }
+      get_team_training_summary: {
+        Args: {
+          p_department?: string
+          p_employment_status?: string
+          p_group_id: string
+          p_limit?: number
+        }
+        Returns: {
+          avg_score: number
+          courses_completed: number
+          courses_enrolled: number
+          department: string
+          display_name: string
+          employee_id: string
+          employment_status: string
+          hire_date: string
+          latest_activity: string
+          position: string
+          profile_id: string
+        }[]
+      }
+      get_training_alerts: {
+        Args: { p_group_id: string }
+        Returns: {
+          alert_type: string
+          course_id: string
+          course_title: string
+          detail: string
+          display_name: string
+          due_date: string
+          employee_id: string
+          position: string
+          severity: string
+        }[]
+      }
       get_user_group_id: { Args: never; Returns: string }
       get_user_groups: { Args: { _user_id: string }; Returns: string[] }
       get_user_permissions: { Args: never; Returns: Json }
@@ -2861,6 +4307,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_quiz_question_stats: {
+        Args: { p_question_id: string; p_was_correct: boolean }
+        Returns: undefined
+      }
       increment_usage: {
         Args: {
           _credits?: number
@@ -2880,6 +4330,15 @@ export type Database = {
         Returns: boolean
       }
       join_group_by_slug: { Args: { group_slug: string }; Returns: Json }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: boolean
+      }
+      resolve_group_id: { Args: { p_group_id: string }; Returns: string }
+      resolve_training_action: {
+        Args: { p_action_id: string; p_note?: string; p_resolution: string }
+        Returns: Json
+      }
       rollup_daily_flavor_index: {
         Args: { p_target_date?: string }
         Returns: number
@@ -2887,6 +4346,13 @@ export type Database = {
       rollup_review_intelligence: {
         Args: { p_target_date?: string }
         Returns: number
+      }
+      run_auto_enrollment: {
+        Args: never
+        Returns: {
+          actions_proposed: number
+          enrollments_created: number
+        }[]
       }
       run_daily_review_rollups: {
         Args: never
@@ -2898,6 +4364,7 @@ export type Database = {
       search_beer_liquor: {
         Args: {
           keyword_weight?: number
+          p_group_id?: string
           query_embedding: string
           result_limit?: number
           search_query: string
@@ -2916,6 +4383,7 @@ export type Database = {
       search_cocktails: {
         Args: {
           keyword_weight?: number
+          p_group_id?: string
           query_embedding: string
           result_limit?: number
           search_query: string
@@ -2954,6 +4422,7 @@ export type Database = {
       search_dishes: {
         Args: {
           keyword_weight?: number
+          p_group_id?: string
           query_embedding: string
           result_limit?: number
           search_query: string
@@ -2986,9 +4455,28 @@ export type Database = {
           title: string
         }[]
       }
+      search_manual: {
+        Args: {
+          p_group_id?: string
+          result_limit?: number
+          search_language?: string
+          search_query: string
+        }
+        Returns: {
+          category: string
+          file_path: string
+          id: string
+          rank: number
+          slug: string
+          snippet: string
+          tags: string[]
+          title: string
+        }[]
+      }
       search_manual_v2: {
         Args: {
           keyword_weight?: number
+          p_group_id?: string
           query_embedding?: string
           result_limit?: number
           search_language?: string
@@ -3008,8 +4496,8 @@ export type Database = {
       }
       search_recipes: {
         Args: {
-          filter_department?: string
           keyword_weight?: number
+          p_group_id?: string
           query_embedding: string
           result_limit?: number
           search_query: string
@@ -3048,6 +4536,7 @@ export type Database = {
       search_wines: {
         Args: {
           keyword_weight?: number
+          p_group_id?: string
           query_embedding: string
           result_limit?: number
           search_query: string
@@ -3063,6 +4552,18 @@ export type Database = {
           varietal: string
         }[]
       }
+      send_notification: {
+        Args: {
+          p_body?: string
+          p_group_id: string
+          p_metadata?: Json
+          p_title: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      set_active_unit: { Args: { p_unit_id: string }; Returns: boolean }
     }
     Enums: {
       user_role: "staff" | "manager" | "admin"

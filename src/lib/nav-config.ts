@@ -33,6 +33,7 @@ export interface NavGroup {
   icon: LucideIcon;
   children: NavChild[];
   adminOnly?: boolean;
+  departments?: string[];  // If set, only visible to users in these departments
 }
 
 export interface NavStandalone {
@@ -71,6 +72,7 @@ export const NAV_GROUPS: NavGroup[] = [
     labelEn: 'BOH',
     labelEs: 'BOH',
     icon: ChefHat,
+    departments: ['BOH'],
     children: [
       { path: '/recipes', labelEn: 'Recipes', labelEs: 'Recetas', icon: ChefHat },
     ],
@@ -80,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
     labelEn: 'FOH',
     labelEs: 'FOH',
     icon: Utensils,
+    departments: ['FOH'],
     children: [
       { path: '/dish-guide',  labelEn: 'Dish Guide',   labelEs: 'Guía de Platos',  icon: Utensils     },
       { path: '/wines',       labelEn: 'Wines',         labelEs: 'Vinos',            icon: Wine         },
@@ -121,9 +124,25 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-/** Filter groups by admin status */
-export function getVisibleGroups(groups: NavGroup[], isAdmin: boolean): NavGroup[] {
-  return groups.filter(g => !g.adminOnly || isAdmin);
+/** Filter groups by admin status, manager status, and department */
+export function getVisibleGroups(
+  groups: NavGroup[],
+  isAdmin: boolean,
+  isManager?: boolean,
+  department?: string | null,
+): NavGroup[] {
+  return groups.filter(g => {
+    // Admin-only groups: only admins can see
+    if (g.adminOnly && !isAdmin) return false;
+    // Managers and admins see all department groups
+    if (isAdmin || isManager) return true;
+    // If group has no department restriction, everyone sees it
+    if (!g.departments) return true;
+    // If user has no department (no employee record), show everything as fallback
+    if (!department) return true;
+    // Check if user's department matches (case-insensitive)
+    return g.departments.some(d => d.toUpperCase() === department.toUpperCase());
+  });
 }
 
 /** FOH and Admin expanded by default — smart collapse handles overflow */

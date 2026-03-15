@@ -10,16 +10,13 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // =============================================================================
 // CORS
 // =============================================================================
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+let corsHeaders: Record<string, string> = getCorsHeaders(null);
 
 // =============================================================================
 // HELPERS
@@ -211,6 +208,7 @@ White or light neutral background. No text overlays. Safe for workplace training
 // =============================================================================
 
 Deno.serve(async (req) => {
+  corsHeaders = getCorsHeaders(req.headers.get("Origin"));
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });

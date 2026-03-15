@@ -10,7 +10,7 @@
  * Deploy: npx supabase functions deploy build-course --no-verify-jwt
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithUser, AuthError } from "../_shared/auth.ts";
 import { callClaude, callClaudeWithTimeout, ClaudeError, type ContentBlock } from "../_shared/anthropic.ts";
 import { fetchPromptBySlug } from "../_shared/prompt-helpers.ts";
@@ -562,12 +562,13 @@ async function handleOutline(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   // Validate: either course_id (load wizard_config from DB) or course_title (legacy inline)
   if (!body.course_id && !body.course_title?.trim()) {
-    return errorResponse("bad_request", "course_id or course_title is required", 400);
+    return errorResponse("bad_request", "course_id or course_title is required", 400, cors);
   }
 
   // If course_id provided, load wizard_config from existing course
@@ -589,7 +590,7 @@ async function handleOutline(
       .single();
 
     if (fetchErr || !existingCourse) {
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     courseTitle = existingCourse.title_en || courseTitle;
@@ -821,10 +822,10 @@ ${material.text}`;
 
   const usageInfo = await checkUsage(supabase, userId, groupId);
   if (!usageInfo) {
-    return errorResponse("forbidden", "Not a member of this group", 403);
+    return errorResponse("forbidden", "Not a member of this group", 403, cors);
   }
   if (!usageInfo.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
   }
 
   // ── 5. Call AI ─────────────────────────────────────────────────────────
@@ -844,7 +845,7 @@ ${material.text}`;
   // ── 6. Parse and validate ──────────────────────────────────────────────
   const outline = parseAIOutlineResponse(aiResponse);
   if (!outline) {
-    return errorResponse("ai_error", "Failed to parse outline response", 500);
+    return errorResponse("ai_error", "Failed to parse outline response", 500, cors);
   }
 
   console.log(
@@ -912,7 +913,7 @@ ${material.text}`;
 
     if (updateError) {
       console.error("[build-course] Course update error:", updateError.message);
-      return errorResponse("db_error", "Failed to update course: " + updateError.message, 500);
+      return errorResponse("db_error", "Failed to update course: " + updateError.message, 500, cors);
     }
 
     courseId = existingCourseId;
@@ -949,7 +950,7 @@ ${material.text}`;
 
     if (courseError) {
       console.error("[build-course] Course insert error:", courseError.message);
-      return errorResponse("db_error", "Failed to create course: " + courseError.message, 500);
+      return errorResponse("db_error", "Failed to create course: " + courseError.message, 500, cors);
     }
 
     courseId = course.id;
@@ -1008,6 +1009,7 @@ ${material.text}`;
       "db_error",
       "Failed to create sections: " + sectionsError.message,
       500,
+      cors,
     );
   }
 
@@ -1037,7 +1039,7 @@ ${material.text}`;
       (acc, s) => acc + s.elements.length * 3,
       0,
     ),
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -1050,11 +1052,12 @@ async function handleContent(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required", 400);
+    return errorResponse("bad_request", "course_id is required", 400, cors);
   }
 
   // ── 1. Fetch course + sections ─────────────────────────────────────────
@@ -1066,7 +1069,7 @@ async function handleContent(
     .single();
 
   if (courseError || !course) {
-    return errorResponse("not_found", "Course not found", 404);
+    return errorResponse("not_found", "Course not found", 404, cors);
   }
 
   const { data: sections, error: sectionsError } = await supabase
@@ -1076,13 +1079,13 @@ async function handleContent(
     .order("sort_order", { ascending: true });
 
   if (sectionsError || !sections || sections.length === 0) {
-    return errorResponse("not_found", "No sections found", 404);
+    return errorResponse("not_found", "No sections found", 404, cors);
   }
 
   // ── 2. Check usage before starting ─────────────────────────────────
   const contentUsageInfo = await checkUsage(supabase, userId, groupId);
   if (!contentUsageInfo || !contentUsageInfo.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
   }
 
   // ── 2b. Update course status to 'generating' ─────────────────────────
@@ -1364,7 +1367,7 @@ EXAMPLE: "**Sell the Aroma Moment Before the Order Locks.** Mention Black Truffl
     elements_built: totalCompletedElements,
     errors: failedElements,
     credits_consumed: totalCredits,
-  });
+  }, 200, cors);
 }
 
 // =============================================================================
@@ -1377,17 +1380,18 @@ async function handleChatEdit(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required", 400);
+    return errorResponse("bad_request", "course_id is required", 400, cors);
   }
   if (!body.section_id) {
-    return errorResponse("bad_request", "section_id is required", 400);
+    return errorResponse("bad_request", "section_id is required", 400, cors);
   }
   if (!body.instruction?.trim()) {
-    return errorResponse("bad_request", "instruction is required", 400);
+    return errorResponse("bad_request", "instruction is required", 400, cors);
   }
 
   // ── 1. Fetch section + course metadata ──────────────────────────────
@@ -1399,7 +1403,7 @@ async function handleChatEdit(
     .single();
 
   if (sectionError || !section) {
-    return errorResponse("not_found", "Section not found", 404);
+    return errorResponse("not_found", "Section not found", 404, cors);
   }
 
   const { data: chatCourse } = await supabase
@@ -1427,7 +1431,7 @@ async function handleChatEdit(
 
   const usageInfo = await checkUsage(supabase, userId, groupId);
   if (!usageInfo || !usageInfo.can_ask) {
-    return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
   }
 
   // ── 4. Call AI ─────────────────────────────────────────────────────────
@@ -1475,7 +1479,7 @@ CONTENT RULES:
 
     const parsed = parseAIChatEditResponse(aiResult);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse chat edit response", 500);
+      return errorResponse("ai_error", "Failed to parse chat edit response", 500, cors);
     }
 
     // ── 5. Apply modifications to elements array ───────────────────────
@@ -1509,7 +1513,7 @@ CONTENT RULES:
         "[build-course] Chat edit save error:",
         updateError.message,
       );
-      return errorResponse("db_error", "Failed to save modifications", 500);
+      return errorResponse("db_error", "Failed to save modifications", 500, cors);
     }
 
     // ── 7. Track credits ─────────────────────────────────────────────────
@@ -1524,10 +1528,10 @@ CONTENT RULES:
       section_id: body.section_id,
       modifications: parsed.modified_elements.length,
       elements,
-    });
+    }, 200, cors);
   } catch (err) {
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     throw err;
   }
@@ -1543,11 +1547,12 @@ async function handleFullContent(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required for full_content step", 400);
+    return errorResponse("bad_request", "course_id is required for full_content step", 400, cors);
   }
 
   try {
@@ -1560,7 +1565,7 @@ async function handleFullContent(
       .single();
 
     if (courseErr || !course) {
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     // ── 2. Load sections (outline must exist) ────────────────────────────
@@ -1571,20 +1576,20 @@ async function handleFullContent(
       .order("sort_order");
 
     if (secErr || !sections || sections.length === 0) {
-      return errorResponse("bad_request", "Course has no sections. Generate an outline first.", 400);
+      return errorResponse("bad_request", "Course has no sections. Generate an outline first.", 400, cors);
     }
 
     // Verify sections have elements
     const hasElements = sections.some((s: { elements: unknown[] }) => s.elements && s.elements.length > 0);
     if (!hasElements) {
-      return errorResponse("bad_request", "Course sections have no elements. Generate an outline first.", 400);
+      return errorResponse("bad_request", "Course sections have no elements. Generate an outline first.", 400, cors);
     }
 
     // ── 3. Check credits ────────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "full_content");
     const usageInfo = await checkUsage(supabase, userId, groupId);
     if (!usageInfo || !usageInfo.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // ── 4. Assemble source material ─────────────────────────────────────
@@ -1649,7 +1654,7 @@ Write flowing, well-structured content for each section. The content should natu
 
     const parsed = parseFullContentResponse(aiResponse);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse full content response from AI", 500);
+      return errorResponse("ai_error", "Failed to parse full content response from AI", 500, cors);
     }
 
     // ── 9. Write draft_content to each section ──────────────────────────
@@ -1694,11 +1699,11 @@ Write flowing, well-structured content for each section. The content should natu
         has_content: true,
       })),
       sections_written: parsed.sections.length,
-    });
+    }, 200, cors);
 
   } catch (err) {
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     throw err;
   }
@@ -1714,11 +1719,12 @@ async function handleAssemble(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id || !body.section_id) {
-    return errorResponse("bad_request", "course_id and section_id are required for assemble step", 400);
+    return errorResponse("bad_request", "course_id and section_id are required for assemble step", 400, cors);
   }
 
   try {
@@ -1731,7 +1737,7 @@ async function handleAssemble(
       .single();
 
     if (courseErr || !course) {
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     // ── 2. Load section with draft_content + elements ────────────────────
@@ -1743,23 +1749,23 @@ async function handleAssemble(
       .single();
 
     if (secErr || !section) {
-      return errorResponse("not_found", "Section not found", 404);
+      return errorResponse("not_found", "Section not found", 404, cors);
     }
 
     if (!section.draft_content) {
-      return errorResponse("bad_request", "Section has no draft_content. Run full_content step first.", 400);
+      return errorResponse("bad_request", "Section has no draft_content. Run full_content step first.", 400, cors);
     }
 
     const elements = section.elements || [];
     if (elements.length === 0) {
-      return errorResponse("bad_request", "Section has no elements to assemble.", 400);
+      return errorResponse("bad_request", "Section has no elements to assemble.", 400, cors);
     }
 
     // ── 3. Check credits ────────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "assemble_section");
     const usageInfo = await checkUsage(supabase, userId, groupId);
     if (!usageInfo || !usageInfo.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // ── 4. Assemble each element ────────────────────────────────────────
@@ -1854,7 +1860,7 @@ Extract the appropriate content from the section prose above and format it into 
 
     if (saveErr) {
       console.error(`[build-course] Failed to save assembled elements:`, saveErr.message);
-      return errorResponse("server_error", "Failed to save assembled elements", 500);
+      return errorResponse("server_error", "Failed to save assembled elements", 500, cors);
     }
 
     // ── 6. Track credits ────────────────────────────────────────────────
@@ -1871,11 +1877,11 @@ Extract the appropriate content from the section prose above and format it into 
       section_id: body.section_id,
       elements: assembledElements,
       elements_assembled: assembledElements.filter((e: { status: string }) => e.status === "generated").length,
-    });
+    }, 200, cors);
 
   } catch (err) {
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     throw err;
   }
@@ -1891,11 +1897,12 @@ async function handlePass1(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required for pass1 step", 400);
+    return errorResponse("bad_request", "course_id is required for pass1 step", 400, cors);
   }
 
   try {
@@ -1908,22 +1915,22 @@ async function handlePass1(
       .single();
 
     if (courseErr || !course) {
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     const wizardConfig = course.wizard_config || {};
     if (!wizardConfig.source_products && !wizardConfig.source_sections) {
-      return errorResponse("bad_request", "Course has no wizard_config with source material", 400);
+      return errorResponse("bad_request", "Course has no wizard_config with source material", 400, cors);
     }
 
     // ── 2. Check credits + usage BEFORE any destructive operations ─────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "pass1");
     const usageInfo = await checkUsage(supabase, userId, groupId);
     if (!usageInfo) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, cors);
     }
     if (!usageInfo.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // ── 3. Assemble source material ────────────────────────────────────
@@ -1979,7 +1986,7 @@ Write complete bilingual training content organized into logical sections. Retur
     // ── 8. Parse response ───────────────────────────────────────────────
     const parsed = parsePass1Response(aiResponse);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse pass1 response from AI", 500);
+      return errorResponse("ai_error", "Failed to parse pass1 response from AI", 500, cors);
     }
 
     console.log(`[build-course] pass1: ${parsed.sections.length} sections written`);
@@ -2009,7 +2016,7 @@ Write complete bilingual training content organized into logical sections. Retur
 
     if (sectionsError) {
       console.error("[build-course] pass1: sections insert error:", sectionsError.message);
-      return errorResponse("db_error", "Failed to create sections: " + sectionsError.message, 500);
+      return errorResponse("db_error", "Failed to create sections: " + sectionsError.message, 500, cors);
     }
 
     // ── 10. Update course status ────────────────────────────────────────
@@ -2039,14 +2046,14 @@ Write complete bilingual training content organized into logical sections. Retur
         }),
       ),
       sections_created: sections.length,
-    });
+    }, 200, cors);
 
   } catch (err) {
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     throw err;
   }
@@ -2062,11 +2069,12 @@ async function handlePass2(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id || !body.section_id) {
-    return errorResponse("bad_request", "course_id and section_id are required for pass2 step", 400);
+    return errorResponse("bad_request", "course_id and section_id are required for pass2 step", 400, cors);
   }
 
   try {
@@ -2079,7 +2087,7 @@ async function handlePass2(
       .single();
 
     if (courseErr || !course) {
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     // ── 2. Load section's draft_content ──────────────────────────────────
@@ -2091,21 +2099,21 @@ async function handlePass2(
       .single();
 
     if (secErr || !section) {
-      return errorResponse("not_found", "Section not found", 404);
+      return errorResponse("not_found", "Section not found", 404, cors);
     }
 
     if (!section.draft_content) {
-      return errorResponse("bad_request", "Section has no draft_content. Run pass1 first.", 400);
+      return errorResponse("bad_request", "Section has no draft_content. Run pass1 first.", 400, cors);
     }
 
     // ── 3. Check credits ────────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "pass2_section");
     const usageInfo = await checkUsage(supabase, userId, groupId);
     if (!usageInfo) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, cors);
     }
     if (!usageInfo.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
     }
 
     // ── 4. Fetch system prompt from DB ──────────────────────────────────
@@ -2151,7 +2159,7 @@ Read the prose above and design the best visual layout using structured elements
     if (!parsed) {
       console.error("[build-course] pass2: raw AI response for section", body.section_id, ":",
         JSON.stringify(aiResponse)?.substring(0, 1000));
-      return errorResponse("ai_error", "Failed to parse pass2 response from AI", 500);
+      return errorResponse("ai_error", "Failed to parse pass2 response from AI", 500, cors);
     }
 
     // Stamp status: 'generated', ensure sort_order is sequential, number section_headers
@@ -2182,7 +2190,7 @@ Read the prose above and design the best visual layout using structured elements
 
     if (saveErr) {
       console.error("[build-course] pass2: save error:", saveErr.message);
-      return errorResponse("db_error", "Failed to save elements", 500);
+      return errorResponse("db_error", "Failed to save elements", 500, cors);
     }
 
     // ── 9. Track credits ────────────────────────────────────────────────
@@ -2201,14 +2209,14 @@ Read the prose above and design the best visual layout using structured elements
       section_id: body.section_id,
       elements: processedElements,
       elements_created: processedElements.length,
-    });
+    }, 200, cors);
 
   } catch (err) {
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     throw err;
   }
@@ -2321,11 +2329,12 @@ async function handleStructurePlan(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required for structure_plan step", 400);
+    return errorResponse("bad_request", "course_id is required for structure_plan step", 400, cors);
   }
 
   try {
@@ -2340,21 +2349,21 @@ async function handleStructurePlan(
 
     if (courseErr || !course) {
       console.error(`[build-course] structure_plan: course load failed`, courseErr);
-      return errorResponse("not_found", "Course not found or access denied", 404);
+      return errorResponse("not_found", "Course not found or access denied", 404, cors);
     }
 
     console.log(`[build-course] structure_plan: course loaded. wizard_config keys: ${JSON.stringify(Object.keys(course.wizard_config || {}))}`);
     const wizardConfig = course.wizard_config || {};
     if (!wizardConfig.source_products && !wizardConfig.source_sections) {
       console.error(`[build-course] structure_plan: no source material. wizard_config: ${JSON.stringify(wizardConfig)}`);
-      return errorResponse("bad_request", "Course has no wizard_config with source material. Add source products or manual sections in the wizard.", 400);
+      return errorResponse("bad_request", "Course has no wizard_config with source material. Add source products or manual sections in the wizard.", 400, cors);
     }
 
     // ── 2. Check credits ───────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "structure_plan");
     const usageInfo = await checkUsage(supabase, userId, groupId);
-    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403);
-    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403, cors);
+    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
 
     // ── 3. Assemble source material ────────────────────────────────────
     const sourceSections = wizardConfig.source_sections || [];
@@ -2444,7 +2453,7 @@ Design a course structure. Return JSON matching the schema.
     // ── 7. Parse response ──────────────────────────────────────────────
     const parsed = parseStructurePlanResponse(aiResponse);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse structure_plan response", 500);
+      return errorResponse("ai_error", "Failed to parse structure_plan response", 500, cors);
     }
 
     console.log(`[build-course] structure_plan: ${parsed.sections.length} sections planned`);
@@ -2453,7 +2462,7 @@ Design a course structure. Return JSON matching the schema.
     const { error: deleteErr } = await supabase.from("course_sections").delete().eq("course_id", body.course_id);
     if (deleteErr) {
       console.error("[build-course] structure_plan: delete sections error:", deleteErr.message);
-      return errorResponse("db_error", "Failed to clear existing sections: " + deleteErr.message, 500);
+      return errorResponse("db_error", "Failed to clear existing sections: " + deleteErr.message, 500, cors);
     }
 
     // ── 9. Store page_header_data on course ────────────────────────────
@@ -2498,7 +2507,7 @@ Design a course structure. Return JSON matching the schema.
       console.error("[build-course] structure_plan: sections insert error:", sectionsError.message);
       // Attempt to restore course status since sections failed
       await supabase.from("courses").update({ status: "draft" }).eq("id", body.course_id);
-      return errorResponse("db_error", "Failed to create sections: " + sectionsError.message, 500);
+      return errorResponse("db_error", "Failed to create sections: " + sectionsError.message, 500, cors);
     }
 
     // ── 11. Track credits ──────────────────────────────────────────────
@@ -2523,10 +2532,10 @@ Design a course structure. Return JSON matching the schema.
         }),
       ),
       sections_created: sections.length,
-    });
+    }, 200, cors);
   } catch (err) {
-    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status);
-    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500);
+    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status, cors);
+    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500, cors);
     throw err;
   }
 }
@@ -2649,9 +2658,10 @@ async function handleDepthPreview(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   if (!body.course_id) {
-    return errorResponse("bad_request", "course_id is required for depth_preview step", 400);
+    return errorResponse("bad_request", "course_id is required for depth_preview step", 400, cors);
   }
 
   console.log(`[build-course] depth_preview: loading course ${body.course_id}`);
@@ -2666,13 +2676,13 @@ async function handleDepthPreview(
 
   if (courseErr || !course) {
     console.error(`[build-course] depth_preview: course load failed`, courseErr);
-    return errorResponse("not_found", "Course not found", 404);
+    return errorResponse("not_found", "Course not found", 404, cors);
   }
 
   // 2. Check usage
   const usageInfo = await checkUsage(supabase, userId, groupId);
-  if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403);
-  if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429);
+  if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403, cors);
+  if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
 
   const wizardConfig = (course.wizard_config || {}) as Record<string, unknown>;
   const language = (body.language as string) || "en";
@@ -2682,7 +2692,7 @@ async function handleDepthPreview(
   const sourceProducts = (wizardConfig.source_products as Array<{ table: string; ids: string[] }>) || [];
 
   if (sourceSections.length === 0 && sourceProducts.length === 0) {
-    return errorResponse("bad_request", "Course has no source material configured. Add items first.", 400);
+    return errorResponse("bad_request", "Course has no source material configured. Add items first.", 400, cors);
   }
 
   try {
@@ -2731,18 +2741,18 @@ Be specific to the actual source material — reference real item names.`;
     // 8. Parse response
     const parsed = parseDepthPreviewResponse(aiResponse);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse depth_preview response", 500);
+      return errorResponse("ai_error", "Failed to parse depth_preview response", 500, cors);
     }
 
     console.log(`[build-course] depth_preview: quick=${parsed.quick.section_count}, standard=${parsed.standard.section_count}, deep=${parsed.deep.section_count}`);
 
     // 9. Return (stateless — no DB write, no credits)
     return new Response(JSON.stringify({ ok: true, data: parsed }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (err) {
-    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status);
-    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500);
+    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status, cors);
+    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500, cors);
     throw err;
   }
 }
@@ -2757,11 +2767,12 @@ async function handleContentWrite(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id || !body.section_id) {
-    return errorResponse("bad_request", "course_id and section_id are required for content_write step", 400);
+    return errorResponse("bad_request", "course_id and section_id are required for content_write step", 400, cors);
   }
 
   try {
@@ -2773,7 +2784,7 @@ async function handleContentWrite(
       .eq("group_id", groupId)
       .single();
 
-    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404);
+    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404, cors);
 
     // ── 2. Load section ────────────────────────────────────────────────
     const { data: section, error: secErr } = await supabase
@@ -2783,7 +2794,7 @@ async function handleContentWrite(
       .eq("course_id", body.course_id)
       .single();
 
-    if (secErr || !section) return errorResponse("not_found", "Section not found", 404);
+    if (secErr || !section) return errorResponse("not_found", "Section not found", 404, cors);
 
     // ── 2b. Load sibling sections for course context ──────────────────
     const { data: allSections } = await supabase
@@ -2801,14 +2812,14 @@ async function handleContentWrite(
 
     const draftContent = section.draft_content || {};
     if (!draftContent.brief_en) {
-      return errorResponse("bad_request", "Section has no brief. Run structure_plan first.", 400);
+      return errorResponse("bad_request", "Section has no brief. Run structure_plan first.", 400, cors);
     }
 
     // ── 3. Check credits ───────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "content_write");
     const usageInfo = await checkUsage(supabase, userId, groupId);
-    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403);
-    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403, cors);
+    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
 
     // ── 4. Assemble source material (filtered by source_hints if available) ──
     const wizardConfig = course.wizard_config || {};
@@ -3048,7 +3059,7 @@ async function handleContentWrite(
       console.error("[build-course] content_write: raw AI response for section", body.section_id, ":",
         JSON.stringify(aiResponse)?.substring(0, 1000));
       await supabase.from("course_sections").update({ generation_status: "prose_error" }).eq("id", body.section_id);
-      return errorResponse("ai_error", "Failed to parse content_write response", 500);
+      return errorResponse("ai_error", "Failed to parse content_write response", 500, cors);
     }
 
     // ── 10. Save to section (JSONB merge — preserve brief) ──────────────
@@ -3069,7 +3080,7 @@ async function handleContentWrite(
 
     if (saveErr) {
       console.error("[build-course] content_write: save error:", saveErr.message);
-      return errorResponse("db_error", "Failed to save content", 500);
+      return errorResponse("db_error", "Failed to save content", 500, cors);
     }
 
     // ── 11. Track credits ──────────────────────────────────────────────
@@ -3091,14 +3102,14 @@ async function handleContentWrite(
       content_en: parsed.content_en,
       content_es: "",
       teaching_notes: parsed.teaching_notes,
-    });
+    }, 200, cors);
   } catch (err) {
     // Persist prose_error on AI/usage failures so Pass 3 and retries can check DB status
     if (body.section_id) {
       await supabase.from("course_sections").update({ generation_status: "prose_error" }).eq("id", body.section_id);
     }
-    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status);
-    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500);
+    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status, cors);
+    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500, cors);
     throw err;
   }
 }
@@ -3113,11 +3124,12 @@ async function handlePass3(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   const language = body.language || "en";
 
   if (!body.course_id || !body.section_id) {
-    return errorResponse("bad_request", "course_id and section_id are required for pass3 step", 400);
+    return errorResponse("bad_request", "course_id and section_id are required for pass3 step", 400, cors);
   }
 
   try {
@@ -3129,7 +3141,7 @@ async function handlePass3(
       .eq("group_id", groupId)
       .single();
 
-    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404);
+    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404, cors);
 
     const wizardConfig = (course.wizard_config || {}) as Record<string, unknown>;
     const depthConfig = getDepthConfig(wizardConfig);
@@ -3142,21 +3154,21 @@ async function handlePass3(
       .eq("course_id", body.course_id)
       .single();
 
-    if (secErr || !section) return errorResponse("not_found", "Section not found", 404);
+    if (secErr || !section) return errorResponse("not_found", "Section not found", 404, cors);
 
     if (!section.draft_content || !section.draft_content.content_en) {
-      return errorResponse("bad_request", "Section has no draft_content prose. Run content_write first.", 400);
+      return errorResponse("bad_request", "Section has no draft_content prose. Run content_write first.", 400, cors);
     }
 
     if (section.generation_status === "prose_error") {
-      return errorResponse("bad_request", "Section has prose_error status. Fix content before layout.", 400);
+      return errorResponse("bad_request", "Section has prose_error status. Fix content before layout.", 400, cors);
     }
 
     // ── 3. Check credits ───────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "pass2_section");
     const usageInfo = await checkUsage(supabase, userId, groupId);
-    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403);
-    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403, cors);
+    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
 
     // ── 4. Fetch system prompt (try new formatter first, fall back to old) ──
     const systemPrompt = await fetchPromptBySlug(supabase, "course-pass3-formatter", language) ||
@@ -3255,14 +3267,14 @@ ${blueprint ? "Fill the blueprint slots with content from the prose above." : "D
     if (!parsed) {
       console.error("[build-course] pass3: raw AI response for section", body.section_id, ":",
         JSON.stringify(aiResponse)?.substring(0, 1000));
-      return errorResponse("ai_error", "Failed to parse pass3 layout response", 500);
+      return errorResponse("ai_error", "Failed to parse pass3 layout response", 500, cors);
     }
 
     // Defense-in-depth: strip any AI-generated page_header elements
     parsed.elements = parsed.elements.filter(el => el.type !== "page_header");
 
     if (parsed.elements.length === 0) {
-      return errorResponse("ai_error", "AI returned no valid layout elements after filtering", 500);
+      return errorResponse("ai_error", "AI returned no valid layout elements after filtering", 500, cors);
     }
 
     // Deterministic page_header prepend for section 0
@@ -3321,7 +3333,7 @@ ${blueprint ? "Fill the blueprint slots with content from the prose above." : "D
 
     if (saveErr) {
       console.error("[build-course] pass3: save error:", saveErr.message);
-      return errorResponse("db_error", "Failed to save elements", 500);
+      return errorResponse("db_error", "Failed to save elements", 500, cors);
     }
 
     // ── 9. Track credits ───────────────────────────────────────────────
@@ -3340,10 +3352,10 @@ ${blueprint ? "Fill the blueprint slots with content from the prose above." : "D
       section_id: body.section_id,
       elements: processedElements,
       elements_created: processedElements.length,
-    });
+    }, 200, cors);
   } catch (err) {
-    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status);
-    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500);
+    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status, cors);
+    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500, cors);
     throw err;
   }
 }
@@ -3358,9 +3370,10 @@ async function handleTranslate(
   userId: string,
   groupId: string,
   body: BuildCourseRequest,
+  cors: Record<string, string>,
 ): Promise<Response> {
   if (!body.course_id || !body.section_id) {
-    return errorResponse("bad_request", "course_id and section_id are required for translate step", 400);
+    return errorResponse("bad_request", "course_id and section_id are required for translate step", 400, cors);
   }
 
   try {
@@ -3372,7 +3385,7 @@ async function handleTranslate(
       .eq("group_id", groupId)
       .single();
 
-    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404);
+    if (courseErr || !course) return errorResponse("not_found", "Course not found", 404, cors);
 
     // ── 2. Load section ────────────────────────────────────────────────
     const { data: section, error: secErr } = await supabase
@@ -3382,21 +3395,21 @@ async function handleTranslate(
       .eq("course_id", body.course_id)
       .single();
 
-    if (secErr || !section) return errorResponse("not_found", "Section not found", 404);
+    if (secErr || !section) return errorResponse("not_found", "Section not found", 404, cors);
 
     if (section.generation_status !== "generated") {
-      return errorResponse("bad_request", `Section status is '${section.generation_status}', must be 'generated' for translation`, 400);
+      return errorResponse("bad_request", `Section status is '${section.generation_status}', must be 'generated' for translation`, 400, cors);
     }
 
     if (!section.elements || !Array.isArray(section.elements) || section.elements.length === 0) {
-      return errorResponse("bad_request", "Section has no elements to translate", 400);
+      return errorResponse("bad_request", "Section has no elements to translate", 400, cors);
     }
 
     // ── 3. Check credits ───────────────────────────────────────────────
     const creditCost = await getCreditCost(supabase, groupId, "course_builder", "translate");
     const usageInfo = await checkUsage(supabase, userId, groupId);
-    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403);
-    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429);
+    if (!usageInfo) return errorResponse("forbidden", "Not a member of this group", 403, cors);
+    if (!usageInfo.can_ask) return errorResponse("limit_exceeded", "Usage limit reached", 429, cors);
 
     // ── 4. Build EN content summary for translation ────────────────────
     const elementSummary = section.elements
@@ -3470,7 +3483,7 @@ async function handleTranslate(
     // ── 8. Parse response ──────────────────────────────────────────────
     const parsed = parseTranslationResponse(aiResponse);
     if (!parsed) {
-      return errorResponse("ai_error", "Failed to parse translation response", 500);
+      return errorResponse("ai_error", "Failed to parse translation response", 500, cors);
     }
 
     // ── 9. Merge _es fields into existing elements ─────────────────────
@@ -3540,7 +3553,7 @@ async function handleTranslate(
 
     if (saveErr) {
       console.error("[build-course] translate: save error:", saveErr.message);
-      return errorResponse("db_error", "Failed to save translation", 500);
+      return errorResponse("db_error", "Failed to save translation", 500, cors);
     }
 
     // ── 11. Translate page_header if requested (first section) ─────────
@@ -3615,10 +3628,10 @@ async function handleTranslate(
       content_es: parsed.content_es,
       elements: mergedElements,
       generation_status: "translated",
-    });
+    }, 200, cors);
   } catch (err) {
-    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status);
-    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500);
+    if (err instanceof ClaudeError) return errorResponse("ai_error", err.message, err.status, cors);
+    if (err instanceof UsageError) return errorResponse("server_error", err.message, 500, cors);
     throw err;
   }
 }
@@ -3628,9 +3641,12 @@ async function handleTranslate(
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const cors = getCorsHeaders(origin);
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
 
   console.log("[build-course] Request received");
@@ -3647,6 +3663,7 @@ Deno.serve(async (req) => {
         "forbidden",
         "Manager or admin role required",
         403,
+        cors,
       );
     }
 
@@ -3656,7 +3673,7 @@ Deno.serve(async (req) => {
     const groupId = resolvedGroupId;
 
     if (!body.step) {
-      return errorResponse("bad_request", "step is required (outline | content | chat_edit | full_content | assemble | pass1 | pass2 | structure_plan | content_write | pass3 | translate | depth_preview)", 400);
+      return errorResponse("bad_request", "step is required (outline | content | chat_edit | full_content | assemble | pass1 | pass2 | structure_plan | content_write | pass3 | translate | depth_preview)", 400, cors);
     }
 
     console.log(`[build-course] Step: ${body.step} | Group: ${groupId}`);
@@ -3664,47 +3681,48 @@ Deno.serve(async (req) => {
     // ── 4. Route to step handler ─────────────────────────────────────────
     switch (body.step) {
       case "outline":
-        return await handleOutline(supabase, userId, groupId, body);
+        return await handleOutline(supabase, userId, groupId, body, cors);
       case "content":
-        return await handleContent(supabase, userId, groupId, body);
+        return await handleContent(supabase, userId, groupId, body, cors);
       case "chat_edit":
-        return await handleChatEdit(supabase, userId, groupId, body);
+        return await handleChatEdit(supabase, userId, groupId, body, cors);
       case "full_content":
-        return await handleFullContent(supabase, userId, groupId, body);
+        return await handleFullContent(supabase, userId, groupId, body, cors);
       case "assemble":
-        return await handleAssemble(supabase, userId, groupId, body);
+        return await handleAssemble(supabase, userId, groupId, body, cors);
       case "pass1":
-        return await handlePass1(supabase, userId, groupId, body);
+        return await handlePass1(supabase, userId, groupId, body, cors);
       case "pass2":
-        return await handlePass2(supabase, userId, groupId, body);
+        return await handlePass2(supabase, userId, groupId, body, cors);
       case "structure_plan":
-        return await handleStructurePlan(supabase, userId, groupId, body);
+        return await handleStructurePlan(supabase, userId, groupId, body, cors);
       case "content_write":
-        return await handleContentWrite(supabase, userId, groupId, body);
+        return await handleContentWrite(supabase, userId, groupId, body, cors);
       case "pass3":
-        return await handlePass3(supabase, userId, groupId, body);
+        return await handlePass3(supabase, userId, groupId, body, cors);
       case "translate":
-        return await handleTranslate(supabase, userId, groupId, body);
+        return await handleTranslate(supabase, userId, groupId, body, cors);
       case "depth_preview":
-        return await handleDepthPreview(supabase, userId, groupId, body);
+        return await handleDepthPreview(supabase, userId, groupId, body, cors);
       default:
         return errorResponse(
           "bad_request",
           `Invalid step: ${body.step}. Must be outline, content, chat_edit, full_content, assemble, pass1, pass2, structure_plan, content_write, pass3, translate, or depth_preview`,
           400,
+          cors,
         );
     }
   } catch (err) {
     if (err instanceof AuthError) {
-      return errorResponse("unauthorized", err.message, 401);
+      return errorResponse("unauthorized", err.message, 401, cors);
     }
     if (err instanceof UsageError) {
-      return errorResponse("server_error", err.message, 500);
+      return errorResponse("server_error", err.message, 500, cors);
     }
     if (err instanceof ClaudeError) {
-      return errorResponse("ai_error", err.message, err.status);
+      return errorResponse("ai_error", err.message, err.status, cors);
     }
     console.error("[build-course] Unexpected error:", err);
-    return errorResponse("server_error", "An unexpected error occurred", 500);
+    return errorResponse("server_error", "An unexpected error occurred", 500, cors);
   }
 });

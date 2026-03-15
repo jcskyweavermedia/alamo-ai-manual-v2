@@ -5,7 +5,7 @@
 // =============================================================================
 
 import { useState } from 'react';
-import { ArrowLeft, Undo2, Redo2, Save, Loader2, Sparkles, Bot, ScrollText, Smartphone, Tablet, Monitor, Languages } from 'lucide-react';
+import { ArrowLeft, Undo2, Redo2, Save, Loader2, Sparkles, Smartphone, Tablet, Monitor, Languages } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ const STRINGS = {
     back: 'Back',
     saveDraft: 'Save Draft',
     publish: 'Publish',
+    republish: 'Republish',
     saved: 'Saved',
     saving: 'Saving...',
     unsaved: 'Unsaved changes',
@@ -57,13 +58,14 @@ const STRINGS = {
     back: 'Volver',
     saveDraft: 'Guardar',
     publish: 'Publicar',
+    republish: 'Republicar',
     saved: 'Guardado',
     saving: 'Guardando...',
     unsaved: 'Cambios sin guardar',
     error: 'Error al guardar',
     undo: 'Deshacer',
     redo: 'Rehacer',
-    titlePlaceholder: 'Titulo del curso...',
+    titlePlaceholder: 'T\u00edtulo del curso...',
     buildCourse: 'Construir Curso',
     hideAi: 'Ocultar Instrucciones IA',
     showAi: 'Mostrar Instrucciones IA',
@@ -102,8 +104,8 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
   const t = STRINGS[language];
   const navigate = useNavigate();
   const {
-    state, dispatch, setTitleEn, canUndo, canRedo, undo, redo, publish, translateCourse,
-    toggleAiInstructions, setCanvasViewMode, setPreviewDevice, setPreviewLang,
+    state, setTitleEn, canUndo, canRedo, undo, redo, publish, translateCourse,
+    setCanvasViewMode, setPreviewDevice, setPreviewLang,
   } = useCourseBuilder();
 
   const isEditor = state.canvasViewMode === 'editor';
@@ -236,33 +238,6 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
             >
               <Redo2 className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={toggleAiInstructions}
-              title={state.showAiInstructions ? t.hideAi : t.showAi}
-              className={cn(
-                'flex items-center justify-center rounded-md h-7 w-7 transition-all',
-                state.showAiInstructions
-                  ? 'bg-background shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Bot className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => dispatch({
-                type: 'SET_RIGHT_PANEL_MODE',
-                payload: state.rightPanelMode === 'draft-content' ? 'ai-chat' : 'draft-content',
-              })}
-              title={state.rightPanelMode === 'draft-content' ? t.hideDraft : t.showDraft}
-              className={cn(
-                'flex items-center justify-center rounded-md h-7 w-7 transition-all',
-                state.rightPanelMode === 'draft-content'
-                  ? 'bg-background shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <ScrollText className="h-3.5 w-3.5" />
-            </button>
           </div>
         )}
 
@@ -270,6 +245,7 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
         <ViewModeSwitcher
           value={state.canvasViewMode}
           onChange={setCanvasViewMode}
+          language={language}
         />
 
         {/* Language toggle */}
@@ -306,6 +282,7 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
                 key={key}
                 onClick={() => setPreviewDevice(key)}
                 title={label}
+                aria-label={label}
                 className={cn(
                   'flex items-center justify-center rounded-md h-7 w-7 transition-all',
                   state.previewDevice === key
@@ -344,6 +321,7 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
           onClick={onSave}
           disabled={state.isSaving || !state.isDirty}
           title={t.saveDraft}
+          aria-label={t.saveDraft}
         >
           {state.isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -377,9 +355,9 @@ export function CourseBuilderTopBar({ language, onSave, onBuildCourse3Pass }: Co
         <button
           className="flex items-center gap-1.5 h-8 px-3 rounded-xl text-[12px] font-medium bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 shadow-sm transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
           onClick={handlePublish}
-          disabled={state.isSaving || isTranslating || state.aiGenerating || state.status === 'published'}
+          disabled={state.isSaving || isTranslating || state.aiGenerating || (state.status === 'published' && !state.hasUnpublishedChanges)}
         >
-          {t.publish}
+          {state.status === 'published' && state.hasUnpublishedChanges ? t.republish : t.publish}
         </button>
       </div>
 

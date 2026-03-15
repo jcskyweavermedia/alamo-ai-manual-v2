@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useFileUpload } from '@/hooks/use-file-upload';
 import { useImageUpload } from '@/hooks/use-image-upload';
+import { useGroupId } from '@/hooks/useGroupId';
 import { useGenerateImage } from '@/hooks/use-generate-image';
 import { derivePlateCategory, detectCocktailMood } from '@/lib/image-category-helpers';
 import { useTranslateProduct } from '@/hooks/use-translate-product';
@@ -213,6 +214,7 @@ function buildDraftFromProduct(
 function IngestPageInner() {
   const { language, setLanguage } = useLanguage();
   const { isAdmin, user } = useAuth();
+  const groupId = useGroupId();
   // Chat panel is hidden below lg (1024px) via AppShell's `hidden lg:flex`.
   // Show mobile layout + floating tabs whenever the chat panel isn't visible.
   const [isBelowLg, setIsBelowLg] = useState(false);
@@ -614,6 +616,10 @@ function IngestPageInner() {
   // ---------------------------------------------------------------------------
   const handlePublish = useCallback(async (skipImageWarning = false, skipStaleWarning = false) => {
     if (!user) return;
+    if (!groupId) {
+      toast({ title: 'Error', description: 'Group not loaded yet. Please try again.' });
+      return;
+    }
     // Synchronous guard — React setState is async so isPublishing state alone cannot prevent
     // a second click from entering the handler before the first re-render completes.
     if (publishLockRef.current) return;
@@ -736,6 +742,7 @@ function IngestPageInner() {
             last_ai_generated_at: new Date().toISOString(),
           },
           created_by: user.id,
+          group_id: groupId,
         };
 
         let newRowId: string;
@@ -949,6 +956,7 @@ function IngestPageInner() {
             last_ai_generated_at: new Date().toISOString(),
           },
           created_by: user.id,
+          group_id: groupId,
         };
 
         let newRowId: string;
@@ -1184,6 +1192,7 @@ function IngestPageInner() {
             last_ai_generated_at: new Date().toISOString(),
           },
           created_by: user.id,
+          group_id: groupId,
         };
 
         let newRowId: string;
@@ -1307,6 +1316,10 @@ function IngestPageInner() {
   const handlePublishPlateSpec = useCallback(async (skipImageWarning = false, skipStaleWarning = false) => {
     console.log('[publish] handlePublishPlateSpec called', { skipImageWarning, skipStaleWarning, hasUser: !!user });
     if (!user) return;
+    if (!groupId) {
+      toast({ title: 'Error', description: 'Group not loaded yet. Please try again.' });
+      return;
+    }
     // Synchronous guard — React setState is async so isPublishing state alone cannot prevent
     // a second click from entering the handler before the first re-render completes.
     if (publishLockRef.current) return;
@@ -1512,6 +1525,7 @@ function IngestPageInner() {
         },
         created_by: user.id,
         source_session_id: state.sessionId || null,
+        group_id: groupId,
       };
 
       let plateSpecId: string;
@@ -1582,6 +1596,7 @@ function IngestPageInner() {
               },
               created_by: user.id,
               source_session_id: state.sessionId || null,
+              group_id: groupId,
             };
 
             // Step 1: Check by plate_spec_id (edit mode)
