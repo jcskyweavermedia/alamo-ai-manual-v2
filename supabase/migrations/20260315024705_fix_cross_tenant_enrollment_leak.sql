@@ -1,11 +1,7 @@
 -- =============================================================================
--- MIGRATION: create_get_employee_detail
--- Creates get_employee_detail(p_employee_id UUID) RPC function.
--- Returns a single employee row with a nested courses JSONB array.
--- Each course contains enrollment stats plus a modules sub-array built
--- from section_progress + course_sections.
---
--- Authorization: caller must be manager or admin in the employee's group.
+-- FIX: Cross-tenant enrollment data leak in get_employee_detail
+-- Adds AND ce.group_id = v_group_id to the enrollment query so a manager
+-- in Group A cannot see enrollment data from Group B for shared employees.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_employee_detail(p_employee_id UUID)
@@ -37,9 +33,7 @@ DECLARE
   v_progress_pct  INT;
   v_course_list   JSONB := '[]'::JSONB;
 BEGIN
-  -- -----------------------------------------------------------------------
   -- 1. Look up the employee and their group
-  -- -----------------------------------------------------------------------
   SELECT e.group_id, e.profile_id
     INTO v_group_id, v_profile_id
     FROM public.employees e
@@ -49,9 +43,7 @@ BEGIN
     RAISE EXCEPTION 'Employee not found';
   END IF;
 
-  -- -----------------------------------------------------------------------
   -- 2. Authorization: caller must be manager or admin in the same group
-  -- -----------------------------------------------------------------------
   IF NOT EXISTS (
     SELECT 1
       FROM public.group_memberships
@@ -62,9 +54,7 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- -----------------------------------------------------------------------
   -- 3. Build the courses JSONB array (only if employee has a linked profile)
-  -- -----------------------------------------------------------------------
   IF v_profile_id IS NOT NULL THEN
     FOR rec_enrollment IN
       SELECT
@@ -147,9 +137,7 @@ BEGIN
 
   v_courses_jsonb := v_course_list;
 
-  -- -----------------------------------------------------------------------
   -- 4. Return the employee row with the assembled courses array
-  -- -----------------------------------------------------------------------
   RETURN QUERY
   SELECT
     e.id,

@@ -15,7 +15,7 @@
  * Auth: verify_jwt=false -- manual JWT verification via authenticateWithClaims()
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
 import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 import type { SupabaseClient } from "../_shared/supabase.ts";
@@ -1001,6 +1001,9 @@ Deno.serve(async (req) => {
   // =========================================================================
   // Step 1: CORS preflight
   // =========================================================================
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -1031,13 +1034,14 @@ Deno.serve(async (req) => {
 
     // Validate question
     if (!question?.trim()) {
-      return errorResponse("bad_request", "Question is required", 400);
+      return errorResponse("bad_request", "Question is required", 400, corsHeaders);
     }
     if (question.length > MAX_QUESTION_LENGTH) {
       return errorResponse(
         "bad_request",
         `Question must be ${MAX_QUESTION_LENGTH} characters or fewer`,
         400,
+        corsHeaders,
       );
     }
 
@@ -1047,12 +1051,13 @@ Deno.serve(async (req) => {
         "bad_request",
         "Valid templateId (UUID) is required",
         400,
+        corsHeaders,
       );
     }
 
     // Validate groupId
     if (!groupId) {
-      return errorResponse("bad_request", "Group ID is required", 400);
+      return errorResponse("bad_request", "Group ID is required", 400, corsHeaders);
     }
 
     // Validate attachments
@@ -1061,6 +1066,7 @@ Deno.serve(async (req) => {
         "bad_request",
         `Maximum ${MAX_ATTACHMENTS} attachments allowed`,
         400,
+        corsHeaders,
       );
     }
     for (const att of attachments) {
@@ -1069,6 +1075,7 @@ Deno.serve(async (req) => {
           "bad_request",
           `Attachment "${att.name}" exceeds size limit`,
           400,
+          corsHeaders,
         );
       }
     }
@@ -1083,7 +1090,7 @@ Deno.serve(async (req) => {
     const usage = await checkUsage(supabase, userId, groupId);
 
     if (!usage) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, corsHeaders);
     }
 
     if (!usage.can_ask) {
@@ -1109,6 +1116,7 @@ Deno.serve(async (req) => {
           },
         },
         429,
+        corsHeaders,
       );
     }
 
@@ -1132,6 +1140,7 @@ Deno.serve(async (req) => {
         "not_found",
         "Form template not found or not published",
         404,
+        corsHeaders,
       );
     }
 
@@ -1220,7 +1229,7 @@ Deno.serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
       console.error("[ask-form] OPENAI_API_KEY not configured");
-      return errorResponse("server_error", "AI service not configured", 500);
+      return errorResponse("server_error", "AI service not configured", 500, corsHeaders);
     }
 
     // Get tools enabled for this template
@@ -1459,17 +1468,17 @@ Deno.serve(async (req) => {
       `[ask-form] Success -- fields: ${Object.keys(resolvedUpdates).length}, missing: ${allMissingFields.length}, tools: ${toolResultSummaries.length}, followUp: ${followUpQuestion ? "yes" : "no"}`,
     );
 
-    return jsonResponse(response);
+    return jsonResponse(response, 200, corsHeaders);
   } catch (error) {
     // Handle specific error types
     if (error instanceof AuthError) {
       console.log("[ask-form] Auth error:", error.message);
-      return errorResponse("Unauthorized", error.message, 401);
+      return errorResponse("Unauthorized", error.message, 401, corsHeaders);
     }
 
     if (error instanceof UsageError) {
       console.error("[ask-form] Usage error:", error.message);
-      return errorResponse("server_error", error.message, 500);
+      return errorResponse("server_error", error.message, 500, corsHeaders);
     }
 
     // Handle AbortError from timeout
@@ -1479,6 +1488,7 @@ Deno.serve(async (req) => {
         "timeout",
         "AI request timed out. Please try again.",
         504,
+        corsHeaders,
       );
     }
 
@@ -1487,6 +1497,7 @@ Deno.serve(async (req) => {
       "server_error",
       "An unexpected error occurred",
       500,
+      corsHeaders,
     );
   }
 });

@@ -9,7 +9,7 @@
  * Auth: verify_jwt=false -- manual JWT verification via authenticateWithClaims()
  */
 
-import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { authenticateWithClaims, AuthError } from "../_shared/auth.ts";
 import { checkUsage, incrementUsage, UsageError } from "../_shared/usage.ts";
 
@@ -223,6 +223,9 @@ const FORM_TEMPLATE_DRAFT_SCHEMA = {
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -243,6 +246,7 @@ Deno.serve(async (req) => {
         "forbidden",
         "Admin or manager access required",
         403,
+        corsHeaders,
       );
     }
 
@@ -258,7 +262,7 @@ Deno.serve(async (req) => {
     } = body;
 
     if (!groupId) {
-      return errorResponse("bad_request", "groupId is required", 400);
+      return errorResponse("bad_request", "groupId is required", 400, corsHeaders);
     }
 
     // Exactly one input mode required
@@ -270,6 +274,7 @@ Deno.serve(async (req) => {
         "bad_request",
         "One of description, imageBase64, or fileContent is required",
         400,
+        corsHeaders,
       );
     }
     if (inputCount > 1) {
@@ -277,6 +282,7 @@ Deno.serve(async (req) => {
         "bad_request",
         "Only one of description, imageBase64, or fileContent should be provided",
         400,
+        corsHeaders,
       );
     }
 
@@ -286,6 +292,7 @@ Deno.serve(async (req) => {
         "bad_request",
         `Description must be ${MAX_DESCRIPTION_LENGTH} chars or fewer`,
         400,
+        corsHeaders,
       );
     }
     if (fileContent && fileContent.length > MAX_FILE_CONTENT_LENGTH) {
@@ -293,16 +300,17 @@ Deno.serve(async (req) => {
         "bad_request",
         `File content must be ${MAX_FILE_CONTENT_LENGTH} chars or fewer`,
         400,
+        corsHeaders,
       );
     }
 
     // 4. Check usage
     const usage = await checkUsage(supabase, userId, groupId);
     if (!usage) {
-      return errorResponse("forbidden", "Not a member of this group", 403);
+      return errorResponse("forbidden", "Not a member of this group", 403, corsHeaders);
     }
     if (!usage.can_ask) {
-      return errorResponse("limit_exceeded", "Usage limit reached", 429);
+      return errorResponse("limit_exceeded", "Usage limit reached", 429, corsHeaders);
     }
 
     // 5. Build system prompt
@@ -360,7 +368,7 @@ Deno.serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) {
       console.error("[generate-form-template] OPENAI_API_KEY not configured");
-      return errorResponse("server_error", "AI service not configured", 500);
+      return errorResponse("server_error", "AI service not configured", 500, corsHeaders);
     }
 
     const controller = new AbortController();
@@ -400,6 +408,7 @@ Deno.serve(async (req) => {
           "ai_error",
           "Failed to generate form template",
           500,
+          corsHeaders,
         );
       }
 
@@ -414,6 +423,7 @@ Deno.serve(async (req) => {
           "ai_malformed",
           "The AI returned an incomplete response. Try a simpler description.",
           500,
+          corsHeaders,
         );
       }
 
@@ -429,6 +439,7 @@ Deno.serve(async (req) => {
           "ai_malformed",
           "The AI returned an invalid response. Please try again.",
           500,
+          corsHeaders,
         );
       }
 
@@ -465,21 +476,21 @@ Deno.serve(async (req) => {
           monthlyUsed: usage.monthly_count + 1,
           monthlyLimit: usage.monthly_limit,
         },
-      });
+      }, 200, corsHeaders);
     } finally {
       clearTimeout(timeoutId);
     }
   } catch (error) {
     if (error instanceof AuthError) {
-      return errorResponse("Unauthorized", error.message, 401);
+      return errorResponse("Unauthorized", error.message, 401, corsHeaders);
     }
     if (error instanceof UsageError) {
-      return errorResponse("server_error", error.message, 500);
+      return errorResponse("server_error", error.message, 500, corsHeaders);
     }
     if (error instanceof DOMException && error.name === "AbortError") {
-      return errorResponse("timeout", "AI request timed out", 504);
+      return errorResponse("timeout", "AI request timed out", 504, corsHeaders);
     }
     console.error("[generate-form-template] Unexpected error:", error);
-    return errorResponse("server_error", "An unexpected error occurred", 500);
+    return errorResponse("server_error", "An unexpected error occurred", 500, corsHeaders);
   }
 });

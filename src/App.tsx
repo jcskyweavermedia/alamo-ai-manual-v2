@@ -20,7 +20,8 @@ import Wines from "./pages/Wines";
 import Cocktails from "./pages/Cocktails";
 import BeerLiquor from "./pages/BeerLiquor";
 import StepsOfService from "./pages/StepsOfService";
-import CourseComingSoonPage from "./pages/CourseComingSoonPage";
+import CoursesPage from "./pages/CoursesPage";
+import CoursePlayerPage from "./pages/CoursePlayerPage";
 import IngestDashboard from "./pages/IngestDashboard";
 import IngestWizard from "./pages/IngestWizard";
 import IngestPage from "./pages/IngestPage";
@@ -28,6 +29,7 @@ const AdminFormsListPage = React.lazy(() => import("./pages/admin/AdminFormsList
 const AdminFormBuilderPage = React.lazy(() => import("./pages/admin/AdminFormBuilderPage"));
 const AdminCourseListPage = React.lazy(() => import("./pages/admin/AdminCourseListPage"));
 const AdminCourseBuilderPage = React.lazy(() => import("./pages/admin/AdminCourseBuilderPage"));
+const AdminTrainingDashboardPage = React.lazy(() => import("./pages/admin/AdminTrainingDashboardPage"));
 const ReviewDashboard = React.lazy(() => import("./pages/ReviewDashboard"));
 const FormSubmissionView = React.lazy(() => import("./pages/FormSubmissionView"));
 import Forms from "./pages/Forms";
@@ -96,10 +98,15 @@ const App = () => (
                 <StepsOfService />
               </ProtectedRoute>
             } />
-            {/* Courses — stub page while Course Builder is under construction */}
+            {/* Courses */}
             <Route path="/courses" element={
               <ProtectedRoute>
-                <CourseComingSoonPage />
+                <CoursesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/courses/:slug" element={
+              <ProtectedRoute>
+                <CoursePlayerPage />
               </ProtectedRoute>
             } />
             {/* Forms */}
@@ -131,10 +138,19 @@ const App = () => (
               </ProtectedRoute>
             } />
 
-            {/* Admin route - requires admin role */}
+            {/* Admin route - requires manager or admin role */}
             <Route path="/admin" element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
                 <Admin />
+              </ProtectedRoute>
+            } />
+
+            {/* Training Dashboard - requires manager or admin role (lazy-loaded) */}
+            <Route path="/admin/training" element={
+              <ProtectedRoute requiredRole={['manager', 'admin']}>
+                <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+                  <AdminTrainingDashboardPage />
+                </Suspense>
               </ProtectedRoute>
             } />
 

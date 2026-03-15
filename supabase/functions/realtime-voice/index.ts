@@ -6,6 +6,7 @@
  */
 
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 // =============================================================================
 // CONSTANTS
@@ -13,10 +14,8 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, upgrade, connection, sec-websocket-key, sec-websocket-version, sec-websocket-extensions, sec-websocket-protocol',
-};
+// Extra WebSocket headers not in the shared CORS helper
+const WS_EXTRA_HEADERS = 'upgrade, connection, sec-websocket-key, sec-websocket-version, sec-websocket-extensions, sec-websocket-protocol';
 
 // =============================================================================
 // TYPES
@@ -251,6 +250,14 @@ EXAMPLES OF WHEN TO SEARCH:
 // =============================================================================
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const baseCors = getCorsHeaders(origin);
+  // Merge WebSocket-specific headers into the shared CORS headers
+  const corsHeaders = {
+    ...baseCors,
+    "Access-Control-Allow-Headers": `${baseCors["Access-Control-Allow-Headers"]}, ${WS_EXTRA_HEADERS}`,
+  };
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
